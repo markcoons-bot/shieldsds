@@ -18,25 +18,8 @@ export default function OGImage() {
           alignItems: "center",
           justifyContent: "center",
           fontFamily: "system-ui, sans-serif",
-          position: "relative",
-          overflow: "hidden",
         }}
       >
-        {/* Background pattern */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: "flex",
-            opacity: 0.05,
-            background:
-              "repeating-linear-gradient(45deg, #F59E0B 0px, #F59E0B 1px, transparent 1px, transparent 40px)",
-          }}
-        />
-
         {/* Top accent bar */}
         <div
           style={{
@@ -50,29 +33,15 @@ export default function OGImage() {
           }}
         />
 
-        {/* Shield icon */}
+        {/* Shield emoji as icon stand-in */}
         <div
           style={{
+            fontSize: 72,
+            marginBottom: 16,
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 80,
-            height: 80,
-            marginBottom: 24,
           }}
         >
-          <svg
-            width="80"
-            height="80"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#F59E0B"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
+          🛡️
         </div>
 
         {/* Logo text */}
@@ -88,7 +57,6 @@ export default function OGImage() {
               fontSize: 64,
               fontWeight: 900,
               color: "#FFFFFF",
-              letterSpacing: "-0.02em",
             }}
           >
             Shield
@@ -98,7 +66,6 @@ export default function OGImage() {
               fontSize: 64,
               fontWeight: 900,
               color: "#F59E0B",
-              letterSpacing: "-0.02em",
             }}
           >
             SDS
@@ -127,33 +94,66 @@ export default function OGImage() {
             marginTop: 32,
           }}
         >
-          {["SDS Library", "Labels", "Training", "Inspections"].map((f) => (
-            <div
-              key={f}
-              style={{
-                display: "flex",
-                padding: "8px 20px",
-                borderRadius: 24,
-                border: "1px solid rgba(245, 158, 11, 0.3)",
-                background: "rgba(245, 158, 11, 0.1)",
-                color: "#F59E0B",
-                fontSize: 16,
-                fontWeight: 600,
-              }}
-            >
-              {f}
-            </div>
-          ))}
+          <div
+            style={{
+              display: "flex",
+              padding: "8px 20px",
+              borderRadius: 24,
+              border: "1px solid #D97706",
+              color: "#F59E0B",
+              fontSize: 16,
+              fontWeight: 600,
+            }}
+          >
+            SDS Library
+          </div>
+          <div
+            style={{
+              display: "flex",
+              padding: "8px 20px",
+              borderRadius: 24,
+              border: "1px solid #D97706",
+              color: "#F59E0B",
+              fontSize: 16,
+              fontWeight: 600,
+            }}
+          >
+            Labels
+          </div>
+          <div
+            style={{
+              display: "flex",
+              padding: "8px 20px",
+              borderRadius: 24,
+              border: "1px solid #D97706",
+              color: "#F59E0B",
+              fontSize: 16,
+              fontWeight: 600,
+            }}
+          >
+            Training
+          </div>
+          <div
+            style={{
+              display: "flex",
+              padding: "8px 20px",
+              borderRadius: 24,
+              border: "1px solid #D97706",
+              color: "#F59E0B",
+              fontSize: 16,
+              fontWeight: 600,
+            }}
+          >
+            Inspections
+          </div>
         </div>
 
-        {/* Bottom accent */}
+        {/* Bottom URL */}
         <div
           style={{
             position: "absolute",
             bottom: 24,
             display: "flex",
-            alignItems: "center",
-            gap: 8,
             color: "#475569",
             fontSize: 14,
           }}
