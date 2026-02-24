@@ -2,26 +2,77 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+html {
+  scroll-behavior: smooth;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #0B1426;
+  --foreground: #E8EDF5;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
+}
+
+/* Print styles for HazCom Program document */
+@media print {
+  aside {
+    display: none !important;
+  }
+  nav {
+    display: none !important;
+  }
+  .ml-64 {
+    margin-left: 0 !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+  .print\:rounded-none {
+    border-radius: 0 !important;
+  }
+  .print\:p-0 {
+    padding: 0 !important;
+  }
+  .print\:shadow-none {
+    box-shadow: none !important;
+  }
+}
+
+/* Label print window styles */
+@media print {
+  .label-print-page {
+    margin: 0;
+    padding: 0;
+  }
+  .label-crop-marks {
+    border: 0.5pt dashed #999;
+  }
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #132039;
+}
+::-webkit-scrollbar-thumb {
+  background: #2E4A75;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3A5A8A;
 }
