@@ -19,7 +19,13 @@ import {
 async function loadJsPDF() {
   const mod = await import("jspdf");
   const jsPDF = mod.default || mod.jsPDF;
-  await import("jspdf-autotable");
+  const autoTableMod = await import("jspdf-autotable");
+  // Explicitly apply the plugin to jsPDF (needed for production bundling)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const applyPlugin = (autoTableMod as any).default || (autoTableMod as any).applyPlugin;
+  if (typeof applyPlugin === "function") {
+    try { applyPlugin(jsPDF); } catch { /* already applied */ }
+  }
   return jsPDF;
 }
 
