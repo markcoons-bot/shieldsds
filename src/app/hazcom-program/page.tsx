@@ -2,7 +2,7 @@
 
 import DashboardLayout from "@/components/DashboardLayout";
 import HelpCard from "@/components/HelpCard";
-import { generateHazComProgramPDF } from "@/lib/pdf-export";
+import { generateHazComProgramPDF } from "@/lib/pdf-generator";
 import {
   sdsEntries,
   employees,
@@ -84,7 +84,14 @@ export default function HazComProgramPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => generateHazComProgramPDF()}
+            onClick={async () => {
+              try {
+                await generateHazComProgramPDF();
+              } catch (err) {
+                console.error("PDF generation error:", err);
+                alert("PDF error: " + (err instanceof Error ? err.message : "Unknown error"));
+              }
+            }}
             className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white text-sm px-4 py-2 rounded-lg transition-colors"
           >
             <Download className="h-4 w-4" />
@@ -102,9 +109,15 @@ export default function HazComProgramPage() {
 
       <div className="mb-6 print:hidden">
         <HelpCard>
-          <p>
-            <strong className="text-amber-400">OSHA 29 CFR 1910.1200(e)(1)</strong> requires every employer with hazardous chemicals to develop, implement, and maintain a written hazard communication program. This document IS your written program — keep it current and accessible to all employees.
-          </p>
+          <p><strong className="text-white">This is the FIRST document an OSHA inspector asks to see.</strong> It must describe:</p>
+          <p><strong className="text-amber-400">1. How you handle labels</strong> — what system you use for secondary containers, who is responsible</p>
+          <p><strong className="text-amber-400">2. How employees access SDS</strong> — where the binder/tablet/system is, how they use it, what the backup is</p>
+          <p><strong className="text-amber-400">3. How training works</strong> — when it happens, what it covers, how it&apos;s documented</p>
+          <p><strong className="text-amber-400">4. Your chemical list</strong> — must match what&apos;s actually on-site</p>
+          <p><strong className="text-amber-400">5. Non-routine tasks</strong> — procedures for unusual chemical exposures (cleaning inside equipment, handling spills)</p>
+          <p><strong className="text-amber-400">6. Contractor communication</strong> — how you share chemical info with other employers&apos; workers on your site</p>
+          <p>Without this document, an inspector will cite you immediately under <span className="text-amber-500/80 text-xs">29 CFR 1910.1200(e)(1)</span>. ShieldSDS generates this document from your actual data, so it&apos;s always current. Most shops either don&apos;t have one at all, or have a generic template from years ago that doesn&apos;t match their current chemicals.</p>
+          <p className="text-amber-400/80 italic">TIP: Print this document and keep a copy in your front office as well. If the power is out when an inspector arrives, you can still hand them the paper version.</p>
         </HelpCard>
       </div>
 
@@ -808,7 +821,14 @@ export default function HazComProgramPage() {
         </p>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => generateHazComProgramPDF()}
+            onClick={async () => {
+              try {
+                await generateHazComProgramPDF();
+              } catch (err) {
+                console.error("PDF generation error:", err);
+                alert("PDF error: " + (err instanceof Error ? err.message : "Unknown error"));
+              }
+            }}
             className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white text-sm px-4 py-2 rounded-lg transition-colors"
           >
             <Download className="h-4 w-4" />

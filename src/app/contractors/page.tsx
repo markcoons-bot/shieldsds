@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import HelpCard from "@/components/HelpCard";
-import { generateContractorPacketPDF } from "@/lib/pdf-export";
+import { generateContractorPacketPDF } from "@/lib/pdf-generator";
 import {
   sdsEntries,
   inventoryItems,
@@ -159,7 +159,14 @@ function PacketPreview({
                 Share Link
               </button>
               <button
-                onClick={() => generateContractorPacketPDF({ company: packet.company, contact: packet.contact, locations: packet.locations, startDate: packet.startDate, endDate: packet.endDate })}
+                onClick={async () => {
+                  try {
+                    await generateContractorPacketPDF({ company: packet.company, contact: packet.contact, locations: packet.locations, startDate: packet.startDate, endDate: packet.endDate });
+                  } catch (err) {
+                    console.error("PDF generation error:", err);
+                    alert("PDF error: " + (err instanceof Error ? err.message : "Unknown error"));
+                  }
+                }}
                 className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-xs px-3 py-1.5 rounded-lg transition-colors"
               >
                 <Download className="h-3.5 w-3.5" />
@@ -469,9 +476,17 @@ export default function ContractorsPage() {
 
       <div className="mb-6">
         <HelpCard>
-          <p>
-            <strong className="text-amber-400">OSHA 29 CFR 1910.1200(e)(2)</strong> requires multi-employer workplaces to share hazard information. When contractors work on-site, you must inform them of chemical hazards they may encounter and provide access to SDS. The contractor packet documents this communication.
-          </p>
+          <p><strong className="text-white">This is the HazCom requirement most small businesses don&apos;t know about.</strong></p>
+          <p>If workers from OTHER employers are on your site and may be exposed to your chemicals, you must:</p>
+          <ul className="list-none space-y-1 ml-1">
+            <li><strong className="text-amber-400">1.</strong> Provide them access to SDS for chemicals in their work area</li>
+            <li><strong className="text-amber-400">2.</strong> Inform them of precautionary measures they need to take</li>
+            <li><strong className="text-amber-400">3.</strong> Explain the labeling system used at your workplace</li>
+          </ul>
+          <p>This applies to: subcontractors, temporary workers, delivery drivers who enter chemical areas, maintenance contractors, insurance adjusters visiting the shop floor — anyone who isn&apos;t your employee but could be exposed.</p>
+          <p><strong className="text-amber-400">The requirement is on YOU</strong> as the host employer, not on the contractor. If a contractor&apos;s worker has an exposure incident at your shop and you can&apos;t prove you communicated the hazards, that&apos;s your citation.</p>
+          <p>ShieldSDS generates a location-specific safety packet that includes all required information and captures a digital acknowledgment signature — proving you met your obligation.</p>
+          <p className="text-amber-500/80 text-xs">[29 CFR 1910.1200(e)(2)]</p>
         </HelpCard>
       </div>
 

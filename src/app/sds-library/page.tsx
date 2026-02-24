@@ -5,7 +5,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import GHSPictogram from "@/components/GHSPictogram";
 import SDSFetchHelper from "@/components/SDSFetchHelper";
 import HelpCard from "@/components/HelpCard";
-import { generateSdsBinderPDF } from "@/lib/pdf-export";
+import { generateSDSBinder } from "@/lib/pdf-generator";
 import {
   sdsEntries,
   ghsPictogramLabels,
@@ -780,7 +780,14 @@ export default function SDSLibraryPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => generateSdsBinderPDF()}
+            onClick={async () => {
+              try {
+                await generateSDSBinder();
+              } catch (err) {
+                console.error("PDF generation error:", err);
+                alert("PDF error: " + (err instanceof Error ? err.message : "Unknown error"));
+              }
+            }}
             className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white text-sm px-4 py-2 rounded-lg transition-colors"
           >
             <BookOpen className="h-4 w-4" />
@@ -798,9 +805,17 @@ export default function SDSLibraryPage() {
 
       <div className="mb-6">
         <HelpCard>
-          <p>
-            <strong className="text-amber-400">OSHA 29 CFR 1910.1200(g)(8)</strong> requires that SDS be readily accessible to employees during each work shift. ShieldSDS provides digital access, but maintaining a PDF binder serves as a backup. SDS must be obtained for every hazardous chemical in the workplace.
-          </p>
+          <p><strong className="text-white">OSHA&apos;s #1 test during a HazCom inspection:</strong> the inspector walks to a shelf, picks up a container, and says &quot;show me the SDS for this product.&quot;</p>
+          <p>Your SDS must be &quot;readily accessible during each work shift to employees when they are in their work areas.&quot; OSHA explicitly says employees should NOT have to ask anyone for permission — that&apos;s considered a barrier to access.</p>
+          <p><strong className="text-amber-400">Electronic systems like ShieldSDS are permitted, but you must meet these requirements:</strong></p>
+          <ul className="list-none space-y-1 ml-1">
+            <li>✅ Reliable devices accessible at all times (shop tablet, employee phones)</li>
+            <li>✅ Employees trained on how to use the system</li>
+            <li>✅ A backup system for emergencies (offline mode + printed binder)</li>
+            <li>✅ No passwords or logins required for workers to view SDS</li>
+          </ul>
+          <p><strong className="text-amber-400">What to do if an SDS is missing:</strong> Contact the manufacturer — they are legally required to provide it. If they don&apos;t respond, you can file a complaint with OSHA, but you still need to obtain the SDS. Do not use a chemical without its SDS on file.</p>
+          <p className="text-amber-500/80 text-xs">[29 CFR 1910.1200(g)(8)]</p>
         </HelpCard>
       </div>
 

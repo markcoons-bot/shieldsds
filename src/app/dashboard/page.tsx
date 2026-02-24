@@ -254,9 +254,12 @@ export default function DashboardPage() {
 
       <div className="mb-6">
         <HelpCard>
-          <p>
-            <strong className="text-amber-400">OSHA 29 CFR 1910.1200</strong> (the Hazard Communication Standard) is consistently one of OSHA&apos;s most-cited standards. This dashboard provides a real-time view of your compliance status across all HazCom requirements: SDS management, container labeling, employee training, and the written program.
-          </p>
+          <p>Your dashboard shows real-time compliance status across all 6 OSHA HazCom obligations. Here&apos;s what the numbers mean:</p>
+          <p><strong className="text-amber-400">SDS Library</strong> — OSHA requires a Safety Data Sheet for every hazardous chemical, accessible to employees with NO barriers during every work shift. If this number doesn&apos;t match your chemical count, you have a gap. <span className="text-amber-500/80 text-xs">[29 CFR 1910.1200(g)(8)]</span></p>
+          <p><strong className="text-amber-400">Chemical Inventory</strong> — Your written HazCom program must include a list of all hazardous chemicals using product identifiers that match the SDS and labels. This number should match what&apos;s physically on your shelves. <span className="text-amber-500/80 text-xs">[29 CFR 1910.1200(e)(1)(i)]</span></p>
+          <p><strong className="text-amber-400">Label Compliance</strong> — Every secondary container (spray bottles, mix cups, squeeze bottles that aren&apos;t the original packaging) must have a GHS-compliant label with the product identifier, signal word, hazard statements, and pictograms. The ONLY exception is portable containers for immediate use by the person who transferred the chemical during the same work shift. <span className="text-amber-500/80 text-xs">[29 CFR 1910.1200(f)(6)]</span></p>
+          <p><strong className="text-amber-400">Training Compliance</strong> — Employees must be trained on chemical hazards at initial assignment and whenever a new hazard is introduced. Without documented records, you cannot prove training happened. <span className="text-amber-500/80 text-xs">[29 CFR 1910.1200(h)]</span></p>
+          <p><strong className="text-amber-400">Inspection Readiness Score</strong> — This weighted score reflects your overall compliance. An OSHA inspector evaluates all 6 obligations. Deficiency in any area can result in a citation. Serious violations carry penalties up to <strong>$16,131</strong> per violation. Willful violations can reach <strong>$161,323</strong>.</p>
         </HelpCard>
       </div>
 

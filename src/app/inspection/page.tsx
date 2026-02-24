@@ -5,7 +5,7 @@ import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import HelpCard from "@/components/HelpCard";
 import SelfAuditWizard from "@/components/SelfAuditWizard";
-import { generateInspectionPacketPDF } from "@/lib/pdf-export";
+import { generateInspectionPacket } from "@/lib/pdf-generator";
 import {
   sdsEntries,
   inventoryItems,
@@ -514,7 +514,16 @@ export default function InspectionPage() {
             Share Link
           </button>
           <button
-            onClick={() => { setToast("Generating PDF\u2026"); generateInspectionPacketPDF().then(() => setToast("Inspection packet PDF downloaded")).catch(() => setToast("PDF generation failed")); }}
+            onClick={async () => {
+              setToast("Generating PDF\u2026");
+              try {
+                await generateInspectionPacket();
+                setToast("Inspection packet PDF downloaded");
+              } catch (err) {
+                console.error("PDF generation error:", err);
+                setToast("PDF error: " + (err instanceof Error ? err.message : "Unknown error"));
+              }
+            }}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
           >
             <Download className="h-4 w-4" />
@@ -525,9 +534,19 @@ export default function InspectionPage() {
 
       <div className="mb-6">
         <HelpCard>
-          <p>
-            <strong className="text-amber-400">OSHA 29 CFR 1910.1200(e)</strong> requires employers to maintain a written hazard communication program. Regular self-audits using this inspection checklist help identify gaps before an OSHA inspector does. Non-compliance can result in citations averaging $16,131 per violation.
-          </p>
+          <p><strong className="text-white">During an OSHA HazCom inspection, the compliance officer evaluates your program against all requirements of 29 CFR 1910.1200.</strong></p>
+          <p><strong className="text-amber-400">Opening Conference:</strong> Inspector explains why they&apos;re there. They ask to see your written HazCom program immediately.</p>
+          <p><strong className="text-amber-400">Walkthrough:</strong> Inspector observes the workplace — Are containers labeled? Can employees access SDS? Are there unlabeled containers or chemicals without SDS?</p>
+          <p><strong className="text-amber-400">Record Review:</strong> Inspector asks for chemical inventory list, training records, written program, and SDS for specific chemicals they observed.</p>
+          <p><strong className="text-amber-400">Employee Interviews:</strong> Inspector may privately ask employees: &quot;Where do you find SDS?&quot; &quot;What would you do if this chemical got in your eyes?&quot; &quot;When were you last trained on chemical hazards?&quot;</p>
+          <p>Your compliance score on this page reflects exactly what the inspector evaluates. Each Warning or Fail item is a potential citation. Fix them before an inspection — not during one.</p>
+          <p><strong className="text-amber-400">Citation Penalties (current):</strong></p>
+          <ul className="list-none space-y-1 ml-1">
+            <li>• Other-than-serious: up to <strong>$16,131</strong> per violation</li>
+            <li>• Serious: up to <strong>$16,131</strong> per violation</li>
+            <li>• Willful or repeated: up to <strong>$161,323</strong> per violation</li>
+            <li>• Failure to abate: up to <strong>$16,131</strong> per day</li>
+          </ul>
         </HelpCard>
       </div>
 

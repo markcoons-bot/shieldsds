@@ -493,11 +493,21 @@ export default function InventoryPage() {
       </div>
 
       <HelpCard>
-        <p className="text-sm text-amber-200/80">
-          <strong className="text-amber-300">OSHA 29 CFR 1910.1200(e)(1)(i)</strong> requires a list of known hazardous chemicals in the workplace.
-          This inventory tracks chemical locations, container counts, and labeling status across all {inventoryLocations.length} storage areas.
-          Accurate inventory ensures every chemical has a corresponding SDS.
-        </p>
+        <p><strong className="text-white">Your chemical inventory is the backbone of your HazCom program.</strong> It must list every hazardous chemical present in each work area using a product identifier that matches the SDS.</p>
+        <p><strong className="text-amber-400">What inspectors look for:</strong></p>
+        <ul className="list-none space-y-1 ml-1">
+          <li>• Does the list match what&apos;s actually on the shelves? (Walk your shop monthly to verify)</li>
+          <li>• Are product identifiers consistent between the list, the SDS, and the labels?</li>
+          <li>• Is the list current? (When did you last add or remove a chemical?)</li>
+        </ul>
+        <p><strong className="text-amber-400">Common mistakes:</strong></p>
+        <ul className="list-none space-y-1 ml-1">
+          <li>❌ Listing &quot;paint thinner&quot; instead of the specific product name and manufacturer</li>
+          <li>❌ Having products on the shelf that aren&apos;t on the list (or vice versa)</li>
+          <li>❌ Not updating when new products arrive or old ones are used up</li>
+        </ul>
+        <p>ShieldSDS tracks when chemicals are added and removed, creating an audit trail that proves your inventory is actively maintained.</p>
+        <p className="text-amber-500/80 text-xs">[29 CFR 1910.1200(e)(1)(i)]</p>
       </HelpCard>
 
       {/* Summary Stats Bar */}

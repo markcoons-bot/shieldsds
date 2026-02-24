@@ -5,6 +5,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import HelpCard from "@/components/HelpCard";
 import { sdsEntries, inventoryItems, recentLabels, inventoryLocations } from "@/lib/data";
 import { printSingleLabel, printBatchLabels } from "@/lib/print-labels";
+import { generateAllLabelsPDF } from "@/lib/pdf-generator";
 import GHSPictogram from "@/components/GHSPictogram";
 import {
   AlertTriangle,
@@ -161,9 +162,14 @@ export default function LabelsPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => {
-              printBatchLabels(sdsEntries);
-              showToast("All labels exported to print window");
+            onClick={async () => {
+              try {
+                await generateAllLabelsPDF();
+                showToast("All labels exported as PDF");
+              } catch (err) {
+                console.error("PDF generation error:", err);
+                showToast("PDF error: " + (err instanceof Error ? err.message : "Unknown error"));
+              }
             }}
             className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white text-sm px-4 py-2 rounded-lg transition-colors"
           >
@@ -182,9 +188,12 @@ export default function LabelsPage() {
 
       <div className="mb-6">
         <HelpCard>
-          <p>
-            <strong className="text-amber-400">OSHA 29 CFR 1910.1200(f)</strong> requires that all secondary containers be labeled with the product identifier and hazard information. GHS-compliant labels must include the product name, signal word, hazard pictograms, and precautionary statements. Containers without proper labels are a common citation item.
-          </p>
+          <p><strong className="text-white">Secondary container labeling is one of OSHA&apos;s most frequently cited HazCom violations.</strong></p>
+          <p><strong className="text-amber-400">Shipped Containers</strong> (what arrives from the manufacturer): Must retain the original label — never remove or deface it. Label must include: product identifier, signal word, hazard statements, pictograms, precautionary statements, and supplier info.</p>
+          <p><strong className="text-amber-400">Workplace/Secondary Containers</strong> (spray bottles, mix cups, etc.): Must have EITHER the full shipped-label elements OR the product identifier plus words/pictures that convey the hazards. ShieldSDS generates full GHS labels with all elements — this is the safest approach.</p>
+          <p><strong className="text-amber-400">The One Exemption:</strong> Portable containers intended for IMMEDIATE USE by the employee who transferred the chemical do not require a label. But &quot;immediate use&quot; means used and emptied during the same work shift by the same person. If that spray bottle sits on a shelf at the end of the day — it needs a label.</p>
+          <p><strong className="text-white">Best Practice:</strong> Label everything. It takes 30 seconds with ShieldSDS and eliminates any ambiguity during an inspection. The QR code on each label also links directly to the full SDS, which demonstrates your SDS accessibility system.</p>
+          <p className="text-amber-500/80 text-xs">[29 CFR 1910.1200(f)(6)]</p>
         </HelpCard>
       </div>
 

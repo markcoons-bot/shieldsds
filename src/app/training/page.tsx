@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import HelpCard from "@/components/HelpCard";
-import { generateTrainingRosterPDF } from "@/lib/pdf-export";
+import { generateTrainingRosterPDF } from "@/lib/pdf-generator";
 import {
   employees as seedEmployees,
   trainingCourses,
@@ -369,7 +369,14 @@ export default function TrainingPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => generateTrainingRosterPDF()}
+            onClick={async () => {
+              try {
+                await generateTrainingRosterPDF();
+              } catch (err) {
+                console.error("PDF generation error:", err);
+                alert("PDF error: " + (err instanceof Error ? err.message : "Unknown error"));
+              }
+            }}
             className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white text-sm px-4 py-2 rounded-lg transition-colors"
           >
             <FileDown className="h-4 w-4" />
@@ -387,9 +394,12 @@ export default function TrainingPage() {
 
       <div className="mb-6">
         <HelpCard>
-          <p>
-            <strong className="text-amber-400">OSHA 29 CFR 1910.1200(h)</strong> requires training at the time of initial assignment and whenever a new chemical hazard is introduced. Employees must understand: how to read an SDS, the location of the written program, physical and health hazards in their work area, and protective measures. Training records prove compliance during inspections.
-          </p>
+          <p><strong className="text-amber-400">OSHA requires chemical hazard training at two trigger points:</strong></p>
+          <p><strong className="text-white">1. Initial Assignment</strong> — When an employee first starts working with or around hazardous chemicals. This must cover: the requirements of the HazCom standard, where to find SDS, how to read labels, the hazards of chemicals in their work area, and protective measures.</p>
+          <p><strong className="text-white">2. New Hazard Introduced</strong> — When a chemical with a hazard type not previously present is added to the work area. Note: this is about NEW HAZARDS, not just new products. If you already use flammable solvents and add another flammable solvent, retraining isn&apos;t required. But if you add a respiratory sensitizer (like isocyanate clearcoat) for the first time — that requires training.</p>
+          <p><strong className="text-amber-400">Documentation:</strong> While OSHA doesn&apos;t explicitly mandate written training records, without them you have absolutely no way to prove training occurred. Every safety professional, attorney, and OSHA consultant recommends documented records with dates, topics, and employee acknowledgments. During an inspection, &quot;we told them about it&quot; with no documentation is treated as no training.</p>
+          <p>ShieldSDS auto-detects when new hazard types enter your inventory and assigns targeted training to affected employees.</p>
+          <p className="text-amber-500/80 text-xs">[29 CFR 1910.1200(h)]</p>
         </HelpCard>
       </div>
 
