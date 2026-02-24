@@ -16,16 +16,15 @@ import {
 
 // ─── Dynamic jsPDF loader ────────────────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _autoTable: any = null;
+
 async function loadJsPDF() {
   const mod = await import("jspdf");
   const jsPDF = mod.default || mod.jsPDF;
-  const autoTableMod = await import("jspdf-autotable");
-  // Explicitly apply the plugin to jsPDF (needed for production bundling)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const applyPlugin = (autoTableMod as any).default || (autoTableMod as any).applyPlugin;
-  if (typeof applyPlugin === "function") {
-    try { applyPlugin(jsPDF); } catch { /* already applied */ }
-  }
+  const atMod = await import("jspdf-autotable");
+  // Use the standalone autoTable function (works regardless of plugin attachment)
+  _autoTable = atMod.default || atMod.autoTable;
   return jsPDF;
 }
 
@@ -79,11 +78,12 @@ function addFooter(doc: Doc, label?: string) {
 }
 
 function autoTable(doc: Doc, opts: Record<string, unknown>) {
-  doc.autoTable(opts);
+  _autoTable(doc, opts);
 }
 
 function getFinalY(doc: Doc): number {
-  return doc.lastAutoTable?.finalY || 30;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (doc as any).lastAutoTable?.finalY || (doc as any).previousAutoTable?.finalY || 30;
 }
 
 // ─── A. Inspection Packet PDF ────────────────────────────────────────────────
