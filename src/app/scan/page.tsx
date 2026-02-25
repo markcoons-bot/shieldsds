@@ -64,15 +64,38 @@ interface ScanResult {
 
 type Step = "capture" | "preview" | "processing" | "review" | "success";
 
-// ── File to base64 helper ─────────────────────────────────
-function fileToBase64(file: File): Promise<string> {
+// ── Client-side image compression ─────────────────────────
+// Resizes to max 1500px longest edge and exports as JPEG 0.8
+function compressImage(file: File): Promise<{ base64: string; dataUrl: string }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
-      const result = reader.result as string;
-      // Strip "data:image/...;base64," prefix
-      const base64 = result.includes(",") ? result.split(",")[1] : result;
-      resolve(base64);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_EDGE = 1500;
+        let { width, height } = img;
+        if (width > MAX_EDGE || height > MAX_EDGE) {
+          if (width > height) {
+            height = Math.round((height * MAX_EDGE) / width);
+            width = MAX_EDGE;
+          } else {
+            width = Math.round((width * MAX_EDGE) / height);
+            height = MAX_EDGE;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Canvas not supported")); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+        const base64 = dataUrl.split(",")[1];
+        console.log("[scan] Compressed:", img.naturalWidth, "x", img.naturalHeight, "→", width, "x", height, "| Size:", Math.round(base64.length * 0.75 / 1024), "KB");
+        resolve({ base64, dataUrl });
+      };
+      img.onerror = reject;
+      img.src = reader.result as string;
     };
     reader.onerror = reject;
     reader.readAsDataURL(file);
@@ -117,8 +140,8 @@ function Section({
 // ══════════════════════════════════════════════════════════
 export default function ScanPage() {
   const [step, setStep] = useState<Step>("capture");
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [compressedBase64, setCompressedBase64] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [processingStage, setProcessingStage] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -147,16 +170,22 @@ export default function ScanPage() {
     setLocations(getLocations());
   }, []);
 
-  // Cleanup object URL
-  useEffect(() => {
-    return () => {
-      if (imageUrl) URL.revokeObjectURL(imageUrl);
-    };
-  }, [imageUrl]);
-
-  const handleFileSelect = useCallback((file: File) => {
-    setImageFile(file);
-    setImageUrl(URL.createObjectURL(file));
+  const handleFileSelect = useCallback(async (file: File) => {
+    try {
+      const { base64, dataUrl } = await compressImage(file);
+      setCompressedBase64(base64);
+      setImageUrl(dataUrl);
+    } catch {
+      // Fallback: read original file as data URL
+      const raw = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+      setImageUrl(raw);
+      setCompressedBase64(raw.split(",")[1] || raw);
+    }
     setStep("preview");
   }, []);
 
@@ -171,15 +200,14 @@ export default function ScanPage() {
 
   const resetToCapture = useCallback(() => {
     setStep("capture");
-    setImageFile(null);
-    if (imageUrl) URL.revokeObjectURL(imageUrl);
     setImageUrl(null);
+    setCompressedBase64(null);
     setScanResult(null);
     setProcessingStage(0);
     setError(null);
     setApiKeyError(false);
     setSuccessItems([]);
-  }, [imageUrl]);
+  }, []);
 
   // ── Step 3: Processing with real API call ─────────────
   const stageRef = useRef(0);
@@ -204,13 +232,13 @@ export default function ScanPage() {
     // Call API in parallel
     (async () => {
       try {
-        if (!imageFile) throw new Error("No image file selected");
-        const base64Data = await fileToBase64(imageFile);
+        if (!compressedBase64) throw new Error("No image data available");
+        console.log("[scan] Sending to API, base64 length:", compressedBase64.length, "(~" + Math.round(compressedBase64.length * 0.75 / 1024) + " KB)");
 
         const response = await fetch("/api/chemical/scan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: base64Data, mimeType: imageFile.type }),
+          body: JSON.stringify({ image: compressedBase64, mimeType: "image/jpeg" }),
         });
 
         if (!response.ok) {
@@ -219,6 +247,9 @@ export default function ScanPage() {
         }
 
         const result: ScanResult = await response.json();
+        console.log("[scan] API response received:", JSON.stringify(result).substring(0, 1000));
+        console.log("[scan] product_name:", result.product_name, "| manufacturer:", result.manufacturer, "| signal_word:", result.signal_word);
+        console.log("[scan] hazard_statements:", result.hazard_statements?.length, "| pictograms:", result.pictogram_codes?.length, "| confidence:", result.confidence);
 
         // Complete remaining stages quickly
         clearInterval(interval);
@@ -246,7 +277,7 @@ export default function ScanPage() {
         );
       }
     })();
-  }, [imageFile]);
+  }, [compressedBase64]);
 
   // ── Step 5: Success cascade animation ──────────────────
   useEffect(() => {

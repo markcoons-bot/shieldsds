@@ -1336,6 +1336,12 @@ Rules:
     }
 
     console.log("[scan] Parsed AI result — product_name:", aiResult.product_name);
+    console.log("[scan] Parsed AI result — manufacturer:", aiResult.manufacturer, "| signal_word:", aiResult.signal_word);
+    console.log("[scan] Parsed AI result — keys:", Object.keys(aiResult).join(", "));
+    console.log("[scan] Parsed AI result — hazard_statements:", aiResult.hazard_statements?.length ?? 0, "| pictograms:", aiResult.pictogram_codes?.length ?? 0);
+    console.log("[scan] Parsed AI result — confidence:", aiResult.confidence);
+    console.log("[scan] Parsed AI result — first_aid:", JSON.stringify(aiResult.first_aid)?.substring(0, 200));
+    console.log("[scan] Parsed AI result — ppe_required:", JSON.stringify(aiResult.ppe_required)?.substring(0, 200));
 
     // Fuzzy match against known chemicals
     const productName = aiResult.product_name || "";
@@ -1356,6 +1362,11 @@ Rules:
     // Ensure confidence and fields_uncertain exist
     if (!finalResult.confidence) finalResult.confidence = aiResult.confidence ?? 0.5;
     if (!finalResult.fields_uncertain) finalResult.fields_uncertain = aiResult.fields_uncertain ?? [];
+
+    console.log("[scan] Final result — product_name:", finalResult.product_name, "| manufacturer:", finalResult.manufacturer);
+    console.log("[scan] Final result — signal_word:", finalResult.signal_word, "| pictograms:", finalResult.pictogram_codes?.length ?? 0, "| hazards:", finalResult.hazard_statements?.length ?? 0);
+    console.log("[scan] Final result — confidence:", finalResult.confidence);
+    console.log("[scan] Final result JSON (first 1000 chars):", JSON.stringify(finalResult).substring(0, 1000));
 
     return NextResponse.json(finalResult);
   } catch (err) {
