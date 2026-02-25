@@ -7,20 +7,32 @@ import {
   Shield,
   Search,
   X,
-  Camera,
-  ClipboardList,
-  GraduationCap,
+  ArrowLeft,
   Database,
   Building2,
   RefreshCw,
+  ListChecks,
+  Check,
+  Package,
+  Tags,
+  Loader2,
+  Camera,
+  Hammer,
+  Utensils,
+  SprayCan,
+  Wrench,
+  Factory,
 } from "lucide-react";
 import SDSSearchCard from "@/components/SDSSearchCard";
 import type { SDSRecord } from "@/lib/supabase";
-import { addChemical } from "@/lib/chemicals";
-import { initializeStore } from "@/lib/chemicals";
-
-// ── Access control toggle ────────────────────────────────────────────────────
-const IS_PAID_USER = false;
+import {
+  addChemical,
+  getChemicals,
+  getLocations,
+  addLocation,
+  initializeStore,
+} from "@/lib/chemicals";
+import type { Chemical } from "@/lib/types";
 
 // ── Supabase client (client-side, anon key) ──────────────────────────────────
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -42,6 +54,15 @@ const INDUSTRIES = [
   { label: "General", value: "general" },
 ];
 
+const QUICK_START = [
+  { label: "Auto Body Shop Essentials", value: "auto-body", icon: SprayCan },
+  { label: "Construction Basics", value: "construction", icon: Hammer },
+  { label: "Janitorial & Cleaning", value: "janitorial", icon: SprayCan },
+  { label: "Restaurant & Food Service", value: "restaurant", icon: Utensils },
+  { label: "Manufacturing", value: "manufacturing", icon: Factory },
+  { label: "Automotive", value: "automotive", icon: Wrench },
+];
+
 const POPULAR_SEARCHES = [
   "CRC Brakleen SDS",
   "Simple Green SDS",
@@ -53,6 +74,50 @@ const POPULAR_SEARCHES = [
   "3M Adhesive SDS",
 ];
 
+function mapToChemical(
+  chem: SDSRecord,
+  location: string,
+  containerType: string,
+  quantity: number
+): Omit<Chemical, "id"> {
+  const hazardStatements = (chem.hazard_statements || []).map((h) => {
+    const match = h.match(/^(H\d+)\s*[-–—:]\s*(.+)$/);
+    return match ? { code: match[1], text: match[2] } : { code: "", text: h };
+  });
+  const today = new Date().toISOString().split("T")[0];
+  return {
+    product_name: chem.product_name,
+    manufacturer: chem.manufacturer || "Unknown",
+    cas_numbers: chem.cas_numbers || [],
+    un_number: chem.un_number || null,
+    signal_word: (chem.signal_word?.toUpperCase() as "DANGER" | "WARNING" | null) || null,
+    pictogram_codes: chem.pictogram_codes || [],
+    hazard_statements: hazardStatements,
+    precautionary_statements: { prevention: [], response: [], storage: [], disposal: [] },
+    first_aid: { eyes: null, skin: null, inhalation: null, ingestion: null },
+    ppe_required: { eyes: null, hands: null, respiratory: null, body: null },
+    storage_requirements: "",
+    incompatible_materials: [],
+    physical_properties: { appearance: null, odor: null, flash_point: null, ph: null, boiling_point: null, vapor_pressure: null },
+    nfpa_diamond: null,
+    location,
+    container_type: containerType,
+    container_count: quantity,
+    labeled: false,
+    label_printed_date: null,
+    sds_url: chem.sds_url || null,
+    sds_uploaded: !!chem.sds_url,
+    sds_date: chem.sds_url ? today : null,
+    sds_status: chem.sds_url ? "current" : "missing",
+    added_date: today,
+    added_by: "SDS Search",
+    added_method: "import",
+    scan_image_url: null,
+    scan_confidence: null,
+    last_updated: today,
+  };
+}
+
 export default function SDSSearchPage() {
   const [query, setQuery] = useState("");
   const [industry, setIndustry] = useState("");
@@ -61,13 +126,39 @@ export default function SDSSearchPage() {
   const [industryCount, setIndustryCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
-  const [showCTA, setShowCTA] = useState(false);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
 
-  // Initialize localStorage store for addChemical
+  // Inventory tracking
+  const [inventoryNames, setInventoryNames] = useState<Set<string>>(new Set());
+  const [inventorySize, setInventorySize] = useState(0);
+  const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
+
+  // Bulk select
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showBulkForm, setShowBulkForm] = useState(false);
+  const [bulkLocation, setBulkLocation] = useState("");
+  const [bulkContainer, setBulkContainer] = useState("Spray Can");
+  const [bulkAdding, setBulkAdding] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
+  const [bulkDone, setBulkDone] = useState(false);
+  const [showNewBulkLoc, setShowNewBulkLoc] = useState(false);
+  const [newBulkLocName, setNewBulkLocName] = useState("");
+
+  // Initialize
   useEffect(() => {
     initializeStore();
+    refreshInventory();
   }, []);
+
+  function refreshInventory() {
+    const chems = getChemicals();
+    setInventoryNames(new Set(chems.map((c) => c.product_name.toLowerCase())));
+    setInventorySize(chems.length);
+    const locs = getLocations();
+    setLocations(locs.map((l) => ({ id: l.id, name: l.name })));
+    if (locs.length > 0 && !bulkLocation) setBulkLocation(locs[0].name);
+  }
 
   // Fetch total count on mount
   useEffect(() => {
@@ -78,7 +169,6 @@ export default function SDSSearchPage() {
       .then(({ count }) => {
         if (count !== null) setTotalCount(count);
       });
-    // Count unique industries
     supabase
       .from("sds_database")
       .select("industry_tags")
@@ -104,9 +194,7 @@ export default function SDSSearchPage() {
 
         if (searchQuery.trim()) {
           const term = searchQuery.trim().replace(/[%_]/g, "");
-          q = q.or(
-            `product_name.ilike.%${term}%,manufacturer.ilike.%${term}%`
-          );
+          q = q.or(`product_name.ilike.%${term}%,manufacturer.ilike.%${term}%`);
         }
 
         if (industryFilter) {
@@ -132,7 +220,7 @@ export default function SDSSearchPage() {
     []
   );
 
-  // Debounced search on query/industry change
+  // Debounced search
   useEffect(() => {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
 
@@ -154,86 +242,132 @@ export default function SDSSearchPage() {
   }, [query, industry, doSearch, hasSearched]);
 
   function handlePopularSearch(term: string) {
-    const cleaned = term.replace(/ SDS$/i, "");
-    setQuery(cleaned);
+    setQuery(term.replace(/ SDS$/i, ""));
   }
 
-  function handleAddToInventory(chemical: SDSRecord) {
-    const hazardStatements = (chemical.hazard_statements || []).map((h) => {
-      const match = h.match(/^(H\d+)\s*[-–—:]\s*(.+)$/);
-      return match ? { code: match[1], text: match[2] } : { code: "", text: h };
-    });
-    addChemical({
-      product_name: chemical.product_name,
-      manufacturer: chemical.manufacturer || "Unknown",
-      cas_numbers: chemical.cas_numbers || [],
-      un_number: chemical.un_number || null,
-      signal_word: (chemical.signal_word?.toUpperCase() as "DANGER" | "WARNING" | null) || null,
-      pictogram_codes: chemical.pictogram_codes || [],
-      hazard_statements: hazardStatements,
-      precautionary_statements: { prevention: [], response: [], storage: [], disposal: [] },
-      first_aid: { eyes: null, skin: null, inhalation: null, ingestion: null },
-      ppe_required: { eyes: null, hands: null, respiratory: null, body: null },
-      storage_requirements: "",
-      incompatible_materials: [],
-      physical_properties: { appearance: null, odor: null, flash_point: null, ph: null, boiling_point: null, vapor_pressure: null },
-      nfpa_diamond: null,
-      location: "Unassigned",
-      container_type: "Original",
-      container_count: 1,
-      labeled: false,
-      label_printed_date: null,
-      sds_url: chemical.sds_url || null,
-      sds_uploaded: !!chemical.sds_url,
-      sds_date: chemical.sds_url ? new Date().toISOString().split("T")[0] : null,
-      sds_status: chemical.sds_url ? "current" : "missing",
-      added_date: new Date().toISOString().split("T")[0],
-      added_by: "SDS Search",
-      added_method: "import",
-      scan_image_url: null,
-      scan_confidence: null,
-      last_updated: new Date().toISOString().split("T")[0],
-    });
-    alert(`${chemical.product_name} added to your inventory!`);
+  function handleAddSingle(chem: SDSRecord, location: string, containerType: string, quantity: number) {
+    addChemical(mapToChemical(chem, location, containerType, quantity));
+    refreshInventory();
   }
+
+  function handleAddLocation(name: string) {
+    const loc = addLocation({ name, chemical_ids: [] });
+    refreshInventory();
+    return { id: loc.id, name: loc.name };
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleBulkAdd() {
+    let loc = bulkLocation;
+    if (showNewBulkLoc && newBulkLocName.trim()) {
+      const created = handleAddLocation(newBulkLocName.trim());
+      loc = created.name;
+    }
+    const toAdd = results.filter(
+      (r) => selected.has(r.id) && !inventoryNames.has(r.product_name.toLowerCase())
+    );
+    setBulkAdding(true);
+    setBulkProgress({ current: 0, total: toAdd.length });
+
+    for (let i = 0; i < toAdd.length; i++) {
+      addChemical(mapToChemical(toAdd[i], loc, bulkContainer, 1));
+      setBulkProgress({ current: i + 1, total: toAdd.length });
+      // Brief pause for UI update
+      await new Promise((r) => setTimeout(r, 50));
+    }
+
+    refreshInventory();
+    setBulkAdding(false);
+    setBulkDone(true);
+    setSelected(new Set());
+    setShowBulkForm(false);
+  }
+
+  const selectedCount = selected.size;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* ── Header ────────────────────────────────────────────────── */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
-            <Shield className="h-7 w-7 text-amber-500 transition-transform group-hover:scale-110" />
-            <span className="font-black text-lg text-gray-900">
-              Shield<span className="text-amber-500">SDS</span>
-            </span>
-          </Link>
-          <div className="flex items-center gap-3">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-4">
             <Link
               href="/dashboard"
-              className="text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors hidden sm:block"
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
             >
-              Log In
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Back to Dashboard</span>
             </Link>
-            <Link
-              href="/dashboard"
-              className="bg-amber-500 hover:bg-amber-400 text-navy-950 text-sm font-bold px-4 py-2 rounded-lg transition-colors"
-            >
-              Sign Up Free
+            <div className="h-5 w-px bg-gray-200 hidden sm:block" />
+            <Link href="/" className="flex items-center gap-2 group">
+              <Shield className="h-6 w-6 text-amber-500 transition-transform group-hover:scale-110" />
+              <span className="font-black text-base text-gray-900">
+                Shield<span className="text-amber-500">SDS</span>
+              </span>
+            </Link>
+          </div>
+          <div className="flex items-center gap-3 text-sm">
+            <Link href="/inventory" className="text-gray-600 hover:text-gray-900 font-medium transition-colors hidden sm:flex items-center gap-1.5">
+              <Package className="h-4 w-4" />
+              Inventory ({inventorySize})
+            </Link>
+            <Link href="/labels" className="text-gray-600 hover:text-gray-900 font-medium transition-colors hidden sm:flex items-center gap-1.5">
+              <Tags className="h-4 w-4" />
+              Labels
             </Link>
           </div>
         </div>
       </header>
 
+      {/* ── Build Your Inventory Guide (show when < 5 chemicals) ── */}
+      {inventorySize < 5 && !hasSearched && (
+        <section className="bg-amber-50 border-b border-amber-200">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+            <div className="text-center mb-4">
+              <h2 className="text-lg font-bold text-gray-900">
+                Build Your Chemical Inventory
+              </h2>
+              <p className="text-sm text-gray-600 mt-1 max-w-lg mx-auto">
+                Browse our database and add the chemicals you use. Click &quot;Add
+                to My Chemicals&quot; on any product — we&apos;ll handle the SDS,
+                hazard data, and labels.
+              </p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {QUICK_START.map((qs) => {
+                const Icon = qs.icon;
+                return (
+                  <button
+                    key={qs.value}
+                    onClick={() => { setIndustry(qs.value); setQuery(""); }}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-amber-300 hover:border-amber-500 rounded-lg text-sm font-medium text-gray-800 hover:text-amber-800 transition-colors shadow-sm"
+                  >
+                    <Icon className="h-4 w-4 text-amber-600" />
+                    {qs.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── Hero Section ──────────────────────────────────────────── */}
-      <section className="bg-gradient-to-b from-navy-900 to-navy-800 text-white py-12 sm:py-16">
+      <section className="bg-gradient-to-b from-navy-900 to-navy-800 text-white py-10 sm:py-14">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <h1 className="text-3xl sm:text-4xl font-black mb-3 leading-tight">
-            Search Our Safety Data Sheet Library
+            Browse &amp; Add Chemicals
           </h1>
           <p className="text-gray-300 text-base sm:text-lg mb-8 max-w-2xl mx-auto">
-            Instant access to SDS documents, GHS hazard data, and compliance
-            info for hundreds of workplace chemicals.
+            Search our SDS database and add chemicals to your inventory with one click.
           </p>
 
           {/* Search Bar */}
@@ -312,20 +446,61 @@ export default function SDSSearchPage() {
 
         {!loading && hasSearched && results.length > 0 && (
           <>
-            <p className="text-sm text-gray-500 mb-6">
-              Found <strong className="text-gray-900">{results.length}</strong>{" "}
-              chemical{results.length !== 1 ? "s" : ""}{" "}
-              {query.trim() ? <>matching &quot;{query.trim()}&quot;</> : ""}
-              {industry ? ` in ${industry.replace(/-/g, " ")}` : ""}
-            </p>
+            {/* Results header + bulk toggle */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+              <p className="text-sm text-gray-500">
+                Found <strong className="text-gray-900">{results.length}</strong>{" "}
+                chemical{results.length !== 1 ? "s" : ""}{" "}
+                {query.trim() ? <>matching &quot;{query.trim()}&quot;</> : ""}
+                {industry ? ` in ${industry.replace(/-/g, " ")}` : ""}
+              </p>
+              <button
+                onClick={() => {
+                  setBulkMode(!bulkMode);
+                  setSelected(new Set());
+                  setBulkDone(false);
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  bulkMode
+                    ? "bg-amber-100 text-amber-800 border border-amber-300"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                <ListChecks className="h-4 w-4" />
+                {bulkMode ? "Cancel Multi-Select" : "Select Multiple"}
+              </button>
+            </div>
+
+            {/* Bulk done message */}
+            {bulkDone && (
+              <div className="mb-6 bg-green-50 border border-green-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <div className="flex items-center gap-2 text-green-700 font-medium">
+                  <Check className="h-5 w-5" />
+                  {bulkProgress.total} chemical{bulkProgress.total !== 1 ? "s" : ""} added to your inventory!
+                </div>
+                <div className="flex gap-2 sm:ml-auto">
+                  <Link href="/inventory" className="text-sm text-green-700 underline hover:text-green-900">
+                    View Inventory
+                  </Link>
+                  <Link href="/labels" className="text-sm text-green-700 underline hover:text-green-900">
+                    Print Labels
+                  </Link>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {results.map((chem) => (
                 <SDSSearchCard
                   key={chem.id}
                   chemical={chem}
-                  isPaidUser={IS_PAID_USER}
-                  onUnlockClick={() => setShowCTA(true)}
-                  onAddToInventory={IS_PAID_USER ? handleAddToInventory : undefined}
+                  isInInventory={inventoryNames.has(chem.product_name.toLowerCase())}
+                  locations={locations}
+                  onAdd={handleAddSingle}
+                  onAddLocation={handleAddLocation}
+                  selectable={bulkMode}
+                  selected={selected.has(chem.id)}
+                  onToggleSelect={() => toggleSelect(chem.id)}
                 />
               ))}
             </div>
@@ -349,11 +524,11 @@ export default function SDSSearchPage() {
                 Our AI can find any SDS instantly — scan a label or search by name.
               </p>
               <Link
-                href="/dashboard"
+                href="/scan"
                 className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 text-sm font-bold px-5 py-2.5 rounded-lg transition-colors"
               >
                 <Camera className="h-4 w-4" />
-                Try Snap to Compliance
+                Snap to Compliance
               </Link>
             </div>
           </div>
@@ -385,11 +560,112 @@ export default function SDSSearchPage() {
         )}
       </main>
 
+      {/* ── Bulk Select Bottom Bar ────────────────────────────────── */}
+      {bulkMode && selectedCount > 0 && !showBulkForm && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-700">
+              <strong className="text-amber-600">{selectedCount}</strong> chemical{selectedCount !== 1 ? "s" : ""} selected
+            </p>
+            <button
+              onClick={() => setShowBulkForm(true)}
+              className="bg-amber-500 hover:bg-amber-400 text-navy-950 text-sm font-bold px-5 py-2.5 rounded-lg transition-colors"
+            >
+              Add Selected to Inventory →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bulk Add Modal ────────────────────────────────────────── */}
+      {showBulkForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => !bulkAdding && setShowBulkForm(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            {bulkAdding ? (
+              <div className="text-center py-6">
+                <Loader2 className="h-8 w-8 text-amber-500 animate-spin mx-auto mb-3" />
+                <p className="text-sm font-medium text-gray-700">
+                  Adding chemical {bulkProgress.current} of {bulkProgress.total}...
+                </p>
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => setShowBulkForm(false)}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+                <h3 className="text-lg font-bold text-gray-900 mb-1">
+                  Add {selectedCount} Chemical{selectedCount !== 1 ? "s" : ""}
+                </h3>
+                <p className="text-sm text-gray-500 mb-5">
+                  Choose a location and container type. You can update individual details later in Inventory.
+                </p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">Location</label>
+                    {!showNewBulkLoc ? (
+                      <select
+                        value={bulkLocation}
+                        onChange={(e) => {
+                          if (e.target.value === "__new__") setShowNewBulkLoc(true);
+                          else setBulkLocation(e.target.value);
+                        }}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:border-amber-400 focus:outline-none"
+                      >
+                        {locations.map((l) => (
+                          <option key={l.id} value={l.name}>{l.name}</option>
+                        ))}
+                        <option value="__new__">+ Add New Location</option>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newBulkLocName}
+                          onChange={(e) => setNewBulkLocName(e.target.value)}
+                          placeholder="New location name..."
+                          className="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:border-amber-400 focus:outline-none"
+                          autoFocus
+                        />
+                        <button onClick={() => { setShowNewBulkLoc(false); setNewBulkLocName(""); }} className="text-xs text-gray-500 hover:text-gray-700 px-2">
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">Container Type</label>
+                    <select
+                      value={bulkContainer}
+                      onChange={(e) => setBulkContainer(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:border-amber-400 focus:outline-none"
+                    >
+                      {["Spray Can", "Bottle", "Jug", "Drum", "Tube", "Bucket", "Bag", "Box", "Aerosol Can", "Other"].map((ct) => (
+                        <option key={ct} value={ct}>{ct}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    onClick={handleBulkAdd}
+                    disabled={showNewBulkLoc && !newBulkLocName.trim()}
+                    className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-navy-950 font-bold py-3 rounded-xl transition-colors"
+                  >
+                    Add {selectedCount} Chemical{selectedCount !== 1 ? "s" : ""} →
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Footer ────────────────────────────────────────────────── */}
       <footer className="bg-navy-900 text-gray-400 mt-auto">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {/* About */}
             <div className="sm:col-span-2 lg:col-span-1">
               <div className="flex items-center gap-2 mb-3">
                 <Shield className="h-5 w-5 text-amber-400" />
@@ -403,20 +679,13 @@ export default function SDSSearchPage() {
                 — all from one platform.
               </p>
             </div>
-
-            {/* Popular Searches */}
             <div>
-              <h4 className="text-white font-semibold text-sm mb-3">
-                Popular Searches
-              </h4>
+              <h4 className="text-white font-semibold text-sm mb-3">Popular Searches</h4>
               <ul className="space-y-2">
                 {POPULAR_SEARCHES.slice(0, 6).map((term) => (
                   <li key={term}>
                     <button
-                      onClick={() => {
-                        handlePopularSearch(term);
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                      }}
+                      onClick={() => { handlePopularSearch(term); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                       className="text-sm hover:text-amber-400 transition-colors"
                     >
                       {term}
@@ -425,12 +694,8 @@ export default function SDSSearchPage() {
                 ))}
               </ul>
             </div>
-
-            {/* Industries */}
             <div>
-              <h4 className="text-white font-semibold text-sm mb-3">
-                Industries We Serve
-              </h4>
+              <h4 className="text-white font-semibold text-sm mb-3">Industries We Serve</h4>
               <ul className="space-y-2 text-sm">
                 <li>Auto Body & Collision</li>
                 <li>Construction & Trades</li>
@@ -439,127 +704,25 @@ export default function SDSSearchPage() {
                 <li>Janitorial & Cleaning</li>
               </ul>
             </div>
-
-            {/* Links */}
             <div>
-              <h4 className="text-white font-semibold text-sm mb-3">
-                ShieldSDS
-              </h4>
+              <h4 className="text-white font-semibold text-sm mb-3">ShieldSDS</h4>
               <ul className="space-y-2">
+                <li><a href="#" className="text-sm hover:text-amber-400 transition-colors">About</a></li>
+                <li><a href="#" className="text-sm hover:text-amber-400 transition-colors">Contact</a></li>
+                <li><a href="#" className="text-sm hover:text-amber-400 transition-colors">Privacy Policy</a></li>
                 <li>
-                  <a href="#" className="text-sm hover:text-amber-400 transition-colors">
-                    About
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="text-sm hover:text-amber-400 transition-colors">
-                    Contact
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="text-sm hover:text-amber-400 transition-colors">
-                    Privacy Policy
-                  </a>
-                </li>
-                <li>
-                  <Link
-                    href="/dashboard"
-                    className="text-sm text-amber-400 hover:text-amber-300 font-medium transition-colors"
-                  >
-                    Get Started Free
+                  <Link href="/dashboard" className="text-sm text-amber-400 hover:text-amber-300 font-medium transition-colors">
+                    Go to Dashboard
                   </Link>
                 </li>
               </ul>
             </div>
           </div>
-
           <div className="border-t border-navy-700/50 mt-8 pt-6 text-center text-xs text-gray-500">
             &copy; {new Date().getFullYear()} ShieldSDS. All rights reserved.
           </div>
         </div>
       </footer>
-
-      {/* ── Unlock CTA Modal ──────────────────────────────────────── */}
-      {showCTA && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowCTA(false)}
-          />
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-in fade-in zoom-in">
-            <button
-              onClick={() => setShowCTA(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <div className="text-center mb-6">
-              <Shield className="h-10 w-10 text-amber-500 mx-auto mb-3" />
-              <h2 className="text-xl font-bold text-gray-900">
-                Get Full Access to Our SDS Library
-              </h2>
-              <p className="text-sm text-gray-500 mt-2">
-                ShieldSDS gives you instant access to Safety Data Sheets, GHS
-                hazard data, compliant labels, and employee training — everything
-                you need for OSHA compliance.
-              </p>
-            </div>
-
-            <div className="space-y-4 mb-8">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 h-9 w-9 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <Camera className="h-5 w-5 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">
-                    Scan any chemical label with your phone
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    AI-powered label recognition extracts all GHS data instantly
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 h-9 w-9 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <ClipboardList className="h-5 w-5 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">
-                    Instant SDS lookup for hundreds of chemicals
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Direct links to official Safety Data Sheets from manufacturers
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 h-9 w-9 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <GraduationCap className="h-5 w-5 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">
-                    Interactive employee training with certificates
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    7-module HazCom training with quizzes and completion tracking
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <Link
-              href="/dashboard"
-              className="block w-full bg-amber-500 hover:bg-amber-400 text-navy-950 text-center font-bold py-3 rounded-xl transition-colors text-base"
-            >
-              Start Free Trial →
-            </Link>
-            <p className="text-center text-xs text-gray-400 mt-3">
-              No credit card required. Set up in 5 minutes.
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
