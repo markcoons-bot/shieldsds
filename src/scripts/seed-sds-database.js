@@ -34,7 +34,8 @@ if (!ANTHROPIC_API_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-const DELAY_MS = 2000; // 2s between API calls
+const DELAY_MS = 5000; // 5s between API calls (retries handle rate limits)
+const MAX_RETRIES = 5;
 
 // ── Chemical List (300) ─────────────────────────────────────────────────────
 const CHEMICALS = [
@@ -356,51 +357,62 @@ const CHEMICALS = [
 // ── API Call ─────────────────────────────────────────────────────────────────
 
 async function lookupSDS(productName, manufacturer) {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1500,
-      tools: [{ type: "web_search_20250305", name: "web_search" }],
-      system: "You are a chemical safety data sheet researcher. Given a product name and manufacturer, search the web to find the official Safety Data Sheet (SDS) PDF URL. Also find: signal word, GHS pictogram codes, hazard statements, CAS numbers, and the manufacturer's SDS portal URL. Return ONLY a JSON object with these fields: sds_url, sds_source, manufacturer_sds_portal, signal_word, pictogram_codes (array of GHS codes like \"GHS02\"), hazard_statements (array of strings like \"H225 - Highly flammable liquid and vapor\"), cas_numbers (array), un_number, ghs_categories (array), confidence (0.0-1.0). If you cannot find a direct PDF URL, set sds_url to null but still provide the manufacturer_sds_portal if possible.",
-      messages: [
-        {
-          role: "user",
-          content: `Find the SDS for: ${productName} by ${manufacturer}`,
-        },
-      ],
-    }),
-  });
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 800,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        system: "Find the SDS PDF URL for the given chemical product. Return ONLY JSON: {sds_url, sds_source, manufacturer_sds_portal, signal_word, pictogram_codes:[\"GHS02\",...], hazard_statements:[\"H225 - ...\"], cas_numbers:[], un_number, ghs_categories:[], confidence:0.0-1.0}",
+        messages: [
+          {
+            role: "user",
+            content: `SDS for: ${productName} by ${manufacturer}`,
+          },
+        ],
+      }),
+    });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`API error ${response.status}: ${errText.substring(0, 200)}`);
-  }
-
-  const data = await response.json();
-
-  // Extract text content
-  let textContent = "";
-  for (const block of data.content) {
-    if (block.type === "text") {
-      textContent += block.text;
+    if (response.status === 429) {
+      const retryAfter = response.headers.get("retry-after");
+      const wait = retryAfter ? (parseInt(retryAfter, 10) + 5) * 1000 : attempt * 60000;
+      console.log(`    ⏳ Rate limited (attempt ${attempt}/${MAX_RETRIES}), waiting ${Math.round(wait / 1000)}s...`);
+      await new Promise((r) => setTimeout(r, wait));
+      continue;
     }
-  }
 
-  // Strip markdown and extract JSON
-  let cleaned = textContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-  const firstBrace = cleaned.indexOf("{");
-  const lastBrace = cleaned.lastIndexOf("}");
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    cleaned = cleaned.substring(firstBrace, lastBrace + 1);
-  }
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`API error ${response.status}: ${errText.substring(0, 200)}`);
+    }
 
-  return JSON.parse(cleaned);
+    const data = await response.json();
+
+    // Extract text content
+    let textContent = "";
+    for (const block of data.content) {
+      if (block.type === "text") {
+        textContent += block.text;
+      }
+    }
+
+    // Strip markdown and extract JSON
+    let cleaned = textContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+    }
+
+    return JSON.parse(cleaned);
+  }
+  throw new Error("Max retries exceeded (rate limited)");
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
