@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Shield,
+  Camera,
   LayoutDashboard,
   FileText,
   Tags,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 
 const navItems = [
+  { label: "Scan Chemical", href: "/scan", icon: Camera, cta: true },
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "HazCom Program", href: "/hazcom-program", icon: BookOpen },
   { label: "SDS Library", href: "/sds-library", icon: FileText },
@@ -106,17 +108,20 @@ export default function Sidebar() {
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
+          const isCta = "cta" in item && item.cta;
           return (
             <Link
               key={item.label}
               href={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
+                isCta
+                  ? "bg-amber-500 text-navy-950 font-bold hover:bg-amber-400 mb-2"
+                  : isActive
                   ? "bg-amber-500/15 text-amber-400"
                   : "text-gray-300 hover:text-white hover:bg-navy-800"
               }`}
             >
-              <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? "text-amber-400" : ""}`} />
+              <Icon className={`h-5 w-5 flex-shrink-0 ${isActive && !isCta ? "text-amber-400" : ""}`} />
               {item.label}
             </Link>
           );

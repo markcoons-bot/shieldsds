@@ -482,13 +482,13 @@ export default function InventoryPage() {
             <Printer className="h-4 w-4" />
             Print QR Labels
           </button>
-          <button
-            onClick={() => setShowAddModal(true)}
+          <Link
+            href="/scan"
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
           >
             <Plus className="h-4 w-4" />
             Add Chemical
-          </button>
+          </Link>
         </div>
       </div>
 
