@@ -12,6 +12,7 @@ import {
   initializeStore,
 } from "@/lib/chemicals";
 import type { Employee } from "@/lib/types";
+import { getEmployeeTrainingStatus, type TrainingStatus } from "@/lib/compliance-score";
 import {
   GraduationCap,
   AlertTriangle,
@@ -53,19 +54,7 @@ const MODULE_NAMES: Record<string, string> = {
   m7: "Your Shop's HazCom Program",
 };
 
-const MODULE_EQUIVALENTS: Record<string, string[]> = {
-  m1: ["m1", "hazcom-overview"],
-  m2: ["m2", "ghs-labels"],
-  m3: ["m3", "sds-reading"],
-  m4: ["m4", "ppe-selection"],
-  m5: ["m5", "chemical-storage"],
-  m6: ["m6", "emergency-response"],
-  m7: ["m7", "spill-response"],
-};
-
 // ─── Status types ────────────────────────────────────────────────────────────
-
-type TrainingStatus = "up-to-date" | "due-soon" | "overdue" | "not-started";
 
 interface EmployeeWithStatus extends Employee {
   trainingStatus: TrainingStatus;
@@ -90,43 +79,6 @@ function formatDate(dateStr: string | null): string {
   }
 }
 
-function isModuleCompleted(emp: Employee, moduleId: string): boolean {
-  const equivalents = MODULE_EQUIVALENTS[moduleId] || [moduleId];
-  return equivalents.some((eq) => emp.completed_modules.includes(eq));
-}
-
-function countCompletedModules(emp: Employee): number {
-  return ALL_LEARN_MODULES.filter((m) => isModuleCompleted(emp, m)).length;
-}
-
-function calcTrainingStatus(emp: Employee): { status: TrainingStatus; dueDate: Date | null; daysUntilDue: number | null } {
-  const now = new Date();
-  const modulesComplete = countCompletedModules(emp);
-
-  if (modulesComplete < 7) {
-    return { status: "not-started", dueDate: null, daysUntilDue: null };
-  }
-
-  if (!emp.last_training) {
-    return { status: "not-started", dueDate: null, daysUntilDue: null };
-  }
-
-  const lastDate = new Date(emp.last_training);
-  const dueDate = new Date(lastDate);
-  dueDate.setFullYear(dueDate.getFullYear() + 1);
-
-  const msUntilDue = dueDate.getTime() - now.getTime();
-  const daysUntilDue = Math.ceil(msUntilDue / (1000 * 60 * 60 * 24));
-
-  if (daysUntilDue < 0) {
-    return { status: "overdue", dueDate, daysUntilDue };
-  } else if (daysUntilDue <= 30) {
-    return { status: "due-soon", dueDate, daysUntilDue };
-  } else {
-    return { status: "up-to-date", dueDate, daysUntilDue };
-  }
-}
-
 function deleteEmployeeLocal(id: string): boolean {
   try {
     const raw = localStorage.getItem("shieldsds-employees");
@@ -147,13 +99,14 @@ function deleteEmployeeLocal(id: string): boolean {
 }
 
 const STATUS_CONFIG: Record<TrainingStatus, { label: string; color: string; bgColor: string; borderColor: string; icon: string }> = {
-  "overdue":     { label: "OVERDUE",      color: "text-status-red",   bgColor: "bg-status-red/10",   borderColor: "border-status-red/30", icon: "🔴" },
-  "due-soon":    { label: "DUE SOON",     color: "text-status-amber", bgColor: "bg-status-amber/10", borderColor: "border-status-amber/30", icon: "🟡" },
-  "not-started": { label: "NOT STARTED",  color: "text-gray-400",     bgColor: "bg-gray-500/10",     borderColor: "border-gray-500/30", icon: "⚪" },
-  "up-to-date":  { label: "UP TO DATE",   color: "text-status-green", bgColor: "bg-status-green/10", borderColor: "border-status-green/30", icon: "🟢" },
+  "overdue":      { label: "OVERDUE",      color: "text-status-red",   bgColor: "bg-status-red/10",   borderColor: "border-status-red/30", icon: "🔴" },
+  "due-soon":     { label: "DUE SOON",     color: "text-status-amber", bgColor: "bg-status-amber/10", borderColor: "border-status-amber/30", icon: "🟡" },
+  "in-progress":  { label: "IN PROGRESS",  color: "text-blue-400",     bgColor: "bg-blue-500/10",     borderColor: "border-blue-500/30", icon: "🔵" },
+  "not-started":  { label: "NOT STARTED",  color: "text-gray-400",     bgColor: "bg-gray-500/10",     borderColor: "border-gray-500/30", icon: "⚪" },
+  "current":      { label: "UP TO DATE",   color: "text-status-green", bgColor: "bg-status-green/10", borderColor: "border-status-green/30", icon: "🟢" },
 };
 
-const STATUS_ORDER: TrainingStatus[] = ["overdue", "due-soon", "not-started", "up-to-date"];
+const STATUS_ORDER: TrainingStatus[] = ["overdue", "due-soon", "in-progress", "not-started", "current"];
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
@@ -174,16 +127,22 @@ export default function TrainingPage() {
     setEmployees(getEmployees());
   }, []);
 
-  // Enriched employees with training status
+  // Enriched employees with training status (single shared source of truth)
   const enrichedEmployees = useMemo<EmployeeWithStatus[]>(() => {
     return employees.map((emp) => {
-      const { status, dueDate, daysUntilDue } = calcTrainingStatus(emp);
+      const info = getEmployeeTrainingStatus(emp);
+      // Compute due date for display
+      let dueDate: Date | null = null;
+      if (info.status !== "not-started" && info.status !== "in-progress" && emp.last_training) {
+        dueDate = new Date(emp.last_training);
+        dueDate.setFullYear(dueDate.getFullYear() + 1);
+      }
       return {
         ...emp,
-        trainingStatus: status,
+        trainingStatus: info.status,
         dueDate,
-        daysUntilDue,
-        modulesCompleted: countCompletedModules(emp),
+        daysUntilDue: info.daysUntilDue,
+        modulesCompleted: info.completedCount,
       };
     }).sort((a, b) => {
       const aIdx = STATUS_ORDER.indexOf(a.trainingStatus);
@@ -194,12 +153,13 @@ export default function TrainingPage() {
 
   // Summary counts
   const counts = useMemo(() => {
-    const c = { total: 0, upToDate: 0, dueSoon: 0, overdue: 0, notStarted: 0 };
+    const c = { total: 0, upToDate: 0, dueSoon: 0, overdue: 0, inProgress: 0, notStarted: 0 };
     enrichedEmployees.forEach((e) => {
       c.total++;
-      if (e.trainingStatus === "up-to-date") c.upToDate++;
+      if (e.trainingStatus === "current") c.upToDate++;
       else if (e.trainingStatus === "due-soon") c.dueSoon++;
       else if (e.trainingStatus === "overdue") c.overdue++;
+      else if (e.trainingStatus === "in-progress") c.inProgress++;
       else c.notStarted++;
     });
     return c;
@@ -456,8 +416,11 @@ export default function TrainingPage() {
                   {emp.trainingStatus === "due-soon" && emp.daysUntilDue !== null && (
                     <span className="text-status-amber">Training due: {formatDate(emp.dueDate?.toISOString() || null)} ({emp.daysUntilDue} days)</span>
                   )}
-                  {emp.trainingStatus === "up-to-date" && emp.dueDate && emp.daysUntilDue !== null && (
+                  {emp.trainingStatus === "current" && emp.dueDate && emp.daysUntilDue !== null && (
                     <span className="text-status-green">Next training due: {formatDate(emp.dueDate.toISOString())} ({emp.daysUntilDue} days)</span>
+                  )}
+                  {emp.trainingStatus === "in-progress" && (
+                    <span className="text-blue-400">In progress: {emp.modulesCompleted} of 7 modules complete</span>
                   )}
                   {emp.trainingStatus === "not-started" && (
                     <span className="text-gray-500">No training on record</span>
@@ -468,7 +431,7 @@ export default function TrainingPage() {
                 <div>
                   <div className="flex items-center gap-1.5 mb-1">
                     {ALL_LEARN_MODULES.map((modId) => {
-                      const done = isModuleCompleted(emp, modId);
+                      const done = emp.completed_modules?.includes(modId);
                       return (
                         <div key={modId} title={`${modId.toUpperCase()}: ${MODULE_NAMES[modId]} ${done ? "✅" : "❌"}`} className="flex flex-col items-center">
                           <span className="text-sm">{done ? "✅" : "❌"}</span>
@@ -478,14 +441,14 @@ export default function TrainingPage() {
                     })}
                     <span className="text-xs text-gray-400 ml-2">({emp.modulesCompleted} of 7 passed)</span>
                   </div>
-                  {(emp.trainingStatus === "up-to-date" || emp.trainingStatus === "due-soon") && emp.last_training && (
+                  {(emp.trainingStatus === "current" || emp.trainingStatus === "due-soon") && emp.last_training && (
                     <p className="text-xs text-gray-500 mt-1">Last completed: {formatDate(emp.last_training)}</p>
                   )}
                 </div>
 
                 {/* Action Buttons */}
                 <div className="mt-4 flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                  {emp.trainingStatus === "up-to-date" ? (
+                  {emp.trainingStatus === "current" ? (
                     <>
                       <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-status-green bg-status-green/10 rounded-lg cursor-default">
                         <CheckCircle2 className="h-4 w-4" /> Up to Date
@@ -502,7 +465,7 @@ export default function TrainingPage() {
                       href={`/training/learn?employee=${emp.id}`}
                       className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-navy-950 rounded-lg transition-colors"
                     >
-                      ▶ Start Training
+                      ▶ {emp.trainingStatus === "in-progress" ? "Continue Training" : emp.trainingStatus === "overdue" || emp.trainingStatus === "due-soon" ? "Refresh Training" : "Start Training"}
                     </Link>
                   )}
                 </div>
@@ -524,7 +487,8 @@ export default function TrainingPage() {
                           <span className={`ml-1 font-medium ${cfg.color}`}>
                             {emp.trainingStatus === "overdue" && emp.daysUntilDue !== null ? `${Math.abs(emp.daysUntilDue)} days overdue` : ""}
                             {emp.trainingStatus === "due-soon" && emp.daysUntilDue !== null ? `Due in ${emp.daysUntilDue} days` : ""}
-                            {emp.trainingStatus === "up-to-date" && emp.daysUntilDue !== null ? `${emp.daysUntilDue} days until due` : ""}
+                            {emp.trainingStatus === "current" && emp.daysUntilDue !== null ? `${emp.daysUntilDue} days until due` : ""}
+                            {emp.trainingStatus === "in-progress" ? `${emp.modulesCompleted} of 7 modules complete` : ""}
                             {emp.trainingStatus === "not-started" ? "Not started" : ""}
                           </span>
                         </div>
@@ -536,9 +500,9 @@ export default function TrainingPage() {
                       <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Module Breakdown</h4>
                       <div className="space-y-1.5">
                         {ALL_LEARN_MODULES.map((modId) => {
-                          const done = isModuleCompleted(emp, modId);
+                          const done = emp.completed_modules?.includes(modId);
                           const records = getRecordsByEmployee(emp.id);
-                          const rec = records.find((r) => r.module_id === modId || MODULE_EQUIVALENTS[modId]?.includes(r.module_id));
+                          const rec = records.find((r) => r.module_id === modId);
                           return (
                             <div key={modId} className="flex items-center justify-between text-xs bg-navy-800/50 rounded px-3 py-2">
                               <span className="text-gray-300">
