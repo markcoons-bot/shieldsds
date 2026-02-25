@@ -486,12 +486,20 @@ export default function TrainingPage() {
                     {/* Actions */}
                     <div className="flex items-center gap-3 pt-2">
                       {emp.modulesCompleted >= 7 && (
-                        <Link
-                          href={`/training/learn?employee=${emp.id}`}
-                          className="flex items-center gap-1.5 text-xs font-medium text-amber-400 hover:text-amber-300 px-3 py-2 rounded-lg bg-amber-500/10 transition-colors"
-                        >
-                          <Award className="h-3.5 w-3.5" /> View Certificate
-                        </Link>
+                        <>
+                          <Link
+                            href={`/training/learn?employee=${emp.id}`}
+                            className="flex items-center gap-1.5 text-xs font-medium text-amber-400 hover:text-amber-300 px-3 py-2 rounded-lg bg-amber-500/10 transition-colors"
+                          >
+                            <Award className="h-3.5 w-3.5" /> View Certificate
+                          </Link>
+                          <Link
+                            href={`/training/learn?employee=${emp.id}`}
+                            className="flex items-center gap-1.5 text-xs font-medium text-gray-300 hover:text-white px-3 py-2 rounded-lg bg-navy-800 transition-colors"
+                          >
+                            🖨️ Print Certificate
+                          </Link>
+                        </>
                       )}
                       <button
                         onClick={() => setShowLinkPopup(emp.id)}

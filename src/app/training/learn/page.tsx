@@ -382,6 +382,8 @@ export default function ShieldSDSTraining() {
   const [transitioning, setTransitioning] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [employeeId, setEmployeeId] = useState<string | null>(null);
+  const [showCompletedSection, setShowCompletedSection] = useState(false);
+  const [justCompletedAll, setJustCompletedAll] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // ── PERSISTENCE: Load saved state ──
@@ -472,6 +474,9 @@ export default function ShieldSDSTraining() {
     setQuizSubmitted(true);
     if (score >= 80) {
       const updated = Array.from(new Set([...completedModules, currentModule].filter(Boolean))) as string[];
+      if (updated.length === 7 && completedModules.length < 7) {
+        setJustCompletedAll(true);
+      }
       setCompletedModules(updated);
       saveState({ completedModules: updated });
 
@@ -530,11 +535,12 @@ export default function ShieldSDSTraining() {
 
   // ── AFTER QUIZ ──
   const afterQuiz = () => {
-    if (completedModules.length === 7 && !employeeId) {
-      // Standalone mode: go to certificate
+    if (completedModules.length === 7 && justCompletedAll) {
+      // Just finished the 7th module — show certificate celebration
+      setJustCompletedAll(false);
       transitionTo("certificate");
     } else {
-      // Employee-linked mode or still modules remaining: back to module picker
+      // Still modules remaining or refresher — back to module picker
       transitionTo("modules");
     }
   };
@@ -750,93 +756,201 @@ export default function ShieldSDSTraining() {
   );
 
   // ════════════════════════════════════════════════════
-  // RENDER: MODULE OVERVIEW
+  // RENDER: MODULE OVERVIEW (Smart Module Picker)
   // ════════════════════════════════════════════════════
   const renderModuleOverview = () => {
     const progressPct = Math.round((completedModules.length / 7) * 100);
+    const incompleteModules = MODULES.filter(m => !completedModules.includes(m.id));
+    const completedModuleList = MODULES.filter(m => completedModules.includes(m.id));
+    const allDone = completedModules.length === 7;
+    const noneStarted = completedModules.length === 0;
+    const almostDone = completedModules.length >= 5 && !allDone;
+    const lastModule = incompleteModules.length === 1;
+
+    // Header text
+    const headerText = allDone ? "🎉 Training Complete!" : noneStarted ? "Welcome! Let\u2019s Get Started" : almostDone ? "Almost Done!" : "Complete Your Training";
+    const subText = allDone
+      ? "Your training is current. Select any module below for a refresher."
+      : noneStarted
+        ? `Hi ${employeeName.split(" ")[0]}! Complete all 7 modules to earn your HazCom certificate.`
+        : lastModule
+          ? `One module left, ${employeeName.split(" ")[0]}! Finish it to complete your training.`
+          : `Hi ${employeeName.split(" ")[0]}! ${7 - completedModules.length} modules remaining.`;
+
+    // Module card renderer
+    const renderModCard = (mod: typeof MODULES[0], opts: { highlight?: boolean; dimmed?: boolean } = {}) => {
+      const done = completedModules.includes(mod.id);
+      const isHighlight = opts.highlight && !done;
+      return (
+        <div key={mod.id} style={{
+          ...S.card(done ? T.navyCard : isHighlight ? T.navyLight : T.navyLight),
+          display:"flex", alignItems:"center", gap:16, padding: isHighlight ? "20px 24px" : "16px 20px",
+          border: isHighlight ? `2px solid ${T.amber}88` : done ? `1px solid ${T.good}33` : `1px solid rgba(255,255,255,0.08)`,
+          boxShadow: isHighlight ? `0 0 24px ${T.amber}22` : "none",
+          cursor:"pointer", transition:"all 0.2s",
+        }} onClick={() => startModule(mod.id)}>
+          <div style={{
+            width: isHighlight ? 56 : 48, height: isHighlight ? 56 : 48, borderRadius:12, ...S.flexCenter,
+            background: done ? T.goodBg : T.amberGlow,
+            fontSize: isHighlight ? 28 : 24, flexShrink:0,
+          }}>
+            {done ? "✅" : mod.icon}
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ ...S.flexBetween }}>
+              <span style={{ fontSize: isHighlight ? 17 : 15, fontWeight:700, color: done ? T.good : T.ghost, fontFamily:T.font }}>{mod.title}</span>
+              <span style={{ fontSize:11, color:T.muted, fontFamily:T.font }}>{mod.duration}</span>
+            </div>
+            <div style={{ fontSize:12, color:T.muted, fontFamily:T.font, marginTop:2 }}>{mod.subtitle}</div>
+          </div>
+          <div>
+            {done && <span style={{ ...S.tag(T.goodBg, T.good), fontSize:10 }}>PASSED</span>}
+            {!done && <span style={{ ...S.tag(T.amberGlow, T.amber), fontSize: isHighlight ? 12 : 10 }}>START →</span>}
+          </div>
+        </div>
+      );
+    };
+
     return (
       <div style={{ ...S.fadeIn, opacity: transitioning ? 0 : 1, transition:"opacity 0.3s", padding:"32px 20px", maxWidth:720, margin:"0 auto" }}>
-        {/* Employee greeting for linked mode */}
-        {employeeId && (
-          <div style={{ ...S.card(completedModules.length === 7 ? T.goodBg : T.amberGlow), padding:"16px 20px", marginBottom:20, border:`1px solid ${completedModules.length === 7 ? T.good : T.amber}33` }}>
-            <span style={{ fontSize:15, fontWeight:700, color: completedModules.length === 7 ? T.good : T.white, fontFamily:T.font }}>
-              {completedModules.length === 7
-                ? `All modules complete! Select any module for a refresher.`
-                : `Hi ${employeeName.split(" ")[0]}! Pick up where you left off.`}
-            </span>
+        {/* Header */}
+        <div style={{ textAlign:"center", marginBottom:24 }}>
+          <h2 style={{ ...S.heading(allDone ? 28 : 24), marginBottom:8 }}>{headerText}</h2>
+          <p style={{ ...S.sub(14), maxWidth:480, margin:"0 auto" }}>{subText}</p>
+          {!allDone && (
+            <p style={{ ...S.sub(12), marginTop:4 }}>
+              {ind.icon} {ind.name} · {employeeName}
+            </p>
+          )}
+        </div>
+
+        {/* Progress bar (not shown when all done) */}
+        {!allDone && (
+          <div style={{ marginBottom:28 }}>
+            <div style={{ ...S.flexBetween, marginBottom:6 }}>
+              <span style={{ fontSize:12, fontWeight:600, color:T.ghost, fontFamily:T.font }}>{completedModules.length} of 7 complete</span>
+              <span style={{ fontSize:12, fontWeight:700, color: progressPct >= 70 ? T.good : T.amber, fontFamily:T.font }}>{progressPct}%</span>
+            </div>
+            <div style={{ background:T.navyLight, borderRadius:8, height:10, overflow:"hidden" }}>
+              <div style={{ height:"100%", width:`${progressPct}%`, background:`linear-gradient(90deg, ${T.amber}, ${progressPct >= 70 ? T.good : T.amberBright})`, borderRadius:8, transition:"width 0.6s ease" }} />
+            </div>
           </div>
         )}
 
-        {/* Header */}
-        <div style={{ ...S.flexBetween, marginBottom:8, flexWrap:"wrap", gap:12 }}>
-          <div>
-            <h2 style={S.heading(24)}>Foundation Track</h2>
-            <p style={{ ...S.sub(14), marginTop:4 }}>
-              {ind.icon} {ind.name} · {employeeName}
-            </p>
-          </div>
-          <div style={S.tag(completedModules.length===7 ? T.goodBg : T.amberGlow, completedModules.length===7 ? T.good : T.amber)}>
-            {completedModules.length}/7 COMPLETE
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        <div style={{ background:T.navyLight, borderRadius:8, height:10, marginBottom:32, overflow:"hidden" }}>
-          <div style={{ height:"100%", width:`${progressPct}%`, background:`linear-gradient(90deg, ${T.amber}, ${T.amberBright})`, borderRadius:8, transition:"width 0.6s ease" }} />
-        </div>
-
-        {/* Module cards — all unlocked, any order */}
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          {MODULES.map((mod) => {
-            const done = completedModules.includes(mod.id);
-            const hasContent = mod.slides > 0;
-
-            return (
-              <div key={mod.id} style={{
-                ...S.card(done ? T.navyCard : T.navyLight),
-                display:"flex", alignItems:"center", gap:16, padding:"16px 20px",
-                border: done ? `1px solid ${T.good}33` : `2px solid rgba(255,255,255,0.08)`,
-                cursor: hasContent ? "pointer" : "default",
-                transition:"all 0.2s",
-              }} onClick={() => {
-                if (hasContent) startModule(mod.id);
-              }}>
-                <div style={{
-                  width:48, height:48, borderRadius:12, ...S.flexCenter,
-                  background: done ? T.goodBg : T.amberGlow,
-                  fontSize:24, flexShrink:0,
-                }}>
-                  {done ? "✅" : mod.icon}
-                </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ ...S.flexBetween }}>
-                    <span style={{ fontSize:15, fontWeight:700, color: done ? T.good : T.ghost, fontFamily:T.font }}>{mod.title}</span>
-                    <span style={{ fontSize:11, color:T.muted, fontFamily:T.font }}>{mod.duration}</span>
-                  </div>
-                  <div style={{ fontSize:12, color:T.muted, fontFamily:T.font, marginTop:2 }}>{mod.subtitle}</div>
-                </div>
-                <div>
-                  {done && <span style={{ ...S.tag(T.goodBg, T.good), fontSize:10 }}>PASSED</span>}
-                  {!done && hasContent && <span style={{ ...S.tag(T.amberGlow, T.amber), fontSize:10 }}>START →</span>}
-                  {!done && !hasContent && <span style={{ ...S.tag(T.warnBg, T.warn), fontSize:10 }}>SOON</span>}
-                </div>
+        {/* ── ALL COMPLETE: Certificate + Refresher ── */}
+        {allDone && (
+          <>
+            {/* Certificate CTA */}
+            <div style={{ ...S.card(T.goodBg), padding:28, border:`1px solid ${T.good}44`, textAlign:"center", marginBottom:28 }}>
+              <div style={{ fontSize:48, marginBottom:12 }}>🎓</div>
+              <h3 style={{ ...S.heading(20), color:T.good, marginBottom:8 }}>All 7 Modules Passed</h3>
+              <p style={{ ...S.sub(13), marginBottom:20 }}>
+                {employeeName} has completed OSHA HazCom Safety Training.
+              </p>
+              <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
+                <button onClick={() => transitionTo("certificate")} style={{ ...S.btn(T.good, T.white), fontSize:15 }}>
+                  🎓 View Certificate
+                </button>
+                <button onClick={() => {
+                  const certEl = document.getElementById("shield-certificate");
+                  if (certEl) { window.print?.(); return; }
+                  transitionTo("certificate");
+                  setTimeout(() => window.print?.(), 500);
+                }} style={S.btnOutline(T.good)}>
+                  🖨️ Print Certificate
+                </button>
               </div>
-            );
-          })}
-        </div>
+            </div>
 
-        {/* All complete CTA */}
-        {completedModules.length === 7 && (
-          <div style={{ textAlign:"center", marginTop:32, display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
-            <button onClick={() => transitionTo("certificate")} style={{ ...S.btn(T.good, T.white), fontSize:16, padding:"16px 36px" }}>
-              🎓 View Certificate
-            </button>
+            {/* Refresher section */}
+            <div style={{ marginBottom:8 }}>
+              <h3 style={{ ...S.heading(18), marginBottom:4 }}>Refresher Training</h3>
+              <p style={{ ...S.sub(13), marginBottom:16 }}>Select any module below for a review. Completing a quiz updates your training date.</p>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {MODULES.map(mod => (
+                <div key={mod.id} style={{
+                  ...S.card(T.navyLight), display:"flex", alignItems:"center", gap:14, padding:"14px 18px",
+                  border:`1px solid rgba(255,255,255,0.06)`, cursor:"pointer", transition:"all 0.2s",
+                }} onClick={() => startModule(mod.id)}>
+                  <div style={{ width:40, height:40, borderRadius:10, ...S.flexCenter, background:T.amberGlow, fontSize:20, flexShrink:0 }}>
+                    {mod.icon}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <span style={{ fontSize:14, fontWeight:600, color:T.ghost, fontFamily:T.font }}>{mod.title}</span>
+                    <div style={{ fontSize:11, color:T.muted, fontFamily:T.font }}>{mod.duration}</div>
+                  </div>
+                  <span style={{ ...S.tag(T.amberGlow, T.amber), fontSize:10 }}>REVIEW →</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Back to training */}
             {employeeId && (
-              <a href="/training" style={{ ...S.btnOutline(T.muted), fontSize:14, padding:"14px 24px", textDecoration:"none", display:"inline-flex", alignItems:"center" }}>
-                ← Back to Training Dashboard
-              </a>
+              <div style={{ textAlign:"center", marginTop:24 }}>
+                <a href="/training" style={{ color:T.muted, fontSize:13, fontFamily:T.font, textDecoration:"none" }}
+                  onMouseEnter={e => (e.currentTarget.style.color = T.white)}
+                  onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
+                  ← Back to Training Dashboard
+                </a>
+              </div>
             )}
-          </div>
+          </>
+        )}
+
+        {/* ── INCOMPLETE: Show modules to do ── */}
+        {!allDone && (
+          <>
+            {/* Last module callout */}
+            {lastModule && (
+              <div style={{ ...S.card(T.amberGlow), padding:"14px 20px", marginBottom:16, border:`1px solid ${T.amber}44`, textAlign:"center" }}>
+                <span style={{ fontSize:14, fontWeight:700, color:T.amber, fontFamily:T.font }}>
+                  🏁 Last module! Complete this to finish your training and earn your certificate.
+                </span>
+              </div>
+            )}
+
+            {/* Incomplete module cards */}
+            <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:24 }}>
+              {incompleteModules.map((mod, idx) => renderModCard(mod, {
+                highlight: lastModule || (noneStarted && idx === 0),
+              }))}
+            </div>
+
+            {/* Completed modules — collapsible */}
+            {completedModuleList.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setShowCompletedSection(!showCompletedSection)}
+                  style={{
+                    background:"none", border:"none", cursor:"pointer", padding:"10px 0",
+                    display:"flex", alignItems:"center", gap:8, width:"100%",
+                    fontFamily:T.font, fontSize:14, fontWeight:600, color:T.good,
+                  }}
+                >
+                  <span>✅ Completed ({completedModuleList.length} of 7)</span>
+                  <span style={{ fontSize:10, color:T.muted, transition:"transform 0.2s", transform: showCompletedSection ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+                </button>
+                {showCompletedSection && (
+                  <div style={{ display:"flex", flexDirection:"column", gap:6, paddingLeft:8, animation:"shieldFadeIn 0.2s ease" }}>
+                    {completedModuleList.map(mod => (
+                      <div key={mod.id} style={{
+                        display:"flex", alignItems:"center", gap:12, padding:"10px 16px",
+                        background:T.navyCard, borderRadius:T.radiusSm, border:`1px solid ${T.good}22`,
+                        cursor:"pointer", transition:"all 0.2s",
+                      }} onClick={() => startModule(mod.id)}>
+                        <span style={{ fontSize:16 }}>✅</span>
+                        <div style={{ flex:1 }}>
+                          <span style={{ fontSize:13, fontWeight:600, color:T.good, fontFamily:T.font }}>{mod.title}</span>
+                        </div>
+                        <span style={{ fontSize:11, color:T.muted, fontFamily:T.font }}>Passed</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
 
         {/* Save indicator */}
@@ -2554,12 +2668,77 @@ export default function ShieldSDSTraining() {
   // ════════════════════════════════════════════════════
   // RENDER: CERTIFICATE
   // ════════════════════════════════════════════════════
+  const printCertificate = () => {
+    const certDate = new Date().toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric" });
+    const moduleNames = MODULES.map(m => m.title);
+    const w = window.open("", "_blank");
+    if (!w) { window.print?.(); return; }
+    w.document.write(`<!DOCTYPE html><html><head><title>Certificate - ${employeeName}</title>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+      <style>
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family:'DM Sans',system-ui,sans-serif; background:white; display:flex; align-items:center; justify-content:center; min-height:100vh; }
+        .cert { width:7.5in; padding:0.75in; border:3px solid #B8860B; position:relative; }
+        .corner { position:absolute; width:30px; height:30px; }
+        .corner.tl { top:12px; left:12px; border-top:2px solid #B8860B; border-left:2px solid #B8860B; }
+        .corner.tr { top:12px; right:12px; border-top:2px solid #B8860B; border-right:2px solid #B8860B; }
+        .corner.bl { bottom:12px; left:12px; border-bottom:2px solid #B8860B; border-left:2px solid #B8860B; }
+        .corner.br { bottom:12px; right:12px; border-bottom:2px solid #B8860B; border-right:2px solid #B8860B; }
+        .brand { font-size:14px; letter-spacing:0.2em; color:#B8860B; font-weight:600; margin-bottom:8px; }
+        h1 { font-size:28px; font-weight:800; color:#1a1a1a; margin-bottom:4px; }
+        .divider { width:60px; height:2px; background:#B8860B; margin:12px auto 20px; }
+        .certifies { font-size:14px; color:#666; margin-bottom:16px; }
+        .name { font-size:26px; font-weight:800; color:#1a1a1a; border-bottom:2px solid #B8860B; display:inline-block; padding:0 24px 8px; }
+        .company { font-size:13px; color:#888; margin:8px 0 20px; }
+        .desc { font-size:14px; color:#444; line-height:1.6; margin-bottom:16px; }
+        .osha { font-size:13px; color:#B8860B; font-weight:600; margin-bottom:20px; }
+        .modules { margin:16px auto; max-width:360px; text-align:left; }
+        .modules .mod { font-size:12px; color:#444; padding:3px 0; display:flex; gap:8px; }
+        .meta { display:flex; justify-content:center; gap:40px; margin:20px 0; flex-wrap:wrap; }
+        .meta > div { text-align:center; }
+        .meta .label { font-size:10px; color:#888; letter-spacing:0.05em; }
+        .meta .value { font-size:13px; font-weight:700; color:#1a1a1a; }
+        .footer { font-size:10px; color:#aaa; line-height:1.5; margin-top:20px; }
+        @media print { body { min-height:auto; } @page { size:letter; margin:0.5in; } }
+      </style>
+    </head><body>
+      <div class="cert">
+        <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+        <div style="text-align:center">
+          <div class="brand">SHIELDSDS</div>
+          <h1>Certificate of Completion</h1>
+          <div class="divider"></div>
+          <p class="certifies">This certifies that</p>
+          <p class="name">${employeeName}</p>
+          <p class="company">${companyName || "Mike's Auto Body"}</p>
+          <p class="desc">Has successfully completed <strong>OSHA HazCom Safety Training</strong><br/>covering all 7 required modules with passing assessments.</p>
+          <p class="osha">29 CFR 1910.1200(h) Compliant</p>
+          <div class="modules">
+            ${moduleNames.map(n => `<div class="mod"><span>✅</span><span>${n}</span></div>`).join("")}
+          </div>
+          <div class="meta">
+            <div><div class="label">DATE</div><div class="value">${certDate}</div></div>
+            <div><div class="label">INDUSTRY</div><div class="value">${ind.name}</div></div>
+            <div><div class="label">PROVIDER</div><div class="value">ShieldSDS</div></div>
+          </div>
+          <div class="footer">
+            Training documentation per OSHA 29 CFR 1910.1200(h)<br/>
+            This certificate documents completion of HazCom training content.<br/>
+            Employers retain responsibility for site-specific supplemental training.
+          </div>
+        </div>
+      </div>
+    </body></html>`);
+    w.document.close();
+    setTimeout(() => { w.print(); }, 400);
+  };
+
   const renderCertificate = () => (
     <div style={{ ...S.fadeIn, opacity: transitioning ? 0 : 1, transition:"opacity 0.3s", padding:"32px 20px" }}>
       <div style={{ textAlign:"center", marginBottom:24 }}>
-        <div style={{ fontSize:56, marginBottom:8 }}>🎓</div>
-        <h2 style={S.heading(28)}>Training Complete!</h2>
-        <p style={S.sub()}>Congratulations, {employeeName}. Print or save your certificate below.</p>
+        <div style={{ fontSize:56, marginBottom:8 }}>🎉</div>
+        <h2 style={S.heading(28)}>Congratulations, {employeeName.split(" ")[0]}!</h2>
+        <p style={S.sub()}>You&apos;ve completed all 7 HazCom Safety Training modules.</p>
       </div>
 
       {/* Certificate */}
@@ -2580,37 +2759,44 @@ export default function ShieldSDSTraining() {
             Certificate of Completion
           </h2>
           <div style={{ width:60, height:2, background:"#B8860B", margin:"12px auto 20px" }} />
-          
-          <p style={{ fontSize:14, color:"#666", fontFamily:T.font, margin:"0 0 20px" }}>This certifies that</p>
+
+          <p style={{ fontSize:14, color:"#666", fontFamily:T.font, margin:"0 0 16px" }}>This certifies that</p>
           <p style={{ fontSize:26, fontWeight:800, color:"#1a1a1a", fontFamily:T.font, margin:"0 0 4px", borderBottom:"2px solid #B8860B", display:"inline-block", padding:"0 24px 8px" }}>
             {employeeName}
           </p>
-          <p style={{ fontSize:13, color:"#888", fontFamily:T.font, margin:"8px 0 24px" }}>{companyName}</p>
+          <p style={{ fontSize:13, color:"#888", fontFamily:T.font, margin:"8px 0 20px" }}>{companyName}</p>
 
-          <p style={{ fontSize:14, color:"#444", fontFamily:T.font, margin:"0 0 16px", lineHeight:1.6 }}>
-            has successfully completed the <strong>HazCom Foundation Training</strong><br />
+          <p style={{ fontSize:14, color:"#444", fontFamily:T.font, margin:"0 0 12px", lineHeight:1.6 }}>
+            Has successfully completed <strong>OSHA HazCom Safety Training</strong><br />
             covering all 7 required modules with passing assessments.
           </p>
 
-          <div style={{ display:"flex", justifyContent:"center", gap:24, margin:"16px 0 20px", flexWrap:"wrap" }}>
+          <p style={{ fontSize:13, color:"#B8860B", fontFamily:T.font, fontWeight:600, margin:"0 0 20px" }}>
+            29 CFR 1910.1200(h) Compliant
+          </p>
+
+          {/* Module list */}
+          <div style={{ display:"inline-block", textAlign:"left", margin:"0 auto 20px" }}>
+            {MODULES.map(mod => (
+              <div key={mod.id} style={{ fontSize:12, color:"#444", fontFamily:T.font, padding:"3px 0", display:"flex", gap:8, alignItems:"center" }}>
+                <span style={{ color:"#34C759" }}>✅</span>
+                <span>{mod.title}</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display:"flex", justifyContent:"center", gap:32, margin:"20px 0", flexWrap:"wrap" }}>
             <div style={{ textAlign:"center" }}>
-              <div style={{ fontSize:11, color:"#888", fontFamily:T.font }}>INDUSTRY TRACK</div>
-              <div style={{ fontSize:13, fontWeight:700, color:"#1a1a1a", fontFamily:T.font }}>{ind.name}</div>
-            </div>
-            <div style={{ textAlign:"center" }}>
-              <div style={{ fontSize:11, color:"#888", fontFamily:T.font }}>DATE</div>
+              <div style={{ fontSize:10, color:"#888", fontFamily:T.font, letterSpacing:"0.05em" }}>DATE</div>
               <div style={{ fontSize:13, fontWeight:700, color:"#1a1a1a", fontFamily:T.font }}>{new Date().toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric" })}</div>
             </div>
             <div style={{ textAlign:"center" }}>
-              <div style={{ fontSize:11, color:"#888", fontFamily:T.font }}>MODULES</div>
-              <div style={{ fontSize:13, fontWeight:700, color:"#1a1a1a", fontFamily:T.font }}>7 of 7 Passed</div>
+              <div style={{ fontSize:10, color:"#888", fontFamily:T.font, letterSpacing:"0.05em" }}>INDUSTRY</div>
+              <div style={{ fontSize:13, fontWeight:700, color:"#1a1a1a", fontFamily:T.font }}>{ind.name}</div>
             </div>
-          </div>
-
-          <div style={{ margin:"16px 0", padding:"12px 20px", background:"#f8f6f0", borderRadius:4, display:"inline-block" }}>
-            <div style={{ fontSize:10, color:"#888", fontFamily:T.font, letterSpacing:"0.1em", marginBottom:4 }}>TOPICS COVERED</div>
-            <div style={{ fontSize:11, color:"#555", fontFamily:T.font, lineHeight:1.6 }}>
-              Right to Know · GHS Pictograms & Signal Words · Chemical Label Reading · Safety Data Sheets · PPE Selection · Emergency Response · Site-Specific HazCom Program
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:10, color:"#888", fontFamily:T.font, letterSpacing:"0.05em" }}>PROVIDER</div>
+              <div style={{ fontSize:13, fontWeight:700, color:"#1a1a1a", fontFamily:T.font }}>ShieldSDS</div>
             </div>
           </div>
 
@@ -2626,8 +2812,13 @@ export default function ShieldSDSTraining() {
 
       {/* Actions */}
       <div style={{ textAlign:"center", marginTop:24, display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
-        <button onClick={() => window.print?.()} style={S.btn(T.amber, T.navy)}>🖨️ Print Certificate</button>
+        <button onClick={printCertificate} style={S.btn(T.amber, T.navy)}>🖨️ Print Certificate</button>
         <button onClick={() => { transitionTo("modules"); }} style={S.btnOutline(T.muted)}>← Back to Modules</button>
+        {employeeId && (
+          <a href="/training" style={{ ...S.btnOutline(T.muted), textDecoration:"none", display:"inline-flex", alignItems:"center" }}>
+            ← Back to Training
+          </a>
+        )}
       </div>
     </div>
   );
