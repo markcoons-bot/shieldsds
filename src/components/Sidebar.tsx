@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { getChemicals, getEmployees, initializeStore } from "@/lib/chemicals";
+import type { Chemical, Employee } from "@/lib/types";
 import {
   Shield,
   Camera,
@@ -21,21 +23,20 @@ import {
 } from "lucide-react";
 
 const navItems = [
-  { label: "Scan Chemical", href: "/scan", icon: Camera, cta: true },
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "HazCom Program", href: "/hazcom-program", icon: BookOpen },
-  { label: "SDS Library", href: "/sds-library", icon: FileText },
-  { label: "Chemical Inventory", href: "/inventory", icon: Package },
-  { label: "Labels", href: "/labels", icon: Tags },
-  { label: "Training", href: "/training", icon: GraduationCap },
-  { label: "Contractors", href: "/contractors", icon: Users },
-  { label: "Inspection Mode", href: "/inspection", icon: ClipboardCheck },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, badgeKey: null },
+  { label: "HazCom Program", href: "/hazcom-program", icon: BookOpen, badgeKey: null },
+  { label: "SDS Library", href: "/sds-library", icon: FileText, badgeKey: "missingSds" as const },
+  { label: "Chemical Inventory", href: "/inventory", icon: Package, badgeKey: null },
+  { label: "Labels", href: "/labels", icon: Tags, badgeKey: "unlabeled" as const },
+  { label: "Training", href: "/training", icon: GraduationCap, badgeKey: "trainingIssues" as const },
+  { label: "Contractors", href: "/contractors", icon: Users, badgeKey: null },
+  { label: "Inspection Mode", href: "/inspection", icon: ClipboardCheck, badgeKey: null },
 ];
 
 const locations = [
-  { name: "Mike's Auto Body", sub: "Main Location", active: true },
-  { name: "Mike's Auto Body", sub: "Warehouse", active: false },
-  { name: "Mike's Auto Body", sub: "Mobile Unit", active: false },
+  { name: "Mike\u2019s Auto Body", sub: "Main Location", active: true },
+  { name: "Mike\u2019s Auto Body", sub: "Warehouse", active: false },
+  { name: "Mike\u2019s Auto Body", sub: "Mobile Unit", active: false },
 ];
 
 export default function Sidebar() {
@@ -43,6 +44,52 @@ export default function Sidebar() {
   const [locOpen, setLocOpen] = useState(false);
   const [selectedLoc, setSelectedLoc] = useState(locations[0]);
   const dropRef = useRef<HTMLDivElement>(null);
+
+  // Live data for badges
+  const [chemicals, setChemicals] = useState<Chemical[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+
+  useEffect(() => {
+    initializeStore();
+    setChemicals(getChemicals());
+    setEmployees(getEmployees());
+  }, []);
+
+  // Refresh badge counts when pathname changes (user navigated after making changes)
+  useEffect(() => {
+    setChemicals(getChemicals());
+    setEmployees(getEmployees());
+  }, [pathname]);
+
+  // Badge counts
+  const badges = useMemo(() => {
+    const missingSds = chemicals.filter((c) => c.sds_status === "missing").length;
+    const unlabeled = chemicals.filter((c) => !c.labeled).length;
+    const trainingIssues = employees.filter((e) => e.status === "overdue" || e.status === "pending").length;
+    return { missingSds, unlabeled, trainingIssues };
+  }, [chemicals, employees]);
+
+  // Dynamic user — first employee with Owner/Manager role, or first employee
+  const currentUser = useMemo(() => {
+    const manager = employees.find(
+      (e) => e.role.toLowerCase().includes("owner") || e.role.toLowerCase().includes("manager")
+    );
+    if (manager) return manager;
+    return employees[0] || null;
+  }, [employees]);
+
+  const userInitials = currentUser
+    ? currentUser.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "SH";
+
+  const userRole = currentUser
+    ? currentUser.role.split("/")[0].trim().split("(")[0].trim()
+    : "User";
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -103,26 +150,45 @@ export default function Sidebar() {
         )}
       </div>
 
+      {/* Scan Chemical CTA — visually distinct, above nav */}
+      <div className="px-3 pt-4 pb-2">
+        <Link
+          href="/scan"
+          className="flex items-center justify-center gap-2 w-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-sm px-4 py-3 rounded-lg transition-colors"
+        >
+          <Camera className="h-5 w-5" />
+          Scan Chemical
+        </Link>
+      </div>
+
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
-          const isCta = "cta" in item && item.cta;
+          const badgeCount = item.badgeKey ? badges[item.badgeKey] : 0;
+          const badgeColor =
+            item.badgeKey === "unlabeled"
+              ? "bg-status-amber text-navy-950"
+              : "bg-status-red text-white";
+
           return (
             <Link
               key={item.label}
               href={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isCta
-                  ? "bg-amber-500 text-navy-950 font-bold hover:bg-amber-400 mb-2"
-                  : isActive
+                isActive
                   ? "bg-amber-500/15 text-amber-400"
                   : "text-gray-300 hover:text-white hover:bg-navy-800"
               }`}
             >
-              <Icon className={`h-5 w-5 flex-shrink-0 ${isActive && !isCta ? "text-amber-400" : ""}`} />
-              {item.label}
+              <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? "text-amber-400" : ""}`} />
+              <span className="flex-1">{item.label}</span>
+              {badgeCount > 0 && (
+                <span className={`flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${badgeColor}`}>
+                  {badgeCount}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -139,11 +205,11 @@ export default function Sidebar() {
         </Link>
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white">
-            MR
+            {userInitials}
           </div>
           <div>
-            <p className="text-sm font-medium text-white">Mike Rodriguez</p>
-            <p className="text-xs text-gray-400">Owner</p>
+            <p className="text-sm font-medium text-white">{currentUser?.name || "ShieldSDS User"}</p>
+            <p className="text-xs text-gray-400">{userRole}</p>
           </div>
         </div>
       </div>

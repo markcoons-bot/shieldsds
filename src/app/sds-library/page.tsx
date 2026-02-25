@@ -829,8 +829,23 @@ export default function SDSLibraryPage() {
         </HelpCard>
       </div>
 
+      {/* Empty State */}
+      {chemicals.length === 0 && (
+        <div className="text-center py-16">
+          <FileText className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+          <h2 className="text-xl font-display font-bold text-white mb-2">No chemicals in your SDS library</h2>
+          <p className="text-gray-400 mb-6">Scan your first chemical to start building your SDS binder.</p>
+          <a
+            href="/scan"
+            className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-sm px-6 py-3 rounded-lg transition-colors"
+          >
+            Scan Chemical
+          </a>
+        </div>
+      )}
+
       {/* Missing SDS Banner */}
-      {missingSDS.length > 0 && (
+      {chemicals.length > 0 && missingSDS.length > 0 && (
         <div className="mb-6 rounded-xl bg-status-red/10 border border-status-red/30 p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <AlertTriangle className="h-5 w-5 text-status-red flex-shrink-0" />
@@ -851,6 +866,9 @@ export default function SDSLibraryPage() {
           </button>
         </div>
       )}
+
+      {/* Main Content — only when chemicals exist */}
+      {chemicals.length > 0 && <>
 
       {/* Search */}
       <div className="relative mb-4">
@@ -1025,6 +1043,8 @@ export default function SDSLibraryPage() {
           </tbody>
         </table>
       </div>
+
+      </>}
 
       {/* Detail Panel */}
       {selectedChem && (

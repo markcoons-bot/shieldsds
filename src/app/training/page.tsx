@@ -1,256 +1,359 @@
 "use client";
 
-import DashboardLayout from "@/components/DashboardLayout";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import DashboardLayout from "@/components/DashboardLayout";
+import { getEmployees, getChemicals, getTrainingRecords, initializeStore } from "@/lib/chemicals";
+import type { Chemical, Employee, TrainingRecord } from "@/lib/types";
 import {
   GraduationCap,
-  Plus,
   Clock,
   AlertTriangle,
   ChevronRight,
+  Camera,
+  CheckCircle2,
 } from "lucide-react";
 
-const employees = [
-  {
-    name: "Mike Rodriguez",
-    role: "Owner / Manager",
-    initialTraining: "2024-01-15",
-    lastTraining: "2025-12-08",
-    status: "current" as const,
-    completedCourses: 6,
-    pendingCourses: 0,
-  },
-  {
-    name: "Carlos Mendez",
-    role: "Body Tech",
-    initialTraining: "2024-03-22",
-    lastTraining: "2026-02-16",
-    status: "current" as const,
-    completedCourses: 5,
-    pendingCourses: 0,
-  },
-  {
-    name: "Marcus Thompson",
-    role: "Painter",
-    initialTraining: "2024-06-10",
-    lastTraining: "2025-11-20",
-    status: "overdue" as const,
-    completedCourses: 4,
-    pendingCourses: 1,
-  },
-  {
-    name: "Jamie Reyes",
-    role: "Detail Tech (New Hire)",
-    initialTraining: "—",
-    lastTraining: "—",
-    status: "pending" as const,
-    completedCourses: 0,
-    pendingCourses: 2,
-  },
-  {
-    name: "David Park",
-    role: "Mechanic",
-    initialTraining: "2024-08-05",
-    lastTraining: "2026-01-10",
-    status: "current" as const,
-    completedCourses: 4,
-    pendingCourses: 0,
-  },
+// ─── Foundation Track Modules ────────────────────────────────────────────────
+
+const FOUNDATION_MODULES = [
+  { id: "hazcom-overview", name: "HazCom Initial Orientation", type: "Required — Initial Assignment", duration: "15 min" },
+  { id: "ghs-labels", name: "GHS Labels & Pictograms", type: "Required — Initial Assignment", duration: "10 min" },
+  { id: "sds-reading", name: "SDS & Label Reading", type: "Required — Initial Assignment", duration: "10 min" },
+  { id: "ppe-selection", name: "PPE Selection & Use", type: "Required — Initial Assignment", duration: "8 min" },
+  { id: "chemical-storage", name: "Chemical Storage & Handling", type: "Required — Initial Assignment", duration: "8 min" },
+  { id: "emergency-response", name: "Emergency Response Procedures", type: "Required — Initial Assignment", duration: "10 min" },
+  { id: "spill-response", name: "Spill Response & Cleanup", type: "Required — Initial Assignment", duration: "8 min" },
 ];
 
-const trainingCourses = [
-  {
-    name: "HazCom Initial Orientation",
-    type: "Required — Initial Assignment",
-    duration: "15 min",
-    assigned: 5,
-    completed: 4,
-  },
-  {
-    name: "New Chemical: PPG DBC Basecoat",
-    type: "Triggered — New Hazard Introduced",
-    duration: "5 min",
-    assigned: 3,
-    completed: 2,
-  },
-  {
-    name: "SDS & Label Reading",
-    type: "Required — Initial Assignment",
-    duration: "10 min",
-    assigned: 5,
-    completed: 5,
-  },
-  {
-    name: "New Chemical: Acetone Handling",
-    type: "Triggered — New Hazard Introduced",
-    duration: "5 min",
-    assigned: 4,
-    completed: 4,
-  },
-  {
-    name: "PPE Selection for Paint Booth",
-    type: "Role-specific",
-    duration: "8 min",
-    assigned: 2,
-    completed: 2,
-  },
-];
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "—";
+  try {
+    return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
+// ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function TrainingPage() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [chemicals, setChemicals] = useState<Chemical[]>([]);
+  const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>([]);
+  const [selectedEmpId, setSelectedEmpId] = useState<string | null>(null);
+
+  useEffect(() => {
+    initializeStore();
+    setEmployees(getEmployees());
+    setChemicals(getChemicals());
+    setTrainingRecords(getTrainingRecords());
+  }, []);
+
+  // Summary stats
+  const currentCount = useMemo(() => employees.filter((e) => e.status === "current").length, [employees]);
+  const overdueCount = useMemo(() => employees.filter((e) => e.status === "overdue").length, [employees]);
+  const pendingCount = useMemo(() => employees.filter((e) => e.status === "pending").length, [employees]);
+  const overdueEmployees = useMemo(() => employees.filter((e) => e.status === "overdue"), [employees]);
+
+  // Foundation track: how many employees completed each module
+  const foundationModules = useMemo(() => {
+    return FOUNDATION_MODULES.map((mod) => {
+      const completedCount = employees.filter((e) => e.completed_modules.includes(mod.id)).length;
+      return {
+        ...mod,
+        assigned: employees.length,
+        completed: completedCount,
+      };
+    });
+  }, [employees]);
+
+  // New chemical training entries — chemicals added via scan in last 30 days
+  const newChemicalTrainings = useMemo(() => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    return chemicals
+      .filter((c) => {
+        if (!c.added_date) return false;
+        try {
+          return new Date(c.added_date) >= thirtyDaysAgo;
+        } catch {
+          return false;
+        }
+      })
+      .map((c) => ({
+        id: `new-chem-${c.id}`,
+        name: `New Chemical: ${c.product_name}`,
+        type: "Triggered — New Hazard Introduced",
+        duration: "5 min",
+        assigned: employees.filter((e) => e.status !== "pending").length,
+        completed: employees.filter((e) => e.status === "current").length,
+      }));
+  }, [chemicals, employees]);
+
+  // All training modules combined
+  const allModules = useMemo(
+    () => [...foundationModules, ...newChemicalTrainings],
+    [foundationModules, newChemicalTrainings]
+  );
+
+  // Empty state
+  if (employees.length === 0) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center py-24">
+          <GraduationCap className="h-16 w-16 text-gray-600 mb-4" />
+          <h2 className="text-xl font-display font-bold text-white mb-2">No employees added yet</h2>
+          <p className="text-gray-400 mb-6">Scan your first chemical to get started with training.</p>
+          <Link
+            href="/scan"
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold px-6 py-3 rounded-lg transition-colors"
+          >
+            <Camera className="h-5 w-5" />
+            Scan Chemical
+          </Link>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       {/* Top bar */}
-      <div className="sticky top-0 z-30 bg-navy/90 backdrop-blur-xl border-b border-white/5 px-8 py-4 flex items-center justify-between">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-display font-black text-2xl tracking-tight">Training</h1>
-          <p className="text-sm text-gray-500">Employee HazCom training assignments &amp; records</p>
+          <h1 className="font-display font-black text-2xl text-white">Training</h1>
+          <p className="text-sm text-gray-400 mt-1">Employee HazCom training assignments &amp; records</p>
         </div>
-        <button className="btn-primary text-sm py-2 px-4">
-          <Plus className="w-4 h-4" /> Assign Training
-        </button>
       </div>
 
-      <div className="p-8">
-        {/* Summary cards */}
-        <div className="grid grid-cols-4 gap-5 mb-8">
-          <div className="card p-5">
-            <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Employees</div>
-            <div className="font-display font-black text-3xl text-white">{employees.length}</div>
-          </div>
-          <div className="card p-5">
-            <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Fully Trained</div>
-            <div className="font-display font-black text-3xl text-status-good">
-              {employees.filter((e) => e.status === "current").length}
-            </div>
-          </div>
-          <div className="card p-5">
-            <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Overdue</div>
-            <div className="font-display font-black text-3xl text-status-bad">
-              {employees.filter((e) => e.status === "overdue").length}
-            </div>
-          </div>
-          <div className="card p-5">
-            <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Pending (New Hire)</div>
-            <div className="font-display font-black text-3xl text-status-warn">
-              {employees.filter((e) => e.status === "pending").length}
-            </div>
-          </div>
+      {/* Summary cards */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="bg-navy-900 border border-navy-700/50 rounded-xl p-5">
+          <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Employees</div>
+          <div className="font-display font-black text-3xl text-white">{employees.length}</div>
         </div>
+        <div className="bg-navy-900 border border-navy-700/50 rounded-xl p-5">
+          <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Fully Trained</div>
+          <div className="font-display font-black text-3xl text-status-green">{currentCount}</div>
+        </div>
+        <div className="bg-navy-900 border border-navy-700/50 rounded-xl p-5">
+          <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Overdue</div>
+          <div className="font-display font-black text-3xl text-status-red">{overdueCount}</div>
+        </div>
+        <div className="bg-navy-900 border border-navy-700/50 rounded-xl p-5">
+          <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Pending (New Hire)</div>
+          <div className="font-display font-black text-3xl text-status-amber">{pendingCount}</div>
+        </div>
+      </div>
 
-        {/* Overdue alert */}
-        <div className="bg-status-bad/5 border border-status-bad/20 rounded-xl p-4 mb-6 flex items-center justify-between">
+      {/* Overdue alert */}
+      {overdueEmployees.length > 0 && (
+        <div className="bg-status-red/10 border border-status-red/30 rounded-xl p-4 mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-status-bad" />
+            <AlertTriangle className="w-5 h-5 text-status-red flex-shrink-0" />
             <div>
-              <span className="text-sm font-semibold text-white">Marcus T. has overdue training</span>
-              <span className="text-sm text-gray-400 ml-2">— &ldquo;New Chemical: PPG DBC Basecoat&rdquo; assigned 14 days ago</span>
+              <span className="text-sm font-semibold text-white">
+                {overdueEmployees.map((e) => e.name).join(", ")} {overdueEmployees.length === 1 ? "has" : "have"} overdue training
+              </span>
+              {overdueEmployees.length === 1 && overdueEmployees[0].pending_modules.length > 0 && (
+                <span className="text-sm text-gray-400 ml-2">
+                  — {overdueEmployees[0].pending_modules.join(", ")}
+                </span>
+              )}
             </div>
           </div>
-          <button className="text-sm font-semibold text-status-bad hover:text-red-300 transition-colors">
-            Send Reminder →
+          <button className="text-sm font-semibold text-status-red hover:text-red-300 transition-colors whitespace-nowrap">
+            Send Reminder &rarr;
           </button>
         </div>
+      )}
 
-        {/* Launch Interactive Training */}
-        <Link href="/training/learn" className="block mb-6">
-          <div className="bg-amber-glow border border-amber/30 rounded-xl p-5 flex items-center justify-between hover:border-amber/50 transition-all group cursor-pointer">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-amber/20 rounded-xl flex items-center justify-center">
-                <GraduationCap className="w-6 h-6 text-amber" />
-              </div>
-              <div>
-                <div className="text-white font-display font-bold text-lg">Launch Interactive HazCom Training</div>
-                <div className="text-gray-400 text-sm">7-module foundation track · Industry-specific · OSHA 29 CFR 1910.1200(h) compliant</div>
-              </div>
+      {/* Launch Interactive Training */}
+      <Link href="/training/learn" className="block mb-6">
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-5 flex items-center justify-between hover:border-amber-500/50 transition-all group cursor-pointer">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center">
+              <GraduationCap className="w-6 h-6 text-amber-400" />
             </div>
-            <div className="flex items-center gap-2 text-amber font-semibold text-sm group-hover:translate-x-1 transition-transform">
-              Start Training <ChevronRight className="w-4 h-4" />
+            <div>
+              <div className="text-white font-display font-bold text-lg">Launch Interactive HazCom Training</div>
+              <div className="text-gray-400 text-sm">7-module foundation track &middot; Industry-specific &middot; OSHA 29 CFR 1910.1200(h) compliant</div>
             </div>
           </div>
-        </Link>
+          <div className="flex items-center gap-2 text-amber-400 font-semibold text-sm group-hover:translate-x-1 transition-transform">
+            Start Training <ChevronRight className="w-4 h-4" />
+          </div>
+        </div>
+      </Link>
 
-        <div className="grid lg:grid-cols-5 gap-8">
-          {/* Employee roster */}
-          <div className="lg:col-span-3">
-            <h2 className="font-display font-bold text-lg mb-4">Employee Roster</h2>
-            <div className="space-y-2">
-              {employees.map((emp, i) => (
-                <div key={i} className="card p-4 flex items-center justify-between cursor-pointer">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
-                      emp.status === "current"
-                        ? "bg-status-good/10 text-status-good"
-                        : emp.status === "overdue"
-                        ? "bg-status-bad/10 text-status-bad"
-                        : "bg-status-warn/10 text-status-warn"
-                    }`}>
-                      {emp.name.split(" ").map((n) => n[0]).join("")}
+      <div className="grid lg:grid-cols-5 gap-6">
+        {/* Employee roster */}
+        <div className="lg:col-span-3">
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
+            Employee Roster ({employees.length})
+          </h2>
+          <div className="bg-navy-900 border border-navy-700/50 rounded-xl overflow-hidden">
+            {employees.map((emp, i) => {
+              const isSelected = selectedEmpId === emp.id;
+              const completedCount = emp.completed_modules.length;
+              const pendingModCount = emp.pending_modules.length;
+              return (
+                <div
+                  key={emp.id}
+                  onClick={() => setSelectedEmpId(isSelected ? null : emp.id)}
+                  className={`flex items-center justify-between px-4 py-3.5 cursor-pointer transition-colors ${
+                    isSelected ? "bg-amber-500/10" : "hover:bg-navy-800/50"
+                  } ${i < employees.length - 1 ? "border-b border-navy-700/30" : ""}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                        emp.status === "current"
+                          ? "bg-status-green/15 text-status-green"
+                          : emp.status === "overdue"
+                          ? "bg-status-red/15 text-status-red"
+                          : "bg-status-amber/15 text-status-amber"
+                      }`}
+                    >
+                      {getInitials(emp.name)}
                     </div>
                     <div>
-                      <div className="text-sm font-semibold text-white">{emp.name}</div>
+                      <div className="text-sm font-medium text-white">{emp.name}</div>
                       <div className="text-xs text-gray-500">{emp.role}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     <div className="text-right">
                       <div className="text-xs text-gray-500">
-                        {emp.completedCourses} completed
-                        {emp.pendingCourses > 0 && (
-                          <span className="text-status-warn ml-1">• {emp.pendingCourses} pending</span>
+                        {completedCount} completed
+                        {pendingModCount > 0 && (
+                          <span className="text-status-amber ml-1">&middot; {pendingModCount} pending</span>
                         )}
                       </div>
                       <div className="text-xs text-gray-600">
-                        Last trained: {emp.lastTraining}
+                        Last trained: {formatDate(emp.last_training)}
                       </div>
                     </div>
-                    {emp.status === "current" && <span className="badge-good">Current</span>}
-                    {emp.status === "overdue" && <span className="badge-bad">Overdue</span>}
-                    {emp.status === "pending" && <span className="badge-warn">Pending</span>}
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        emp.status === "current"
+                          ? "bg-status-green/15 text-status-green"
+                          : emp.status === "overdue"
+                          ? "bg-status-red/15 text-status-red"
+                          : "bg-status-amber/15 text-status-amber"
+                      }`}
+                    >
+                      {emp.status === "current" ? "Current" : emp.status === "overdue" ? "Overdue" : "Pending"}
+                    </span>
                     <ChevronRight className="w-4 h-4 text-gray-600" />
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
 
-          {/* Training courses */}
-          <div className="lg:col-span-2">
-            <h2 className="font-display font-bold text-lg mb-4">Training Modules</h2>
-            <div className="space-y-3">
-              {trainingCourses.map((course, i) => (
-                <div key={i} className="card p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="text-sm font-semibold text-white">{course.name}</div>
-                    <div className="flex items-center gap-1 text-xs text-gray-500">
-                      <Clock className="w-3 h-3" /> {course.duration}
+          {/* Selected employee detail */}
+          {selectedEmpId && (() => {
+            const emp = employees.find((e) => e.id === selectedEmpId);
+            if (!emp) return null;
+            const empRecords = trainingRecords.filter((r) => r.employee_id === emp.id);
+            return (
+              <div className="mt-3 bg-navy-900 border border-navy-700/50 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-white mb-3">{emp.name} — Training Details</h3>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div><span className="text-gray-500">Role:</span> <span className="text-white">{emp.role}</span></div>
+                  <div><span className="text-gray-500">Initial Training:</span> <span className="text-white">{formatDate(emp.initial_training)}</span></div>
+                  <div><span className="text-gray-500">Last Training:</span> <span className="text-white">{formatDate(emp.last_training)}</span></div>
+                  <div><span className="text-gray-500">Records:</span> <span className="text-white">{empRecords.length} training records on file</span></div>
+                </div>
+                {emp.completed_modules.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-500 mb-1.5">Completed Modules:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {emp.completed_modules.map((mod) => {
+                        const modInfo = FOUNDATION_MODULES.find((m) => m.id === mod);
+                        return (
+                          <span key={mod} className="inline-flex items-center gap-1 text-[10px] bg-status-green/10 text-status-green px-2 py-0.5 rounded-full">
+                            <CheckCircle2 className="h-2.5 w-2.5" />
+                            {modInfo?.name || mod}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
-                  <div className="text-xs text-amber font-medium mb-3">{course.type}</div>
+                )}
+                {emp.pending_modules.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs text-gray-500 mb-1.5">Pending Modules:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {emp.pending_modules.map((mod) => (
+                        <span key={mod} className="inline-flex items-center gap-1 text-[10px] bg-status-amber/10 text-status-amber px-2 py-0.5 rounded-full">
+                          <Clock className="h-2.5 w-2.5" />
+                          {mod}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Training modules */}
+        <div className="lg:col-span-2">
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
+            Training Modules ({allModules.length})
+          </h2>
+          <div className="space-y-3">
+            {allModules.map((mod) => {
+              const pct = mod.assigned > 0 ? (mod.completed / mod.assigned) * 100 : 0;
+              return (
+                <div key={mod.id} className="bg-navy-900 border border-navy-700/50 rounded-xl p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="text-sm font-medium text-white">{mod.name}</div>
+                    <div className="flex items-center gap-1 text-xs text-gray-500 flex-shrink-0 ml-2">
+                      <Clock className="w-3 h-3" /> {mod.duration}
+                    </div>
+                  </div>
+                  <div className="text-xs text-amber-400 font-medium mb-3">{mod.type}</div>
                   <div className="flex items-center justify-between">
-                    <div className="flex-1 bg-white/5 rounded-full h-2 mr-3">
+                    <div className="flex-1 bg-navy-800 rounded-full h-2 mr-3">
                       <div
-                        className={`h-2 rounded-full ${
-                          course.completed === course.assigned ? "bg-status-good" : "bg-amber"
+                        className={`h-2 rounded-full transition-all ${
+                          pct === 100 ? "bg-status-green" : "bg-amber-400"
                         }`}
-                        style={{ width: `${(course.completed / course.assigned) * 100}%` }}
+                        style={{ width: `${pct}%` }}
                       />
                     </div>
                     <span className="text-xs text-gray-500">
-                      {course.completed}/{course.assigned}
+                      {mod.completed}/{mod.assigned}
                     </span>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
+          </div>
 
-            <div className="mt-6 p-4 border border-dashed border-white/10 rounded-xl text-center">
-              <GraduationCap className="w-6 h-6 text-gray-600 mx-auto mb-2" />
-              <div className="text-sm text-gray-400">
-                Training auto-triggers when new chemical hazards are added to your inventory.
-              </div>
-              <div className="text-xs text-gray-600 mt-1">
-                Per OSHA 29 CFR 1910.1200(h)
-              </div>
+          <div className="mt-6 p-4 border border-dashed border-navy-700 rounded-xl text-center">
+            <GraduationCap className="w-6 h-6 text-gray-600 mx-auto mb-2" />
+            <div className="text-sm text-gray-400">
+              Training auto-triggers when new chemical hazards are added to your inventory.
+            </div>
+            <div className="text-xs text-gray-600 mt-1">
+              Per OSHA 29 CFR 1910.1200(h)
             </div>
           </div>
         </div>

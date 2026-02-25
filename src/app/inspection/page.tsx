@@ -591,6 +591,22 @@ export default function InspectionPage() {
         </HelpCard>
       </div>
 
+      {/* Empty State */}
+      {chemicals.length === 0 && (
+        <div className="text-center py-16">
+          <ShieldCheck className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+          <h2 className="text-xl font-display font-bold text-white mb-2">No chemicals to inspect</h2>
+          <p className="text-gray-400 mb-6">Add chemicals to your inventory to generate a compliance report.</p>
+          <a
+            href="/scan"
+            className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-sm px-6 py-3 rounded-lg transition-colors"
+          >
+            Scan Chemical
+          </a>
+        </div>
+      )}
+
+      {chemicals.length > 0 && <>
       {/* Compliance Score + Info Row */}
       <div className="mb-8 bg-navy-900 border border-navy-700/50 rounded-xl p-6 flex items-center gap-8">
         {/* Ring */}
@@ -716,6 +732,8 @@ export default function InspectionPage() {
           )}
         </div>
       </div>
+
+      </>}
 
       {/* Modals & Toast */}
       {showShare && <ShareModal onClose={() => setShowShare(false)} onToast={(msg) => { setShowShare(false); showToast(msg); }} />}
