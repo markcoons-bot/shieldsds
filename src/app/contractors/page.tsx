@@ -8,10 +8,10 @@ import {
   sdsEntries,
   inventoryItems,
   inventoryLocations,
-  shopInfo,
   ghsPictogramLabels,
 } from "@/lib/data";
 import type { GHSPictogram } from "@/lib/data";
+import { getCompanyProfile, isRealUser } from "@/lib/chemicals";
 import GHSPictogramIcon from "@/components/GHSPictogram";
 import {
   Plus,
@@ -96,6 +96,27 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 
 // ─── Packet Preview ───────────────────────────────────────────────────────────
 
+function getShopInfo() {
+  const profile = getCompanyProfile();
+  return {
+    name: profile.name,
+    owner: profile.owner,
+    address: profile.address,
+    city: profile.city || "",
+    state: profile.state || "",
+    zip: profile.zip || "",
+    phone: profile.phone || "",
+    emergencyContacts: {
+      poisonControl: "1-800-222-1222",
+      nearestHospital: {
+        name: "Nearest Emergency Room",
+        phone: "911",
+        distance: "—",
+      },
+    },
+  };
+}
+
 function PacketPreview({
   packet,
   onClose,
@@ -107,6 +128,7 @@ function PacketPreview({
 }) {
   const [sigName, setSigName] = useState("");
   const [sigText, setSigText] = useState("");
+  const shopInfo = getShopInfo();
   const shareUrl = `https://app.shieldsds.com/share/contractor/${packet.id}-${packet.company.toLowerCase().replace(/\s+/g, "-")}`;
 
   const handleCopyShareLink = () => {
@@ -200,7 +222,7 @@ function PacketPreview({
               1. Labeling System Used On-Site
             </h3>
             <p className="text-sm text-gray-700 mb-3">
-              Mike&apos;s Auto Body uses the Globally Harmonized System (GHS) for all chemical labeling.
+              {shopInfo.name} uses the Globally Harmonized System (GHS) for all chemical labeling.
               All secondary containers are labeled with GHS-compliant labels that include:
             </p>
             <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside mb-3">
@@ -393,7 +415,10 @@ function PacketPreview({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ContractorsPage() {
-  const [packets, setPackets] = useState<ContractorPacket[]>(seedPackets);
+  const [packets, setPackets] = useState<ContractorPacket[]>(() => {
+    if (typeof window !== "undefined" && isRealUser()) return [];
+    return seedPackets;
+  });
   const [toast, setToast] = useState<string | null>(null);
   const [previewPacket, setPreviewPacket] = useState<ContractorPacket | null>(null);
 

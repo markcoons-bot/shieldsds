@@ -2,7 +2,7 @@
 
 // @ts-nocheck — large inline-styled training component; strict TS types deferred to integration phase
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getEmployee, updateEmployee, addTrainingRecord } from "@/lib/chemicals";
+import { getEmployee, updateEmployee, addTrainingRecord, getCompanyProfile } from "@/lib/chemicals";
 
 /* ═══════════════════════════════════════════════════════════════════
    SHIELDSDS HAZCOM TRAINING MODULE v2
@@ -400,8 +400,9 @@ export default function ShieldSDSTraining() {
           const emp = getEmployee(empParam);
           if (emp) {
             setEmployeeName(emp.name);
-            setCompanyName("Mike's Auto Body");
-            setIndustry("auto-body");
+            const _profile = getCompanyProfile();
+            setCompanyName(_profile.name);
+            setIndustry(_profile.industry ? _profile.industry.toLowerCase().replace(/[^a-z-]/g, "-") : "auto-body");
             // Load employee's completed modules
             const empModules = emp.completed_modules.filter(m => m.startsWith("m"));
             if (empModules.length > 0) setCompletedModules(empModules);
@@ -510,7 +511,7 @@ export default function ShieldSDSTraining() {
               score: score,
               certificate_data: newCompleted.length >= 7 ? {
                 employee_name: emp.name,
-                company_name: companyName || "Mike's Auto Body",
+                company_name: companyName || getCompanyProfile().name,
                 industry: industry || "auto-body",
                 date: today,
               } : null,
@@ -2718,7 +2719,7 @@ export default function ShieldSDSTraining() {
           <div class="divider"></div>
           <p class="certifies">This certifies that</p>
           <p class="name">${employeeName}</p>
-          <p class="company">${companyName || "Mike's Auto Body"}</p>
+          <p class="company">${companyName || getCompanyProfile().name}</p>
           <p class="desc">Has successfully completed <strong>OSHA HazCom Safety Training</strong><br/>covering all 7 required modules with passing assessments.</p>
           <p class="osha">29 CFR 1910.1200(h) Compliant</p>
           <div class="modules">

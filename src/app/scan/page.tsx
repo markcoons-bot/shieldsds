@@ -23,7 +23,7 @@ import {
   Merge,
   StickyNote,
 } from "lucide-react";
-import { addChemical, addLocation, getLocations, initializeStore } from "@/lib/chemicals";
+import { addChemical, addLocation, getLocations, initializeStore, getCompanyProfile } from "@/lib/chemicals";
 import GHSPictogram from "@/components/GHSPictogram";
 import type {
   Chemical,
@@ -393,7 +393,7 @@ function ScanPageInner() {
       sds_date: scanResult.sds_url ? new Date().toISOString().split("T")[0] : null,
       sds_status: scanResult.sds_url ? "current" : "missing",
       added_date: new Date().toISOString(),
-      added_by: "Mike Rodriguez",
+      added_by: getCompanyProfile().owner,
       added_method: "scan",
       scan_image_url: imageUrl,
       scan_confidence: scanResult.confidence,
@@ -499,7 +499,7 @@ function ScanPageInner() {
       sds_date: sdsUrl ? new Date().toISOString().split("T")[0] : null,
       sds_status: sdsUrl ? "current" : "missing",
       added_date: new Date().toISOString(),
-      added_by: "Mike Rodriguez",
+      added_by: getCompanyProfile().owner,
       added_method: "manual",
       scan_image_url: null,
       scan_confidence: null,

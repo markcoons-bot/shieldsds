@@ -16,22 +16,12 @@ import {
   Camera,
   Search,
   Sparkles,
+  Edit3,
 } from "lucide-react";
-import { initializeStore, getChemicals, clearStore, addEmployee } from "@/lib/chemicals";
+import { getChemicals, addEmployee, addChemical, addLocation } from "@/lib/chemicals";
+import type { Chemical } from "@/lib/types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-interface CompanyProfile {
-  name: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  phone: string;
-  owner: string;
-  industry: string;
-  setupComplete: boolean;
-}
 
 interface EmployeeRow {
   id: string;
@@ -60,10 +50,25 @@ const US_STATES = [
   "VA","WA","WV","WI","WY",
 ];
 
+// Industry-based default locations
+const INDUSTRY_LOCATIONS: Record<string, string[]> = {
+  "Auto Body & Collision": ["Paint Booth", "Paint Mixing Room", "Body Bay", "Detail Bay", "Parts Washer Area", "Front Office"],
+  "Automotive Repair": ["Service Bay 1", "Service Bay 2", "Parts Room", "Front Office"],
+  "Construction": ["Job Site", "Tool Storage", "Material Storage", "Office Trailer"],
+  "Manufacturing": ["Production Floor", "Assembly Line", "Chemical Storage", "QC Lab", "Warehouse"],
+  "Janitorial & Cleaning": ["Supply Closet", "Storage Room", "Loading Dock"],
+  "Restaurant & Food Service": ["Kitchen", "Dish Pit", "Storage Room", "Dining Area"],
+  "Landscaping": ["Equipment Shed", "Chemical Storage", "Truck/Trailer"],
+  "Agriculture": ["Equipment Barn", "Chemical Storage", "Field Office"],
+  "Healthcare": ["Exam Room", "Lab", "Supply Room", "Pharmacy"],
+  "Education": ["Science Lab", "Custodial Closet", "Maintenance Shop"],
+  "Other": ["Main Work Area", "Storage", "Office"],
+};
+
 const STEPS = [
   { num: 1, label: "Company Profile", icon: Building2 },
   { num: 2, label: "Add Employees", icon: Users },
-  { num: 3, label: "Add First Chemical", icon: FlaskConical },
+  { num: 3, label: "Add Chemicals", icon: FlaskConical },
   { num: 4, label: "All Set!", icon: CheckCircle2 },
 ];
 
@@ -89,6 +94,7 @@ function SetupPageInner() {
   const [zip, setZip] = useState("");
   const [phone, setPhone] = useState("");
   const [ownerName, setOwnerName] = useState("");
+  const [ownerRole, setOwnerRole] = useState("Owner / Manager");
   const [industry, setIndustry] = useState("");
 
   // Step 2: Employees
@@ -96,8 +102,8 @@ function SetupPageInner() {
     { id: nextRowId(), name: "", role: "" },
   ]);
 
-  // Step 3: Chemical added flag
-  const [chemicalAdded, setChemicalAdded] = useState(false);
+  // Step 3: Chemicals tracked in component state (source of truth)
+  const [setupChemicals, setSetupChemicals] = useState<Omit<Chemical, "id">[]>([]);
 
   // Restore state if returning from scan/sds-search
   useEffect(() => {
@@ -111,7 +117,7 @@ function SetupPageInner() {
     try {
       const saved = localStorage.getItem("shieldsds-company");
       if (saved) {
-        const profile: CompanyProfile = JSON.parse(saved);
+        const profile = JSON.parse(saved);
         if (profile.name) setCompanyName(profile.name);
         if (profile.address) setAddress(profile.address);
         if (profile.city) setCity(profile.city);
@@ -119,6 +125,7 @@ function SetupPageInner() {
         if (profile.zip) setZip(profile.zip);
         if (profile.phone) setPhone(profile.phone);
         if (profile.owner) setOwnerName(profile.owner);
+        if (profile.ownerRole) setOwnerRole(profile.ownerRole);
         if (profile.industry) setIndustry(profile.industry);
       }
     } catch {
@@ -138,13 +145,43 @@ function SetupPageInner() {
       // ignore
     }
 
+    // Restore setup chemicals from localStorage
+    try {
+      const savedChems = localStorage.getItem("shieldsds-setup-chemicals");
+      if (savedChems) {
+        const parsed = JSON.parse(savedChems);
+        if (Array.isArray(parsed)) {
+          setSetupChemicals(parsed);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
     // Check if a chemical was added (returning from scan or sds-search)
     const returnParam = searchParams.get("return");
     if (returnParam === "setup" || savedStep === "3") {
-      initializeStore();
-      const chems = getChemicals();
-      if (chems.length > 0) {
-        setChemicalAdded(true);
+      // Check localStorage for any newly added chemicals not yet in our setup list
+      const allChems = getChemicals();
+      if (allChems.length > 0) {
+        // Load existing setup chemicals to compare
+        let existingSetup: Omit<Chemical, "id">[] = [];
+        try {
+          const savedChems = localStorage.getItem("shieldsds-setup-chemicals");
+          if (savedChems) existingSetup = JSON.parse(savedChems);
+        } catch { /* ignore */ }
+
+        const existingNames = new Set(existingSetup.map(c => c.product_name));
+        const newChems = allChems.filter(c => !existingNames.has(c.product_name));
+
+        if (newChems.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const combined = [...existingSetup, ...newChems.map(({ id, ...rest }) => rest)];
+          setSetupChemicals(combined);
+          localStorage.setItem("shieldsds-setup-chemicals", JSON.stringify(combined));
+        } else if (existingSetup.length > 0) {
+          setSetupChemicals(existingSetup);
+        }
       }
     }
   }, [searchParams]);
@@ -159,18 +196,16 @@ function SetupPageInner() {
 
   function goToStep(step: number) {
     if (step === 2 && currentStep === 1) {
-      // Save company profile
       saveCompanyProfile(false);
     }
     if (step === 3 && currentStep === 2) {
-      // Save employees
-      saveEmployees();
+      saveEmployeesToTemp();
     }
     setCurrentStep(step);
   }
 
   function saveCompanyProfile(complete: boolean) {
-    const profile: CompanyProfile = {
+    const profile = {
       name: companyName.trim(),
       address: address.trim(),
       city: city.trim(),
@@ -178,24 +213,65 @@ function SetupPageInner() {
       zip: zip.trim(),
       phone: phone.trim(),
       owner: ownerName.trim(),
+      ownerRole: ownerRole.trim(),
       industry,
+      setupDate: new Date().toISOString(),
       setupComplete: complete,
     };
     localStorage.setItem("shieldsds-company", JSON.stringify(profile));
   }
 
-  function saveEmployees() {
-    // Save to setup storage for restoration
+  function saveEmployeesToTemp() {
     localStorage.setItem("shieldsds-setup-employees", JSON.stringify(employees));
+  }
 
-    // Clear demo data and create fresh employees
-    clearStore();
-    initializeStore();
+  function nuclearClear() {
+    // 1. Remove ALL shieldsds-* keys
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("shieldsds")) keysToRemove.push(key);
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
 
-    const validEmployees = employees.filter(
-      (e) => e.name.trim() && e.role.trim()
-    );
-    validEmployees.forEach((emp) => {
+    // 2. Remove any other app-specific keys
+    const otherAppKeys = ["training-progress", "training-lang"];
+    otherAppKeys.forEach((key) => localStorage.removeItem(key));
+  }
+
+  function handleFinish() {
+    // Save chemicals from component state before nuclear clear
+    const chemsToRestore = [...setupChemicals];
+    const validEmployeeRows = employees.filter((e) => e.name.trim() && e.role.trim());
+
+    // ── NUCLEAR CLEAR ──
+    nuclearClear();
+
+    // ── RE-INITIALIZE WITH USER DATA ONLY ──
+
+    // a. Save company profile
+    saveCompanyProfile(true);
+
+    // b. Initialize locations based on industry
+    const industryLocs = INDUSTRY_LOCATIONS[industry] || INDUSTRY_LOCATIONS["Other"];
+    industryLocs.forEach((locName) => {
+      addLocation({ name: locName, chemical_ids: [] });
+    });
+
+    // c. Create owner as first employee
+    addEmployee({
+      name: ownerName.trim(),
+      role: ownerRole.trim() || "Owner / Manager",
+      initial_training: null,
+      last_training: null,
+      status: "pending",
+      completed_modules: [],
+      pending_modules: [],
+    });
+
+    // Add employees from Step 2 (skip if same as owner)
+    validEmployeeRows.forEach((emp) => {
+      if (emp.name.trim().toLowerCase() === ownerName.trim().toLowerCase()) return;
       addEmployee({
         name: emp.name.trim(),
         role: emp.role.trim(),
@@ -206,13 +282,22 @@ function SetupPageInner() {
         pending_modules: [],
       });
     });
-  }
 
-  function handleFinish() {
-    saveCompanyProfile(true);
-    localStorage.removeItem("shieldsds-setup-employees");
-    // Clear welcome banner shown flag so it shows once
+    // d. Re-add chemicals from component state
+    chemsToRestore.forEach((chem) => {
+      addChemical(chem);
+    });
+
+    // e. Set setup-complete flag
+    localStorage.setItem("shieldsds-setup-complete", "true");
+
+    // f. Set welcome banner flag
     localStorage.setItem("shieldsds-welcome-shown", "false");
+
+    // g. Clean up temp storage
+    localStorage.removeItem("shieldsds-setup-employees");
+    localStorage.removeItem("shieldsds-setup-chemicals");
+
     router.push("/dashboard");
   }
 
@@ -227,10 +312,20 @@ function SetupPageInner() {
     setEmployees(employees.filter((e) => e.id !== id));
   }
 
-  function updateEmployee(id: string, field: "name" | "role", value: string) {
+  function updateEmployeeField(id: string, field: "name" | "role", value: string) {
     setEmployees(
       employees.map((e) => (e.id === id ? { ...e, [field]: value } : e))
     );
+  }
+
+  // ── Chemical count message ────────────────────────────────────────────────
+
+  function getChemicalMessage() {
+    const count = setupChemicals.length;
+    if (count === 0) return "Add your first chemical to get started";
+    if (count <= 2) return "Great start! Most shops have 10-20 chemicals.";
+    if (count <= 5) return "Nice! You can always add more from the dashboard.";
+    return "You're on a roll! Ready to see your dashboard?";
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -333,7 +428,7 @@ function SetupPageInner() {
                   type="text"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="e.g. Mike's Auto Body"
+                  placeholder="e.g. Acme Auto Body"
                   className="w-full bg-navy-800 border border-navy-600 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
                   autoFocus
                 />
@@ -347,7 +442,7 @@ function SetupPageInner() {
                   type="text"
                   value={ownerName}
                   onChange={(e) => setOwnerName(e.target.value)}
-                  placeholder="e.g. Mike Rodriguez"
+                  placeholder="e.g. John Smith"
                   className="w-full bg-navy-800 border border-navy-600 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
                 />
               </div>
@@ -485,7 +580,7 @@ function SetupPageInner() {
                         type="text"
                         value={emp.name}
                         onChange={(e) =>
-                          updateEmployee(emp.id, "name", e.target.value)
+                          updateEmployeeField(emp.id, "name", e.target.value)
                         }
                         placeholder="Employee name"
                         className="w-full bg-navy-800 border border-navy-600 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
@@ -499,7 +594,7 @@ function SetupPageInner() {
                         type="text"
                         value={emp.role}
                         onChange={(e) =>
-                          updateEmployee(emp.id, "role", e.target.value)
+                          updateEmployeeField(emp.id, "role", e.target.value)
                         }
                         placeholder="e.g. Painter, Technician"
                         className="w-full bg-navy-800 border border-navy-600 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
@@ -539,77 +634,105 @@ function SetupPageInner() {
                 disabled={!canProceedStep2}
                 className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-navy-950 font-bold px-6 py-3 rounded-lg transition-colors"
               >
-                Next: Add Chemical
+                Next: Add Chemicals
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           </div>
         )}
 
-        {/* ── STEP 3: Add First Chemical ──────────────────────────── */}
+        {/* ── STEP 3: Add Chemicals (multiple) ──────────────────── */}
         {currentStep === 3 && (
           <div className="space-y-6">
             <div>
               <h2 className="font-display font-black text-2xl mb-2">
-                Add Your First Chemical
+                Add Your Chemicals
               </h2>
               <p className="text-gray-400 text-sm">
-                Scan a label, search our database, or skip for now and add
-                chemicals later.
+                {getChemicalMessage()}
               </p>
             </div>
 
-            {chemicalAdded ? (
-              <div className="bg-status-green/10 border border-status-green/30 rounded-xl p-6 text-center">
-                <CheckCircle2 className="h-10 w-10 text-status-green mx-auto mb-3" />
-                <h3 className="font-display font-bold text-lg text-white mb-1">
-                  Chemical Added!
-                </h3>
-                <p className="text-sm text-gray-400">
-                  Great start. You can add more chemicals anytime from the
-                  dashboard.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <Link
-                  href="/scan?return=setup"
-                  className="flex items-center gap-4 bg-amber-500/10 border-2 border-amber-500/30 hover:border-amber-500/60 rounded-xl p-5 transition-colors group"
-                >
-                  <div className="h-12 w-12 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                    <Camera className="h-6 w-6 text-amber-400" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-display font-bold text-white group-hover:text-amber-400 transition-colors">
-                      Scan a Chemical Label
-                    </h3>
-                    <p className="text-sm text-gray-400">
-                      Take a photo and we&apos;ll extract the safety data
-                      automatically.
-                    </p>
-                  </div>
-                  <ArrowRight className="h-5 w-5 text-gray-500 group-hover:text-amber-400 transition-colors" />
-                </Link>
-
-                <Link
-                  href="/sds-search?return=setup"
-                  className="flex items-center gap-4 bg-navy-900 border border-navy-700/50 hover:border-navy-600 rounded-xl p-5 transition-colors group"
-                >
-                  <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                    <Search className="h-6 w-6 text-blue-400" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-display font-bold text-white group-hover:text-blue-400 transition-colors">
-                      Search SDS Database
-                    </h3>
-                    <p className="text-sm text-gray-400">
-                      Browse our database of chemicals and add with one click.
-                    </p>
-                  </div>
-                  <ArrowRight className="h-5 w-5 text-gray-500 group-hover:text-blue-400 transition-colors" />
-                </Link>
+            {/* Chemicals added so far */}
+            {setupChemicals.length > 0 && (
+              <div className="bg-status-green/10 border border-status-green/30 rounded-xl p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircle2 className="h-5 w-5 text-status-green" />
+                  <h3 className="font-display font-bold text-white">
+                    {setupChemicals.length} chemical{setupChemicals.length !== 1 ? "s" : ""} added so far!
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {setupChemicals.map((chem, i) => (
+                    <div key={i} className="flex items-center gap-3 bg-navy-900/50 rounded-lg px-3 py-2">
+                      <FlaskConical className="h-4 w-4 text-amber-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{chem.product_name}</p>
+                        <p className="text-xs text-gray-400">{chem.manufacturer}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
+
+            {/* Add more options — always visible */}
+            <div className="space-y-4">
+              <Link
+                href="/scan?return=setup"
+                className="flex items-center gap-4 bg-amber-500/10 border-2 border-amber-500/30 hover:border-amber-500/60 rounded-xl p-5 transition-colors group"
+              >
+                <div className="h-12 w-12 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                  <Camera className="h-6 w-6 text-amber-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-display font-bold text-white group-hover:text-amber-400 transition-colors">
+                    {setupChemicals.length > 0 ? "Scan Another Label" : "Scan a Chemical Label"}
+                  </h3>
+                  <p className="text-sm text-gray-400">
+                    Take a photo and we&apos;ll extract the safety data
+                    automatically.
+                  </p>
+                </div>
+                <ArrowRight className="h-5 w-5 text-gray-500 group-hover:text-amber-400 transition-colors" />
+              </Link>
+
+              <Link
+                href="/sds-search?return=setup"
+                className="flex items-center gap-4 bg-navy-900 border border-navy-700/50 hover:border-navy-600 rounded-xl p-5 transition-colors group"
+              >
+                <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                  <Search className="h-6 w-6 text-blue-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-display font-bold text-white group-hover:text-blue-400 transition-colors">
+                    {setupChemicals.length > 0 ? "Browse More Chemicals" : "Search SDS Database"}
+                  </h3>
+                  <p className="text-sm text-gray-400">
+                    Browse our database of chemicals and add with one click.
+                  </p>
+                </div>
+                <ArrowRight className="h-5 w-5 text-gray-500 group-hover:text-blue-400 transition-colors" />
+              </Link>
+
+              <Link
+                href="/scan?return=setup&mode=manual"
+                className="flex items-center gap-4 bg-navy-900 border border-navy-700/50 hover:border-navy-600 rounded-xl p-5 transition-colors group"
+              >
+                <div className="h-12 w-12 rounded-xl bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                  <Edit3 className="h-6 w-6 text-purple-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-display font-bold text-white group-hover:text-purple-400 transition-colors">
+                    Add Manually
+                  </h3>
+                  <p className="text-sm text-gray-400">
+                    Enter chemical details by hand.
+                  </p>
+                </div>
+                <ArrowRight className="h-5 w-5 text-gray-500 group-hover:text-purple-400 transition-colors" />
+              </Link>
+            </div>
 
             <div className="flex justify-between pt-4">
               <button
@@ -621,9 +744,13 @@ function SetupPageInner() {
               </button>
               <button
                 onClick={() => goToStep(4)}
-                className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold px-6 py-3 rounded-lg transition-colors"
+                className={`flex items-center gap-2 text-navy-950 font-bold px-6 py-3 rounded-lg transition-colors ${
+                  setupChemicals.length >= 3
+                    ? "bg-amber-500 hover:bg-amber-400 ring-2 ring-amber-400/50"
+                    : "bg-amber-500 hover:bg-amber-400"
+                }`}
               >
-                {chemicalAdded ? "Next: Finish Setup" : "Skip for Now"}
+                {setupChemicals.length > 0 ? "Next: Finish Setup" : "Skip for Now"}
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
@@ -663,16 +790,16 @@ function SetupPageInner() {
                 <Users className="h-5 w-5 text-amber-400 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-white">
-                    {employees.filter((e) => e.name.trim()).length} employee
-                    {employees.filter((e) => e.name.trim()).length !== 1
+                    {employees.filter((e) => e.name.trim()).length + 1} employee
+                    {employees.filter((e) => e.name.trim()).length !== 0
                       ? "s"
                       : ""}{" "}
                     added
                   </p>
                   <p className="text-xs text-gray-400">
-                    {employees
-                      .filter((e) => e.name.trim())
-                      .map((e) => e.name.trim())
+                    {[ownerName, ...employees
+                      .filter((e) => e.name.trim() && e.name.trim().toLowerCase() !== ownerName.trim().toLowerCase())
+                      .map((e) => e.name.trim())]
                       .slice(0, 3)
                       .join(", ")}
                     {employees.filter((e) => e.name.trim()).length > 3
@@ -685,12 +812,12 @@ function SetupPageInner() {
                 <FlaskConical className="h-5 w-5 text-amber-400 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-white">
-                    {chemicalAdded
-                      ? "First chemical added"
+                    {setupChemicals.length > 0
+                      ? `${setupChemicals.length} chemical${setupChemicals.length !== 1 ? "s" : ""} added`
                       : "No chemicals yet"}
                   </p>
                   <p className="text-xs text-gray-400">
-                    {chemicalAdded
+                    {setupChemicals.length > 0
                       ? "You can add more from the dashboard"
                       : "Add chemicals anytime from the dashboard"}
                   </p>

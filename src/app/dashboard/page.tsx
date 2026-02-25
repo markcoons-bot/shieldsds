@@ -7,7 +7,7 @@ import StatusDot from "@/components/StatusDot";
 import HelpTooltip from "@/components/HelpTooltip";
 import HelpCard from "@/components/HelpCard";
 import FixAllPanel from "@/components/FixAllPanel";
-import { getChemicals, getEmployees, initializeStore, updateChemical } from "@/lib/chemicals";
+import { getChemicals, getEmployees, initializeStore, updateChemical, getCompanyProfile } from "@/lib/chemicals";
 import { calculateComplianceScore, getEmployeeTrainingStatus } from "@/lib/compliance-score";
 import type { Chemical, Employee } from "@/lib/types";
 import {
@@ -277,7 +277,7 @@ export default function DashboardPage() {
   const [sdsLookupResult, setSdsLookupResult] = useState<Record<string, { found: boolean; portalUrl?: string }>>({});
   const [trainingLinkPopup, setTrainingLinkPopup] = useState<string | null>(null); // employee id
   const [trainingLinkCopied, setTrainingLinkCopied] = useState(false);
-  const [companyName, setCompanyName] = useState("Mike\u2019s Auto Body");
+  const [companyName, setCompanyName] = useState("");
   const [showWelcome, setShowWelcome] = useState(false);
 
   const handleFindSDS = useCallback(async (item: DashboardActionItem) => {
@@ -317,14 +317,16 @@ export default function DashboardPage() {
     setChemicals(getChemicals());
     setEmployees(getEmployees());
 
-    // Read company name from localStorage
+    // Read company name from profile
+    const profile = getCompanyProfile();
+    setCompanyName(profile.name);
+
+    // Show welcome banner once after setup
     try {
       const saved = localStorage.getItem("shieldsds-company");
       if (saved) {
-        const profile = JSON.parse(saved);
-        if (profile.name) setCompanyName(profile.name);
-        // Show welcome banner once after setup
-        if (profile.setupComplete) {
+        const p = JSON.parse(saved);
+        if (p.setupComplete) {
           const welcomed = localStorage.getItem("shieldsds-welcome-shown");
           if (welcomed === "false") {
             setShowWelcome(true);

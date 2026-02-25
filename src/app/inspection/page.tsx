@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import GHSPictogram from "@/components/GHSPictogram";
-import { getChemicals, getEmployees, initializeStore } from "@/lib/chemicals";
+import { getChemicals, getEmployees, initializeStore, getCompanyProfile } from "@/lib/chemicals";
 import { calculateComplianceScore, getEmployeeTrainingStatus } from "@/lib/compliance-score";
 import type { TrainingStatus } from "@/lib/compliance-score";
 import type { Chemical, Employee } from "@/lib/types";
@@ -27,17 +27,20 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-// ─── Shop Info (static config) ──────────────────────────────────────────────
+// ─── Shop Info (dynamic from company profile) ──────────────────────────────
 
-const shopInfo = {
-  name: "Mike's Auto Body",
-  owner: "Mike Rodriguez",
-  address: "1847 Pacific Coast Hwy",
-  city: "Long Beach",
-  state: "CA",
-  zip: "90806",
-  phone: "(562) 555-0147",
-};
+function getShopInfo() {
+  const profile = getCompanyProfile();
+  return {
+    name: profile.name,
+    owner: profile.owner,
+    address: profile.address || "",
+    city: profile.city || "",
+    state: profile.state || "",
+    zip: profile.zip || "",
+    phone: profile.phone || "",
+  };
+}
 
 // ─── Local helper components ────────────────────────────────────────────────
 
@@ -144,7 +147,7 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 
 // ─── Share Modal ──────────────────────────────────────────────────────────────
 
-function ShareModal({ onClose, onToast }: { onClose: () => void; onToast: (msg: string) => void }) {
+function ShareModal({ onClose, onToast, shopInfo }: { onClose: () => void; onToast: (msg: string) => void; shopInfo: { name: string; owner: string; address: string; city: string; state: string; zip: string; phone: string } }) {
   const [copied, setCopied] = useState(false);
   const [expiry, setExpiry] = useState("7d");
   const [accessMode, setAccessMode] = useState<"anyone" | "email">("anyone");
@@ -436,11 +439,13 @@ export default function InspectionPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [showShare, setShowShare] = useState(false);
+  const [shopInfo, setShopInfo] = useState(getShopInfo());
 
   useEffect(() => {
     initializeStore();
     setChemicals(getChemicals());
     setEmployees(getEmployees());
+    setShopInfo(getShopInfo());
   }, []);
 
   const showToast = useCallback((msg: string) => {
@@ -1259,7 +1264,7 @@ export default function InspectionPage() {
       </>}
 
       {/* Modals & Toast */}
-      {showShare && <ShareModal onClose={() => setShowShare(false)} onToast={(msg) => { setShowShare(false); showToast(msg); }} />}
+      {showShare && <ShareModal shopInfo={shopInfo} onClose={() => setShowShare(false)} onToast={(msg) => { setShowShare(false); showToast(msg); }} />}
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </DashboardLayout>
   );

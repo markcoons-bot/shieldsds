@@ -10,6 +10,7 @@ import {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   updateEmployee,
   initializeStore,
+  getCompanyProfile,
 } from "@/lib/chemicals";
 import type { Employee } from "@/lib/types";
 import { getEmployeeTrainingStatus, type TrainingStatus } from "@/lib/compliance-score";
@@ -255,7 +256,7 @@ export default function TrainingPage() {
           <div class="divider"></div>
           <p class="certifies">This certifies that</p>
           <p class="name">${emp.name}</p>
-          <p class="company">Mike&rsquo;s Auto Body</p>
+          <p class="company">${getCompanyProfile().name}</p>
           <p class="desc">Has successfully completed <strong>OSHA HazCom Safety Training</strong><br/>covering all 7 required modules with passing assessments.</p>
           <p class="osha">29 CFR 1910.1200(h) Compliant</p>
           <div class="modules">
@@ -263,7 +264,7 @@ export default function TrainingPage() {
           </div>
           <div class="meta">
             <div><div class="label">DATE</div><div class="value">${certDate}</div></div>
-            <div><div class="label">INDUSTRY</div><div class="value">Auto Body / Collision</div></div>
+            <div><div class="label">INDUSTRY</div><div class="value">${getCompanyProfile().industry}</div></div>
             <div><div class="label">PROVIDER</div><div class="value">ShieldSDS</div></div>
           </div>
           <div class="footer">
@@ -568,7 +569,7 @@ export default function TrainingPage() {
                             <p className="text-xl font-extrabold text-gray-900 border-b-2 border-[#B8860B] inline-block px-6 pb-2">
                               {emp.name}
                             </p>
-                            <p className="text-xs text-gray-400 mt-2 mb-4">Mike&apos;s Auto Body</p>
+                            <p className="text-xs text-gray-400 mt-2 mb-4">{getCompanyProfile().name}</p>
                             <p className="text-sm text-gray-600 leading-relaxed mb-3">
                               Has successfully completed <strong>OSHA HazCom Safety Training</strong><br />
                               covering all 7 required modules with passing assessments.
@@ -595,7 +596,7 @@ export default function TrainingPage() {
                               </div>
                               <div className="text-center">
                                 <div className="text-[10px] text-gray-400 tracking-wide">INDUSTRY</div>
-                                <div className="text-xs font-bold text-gray-900">Auto Body / Collision</div>
+                                <div className="text-xs font-bold text-gray-900">{getCompanyProfile().industry}</div>
                               </div>
                               <div className="text-center">
                                 <div className="text-[10px] text-gray-400 tracking-wide">PROVIDER</div>

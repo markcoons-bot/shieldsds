@@ -4,36 +4,40 @@ import { useState, useEffect, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import HelpCard from "@/components/HelpCard";
 import { generateHazComProgramPDF } from "@/lib/pdf-generator";
-import { getChemicals, getEmployees, initializeStore } from "@/lib/chemicals";
+import { getChemicals, getEmployees, initializeStore, getCompanyProfile } from "@/lib/chemicals";
 import { getEmployeeTrainingStatus } from "@/lib/compliance-score";
 import type { TrainingStatus } from "@/lib/compliance-score";
 import type { Chemical, Employee } from "@/lib/types";
 import { Printer, Download, Clock, AlertTriangle } from "lucide-react";
 
-// ─── Shop Info (static config — matches inspection page) ────────────────────
+// ─── Shop Info (dynamic from company profile) ───────────────────────────────
 
-const shopInfo = {
-  name: "Mike's Auto Body",
-  owner: "Mike Rodriguez",
-  address: "1847 Pacific Coast Hwy",
-  city: "Long Beach",
-  state: "CA",
-  zip: "90806",
-  phone: "(562) 555-0147",
-  ownerPhone: "(562) 555-0147",
-  ownerEmail: "mike@mikesautobody.com",
-  emergencyContacts: {
-    fire: "911",
-    police: "911",
-    poisonControl: "1-800-222-1222",
-    nearestHospital: {
-      name: "Long Beach Memorial Medical Center",
-      address: "2801 Atlantic Ave, Long Beach, CA 90806",
-      phone: "(562) 933-2000",
-      distance: "1.8 miles",
+function getShopInfo() {
+  const profile = getCompanyProfile();
+  const slug = profile.name.toLowerCase().replace(/[^a-z]/g, "");
+  return {
+    name: profile.name,
+    owner: profile.owner,
+    address: profile.address,
+    city: profile.city || "",
+    state: profile.state || "",
+    zip: profile.zip || "",
+    phone: profile.phone || "",
+    ownerPhone: profile.phone || "",
+    ownerEmail: `${profile.owner.split(" ")[0].toLowerCase()}@${slug}.com`,
+    emergencyContacts: {
+      fire: "911",
+      police: "911",
+      poisonControl: "1-800-222-1222",
+      nearestHospital: {
+        name: "Nearest Emergency Room",
+        address: "See posted emergency map",
+        phone: "911",
+        distance: "—",
+      },
     },
-  },
-};
+  };
+}
 
 // ─── The 7 real training modules (matches learn page exactly) ───────────────
 
@@ -157,11 +161,13 @@ function generateVersionHistory(chemicals: Chemical[], employees: Employee[]): V
 export default function HazComProgramPage() {
   const [chemicals, setChemicals] = useState<Chemical[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [shopInfo, setShopInfo] = useState(() => getShopInfo());
 
   useEffect(() => {
     initializeStore();
     setChemicals(getChemicals());
     setEmployees(getEmployees());
+    setShopInfo(getShopInfo());
   }, []);
 
   const currentSDS = chemicals.filter((c) => c.sds_status === "current").length;

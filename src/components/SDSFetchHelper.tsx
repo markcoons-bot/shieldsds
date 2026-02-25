@@ -1,6 +1,7 @@
 "use client";
 
 import { ExternalLink, Mail, Globe } from "lucide-react";
+import { getCompanyProfile } from "@/lib/chemicals";
 
 interface SDSFetchHelperProps {
   manufacturer: string;
@@ -104,6 +105,7 @@ const manufacturerPortals: Record<string, { name: string; url: string; sdsUrl: s
 export default function SDSFetchHelper({ manufacturer, productName, productCode }: SDSFetchHelperProps) {
   const portal = manufacturerPortals[manufacturer];
 
+  const profile = getCompanyProfile();
   const emailSubject = `SDS Request: ${productName} (${productCode})`;
   const emailBody = `Dear ${manufacturer} Safety Department,
 
@@ -111,15 +113,15 @@ We are writing to request the current Safety Data Sheet (SDS) for:
 
 Product: ${productName}
 Product Code: ${productCode}
-Our Company: Mike's Auto Body
-Address: 1847 Pacific Coast Hwy, Long Beach, CA 90806
-Contact: Mike Rodriguez — (562) 555-0147
+Our Company: ${profile.name}
+Address: ${profile.address}${profile.city ? `, ${profile.city}` : ""}${profile.state ? `, ${profile.state}` : ""} ${profile.zip || ""}
+Contact: ${profile.owner}${profile.phone ? ` — ${profile.phone}` : ""}
 
 Per OSHA 29 CFR 1910.1200, we are required to maintain current SDS for all hazardous chemicals in our workplace. Please send the most recent revision at your earliest convenience.
 
 Thank you,
-Mike Rodriguez
-Mike's Auto Body`;
+${profile.owner}
+${profile.name}`;
 
   const emailAddr = `safety@${manufacturer.toLowerCase().replace(/[^a-z]/g, "")}.com`;
 

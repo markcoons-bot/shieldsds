@@ -1324,6 +1324,51 @@ const SEED_LOCATIONS: Omit<Location, "id">[] = [
 ];
 
 // ══════════════════════════════════════════════════════════
+// COMPANY PROFILE
+// ══════════════════════════════════════════════════════════
+
+export interface CompanyProfile {
+  name: string;
+  industry: string;
+  address: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  phone?: string;
+  owner: string;
+  ownerRole?: string;
+  setupDate?: string;
+  setupComplete?: boolean;
+}
+
+export function getCompanyProfile(): CompanyProfile {
+  try {
+    const stored = localStorage.getItem("shieldsds-company");
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch {
+    // fallback
+  }
+  // Fallback for demo mode
+  return {
+    name: "Mike\u2019s Auto Body",
+    industry: "Auto Body & Collision",
+    address: "1847 Pacific Coast Hwy",
+    city: "Long Beach",
+    state: "CA",
+    zip: "90806",
+    phone: "(562) 555-0147",
+    owner: "Mike Rodriguez",
+    ownerRole: "Owner / Manager",
+  };
+}
+
+export function isRealUser(): boolean {
+  return !!localStorage.getItem("shieldsds-company") || !!localStorage.getItem("shieldsds-setup-complete");
+}
+
+// ══════════════════════════════════════════════════════════
 // SEED + INIT
 // ══════════════════════════════════════════════════════════
 
@@ -1367,8 +1412,8 @@ export function seedDemoData(): void {
           emp.completed_modules.length >= 6
             ? {
                 employee_name: emp.name,
-                company_name: "Mike's Auto Body",
-                industry: "auto_body",
+                company_name: getCompanyProfile().name,
+                industry: getCompanyProfile().industry,
                 date:
                   emp.last_training ||
                   new Date().toISOString().split("T")[0],
@@ -1399,7 +1444,12 @@ export function clearStore(): void {
 }
 
 export function initializeStore(): void {
-  // Only seed if no data exists yet
+  // If a company profile exists, this is a real user — do NOT seed demo data
+  if (isRealUser()) {
+    return;
+  }
+
+  // Only seed if store is truly empty (first visit, demo mode)
   const existing = readStore<Chemical>(KEYS.chemicals);
   if (existing.length === 0) {
     seedDemoData();

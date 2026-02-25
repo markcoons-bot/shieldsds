@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { getChemicals, getEmployees, initializeStore } from "@/lib/chemicals";
+import { getChemicals, getEmployees, initializeStore, getCompanyProfile } from "@/lib/chemicals";
 import type { Chemical, Employee } from "@/lib/types";
 import {
   Shield,
@@ -35,17 +35,20 @@ const navItems = [
   { label: "Browse & Add", href: "/sds-search", icon: Search, badgeKey: null },
 ];
 
-const defaultLocations = [
-  { name: "Mike\u2019s Auto Body", sub: "Main Location", active: true },
-  { name: "Mike\u2019s Auto Body", sub: "Warehouse", active: false },
-  { name: "Mike\u2019s Auto Body", sub: "Mobile Unit", active: false },
-];
+function getDefaultLocations() {
+  const profile = getCompanyProfile();
+  return [
+    { name: profile.name, sub: "Main Location", active: true },
+    { name: profile.name, sub: "Warehouse", active: false },
+    { name: profile.name, sub: "Mobile Unit", active: false },
+  ];
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [locations, setLocationsState] = useState(defaultLocations);
+  const [locations, setLocationsState] = useState(() => getDefaultLocations());
   const [locOpen, setLocOpen] = useState(false);
-  const [selectedLoc, setSelectedLoc] = useState(defaultLocations[0]);
+  const [selectedLoc, setSelectedLoc] = useState(() => getDefaultLocations()[0]);
   const dropRef = useRef<HTMLDivElement>(null);
 
   // Live data for badges
@@ -57,23 +60,10 @@ export default function Sidebar() {
     setChemicals(getChemicals());
     setEmployees(getEmployees());
 
-    // Read company name from localStorage
-    try {
-      const saved = localStorage.getItem("shieldsds-company");
-      if (saved) {
-        const profile = JSON.parse(saved);
-        if (profile.name) {
-          const dynamicLocations = defaultLocations.map((loc) => ({
-            ...loc,
-            name: profile.name,
-          }));
-          setLocationsState(dynamicLocations);
-          setSelectedLoc(dynamicLocations[0]);
-        }
-      }
-    } catch {
-      // fallback to default
-    }
+    // Update locations with current company name
+    const locs = getDefaultLocations();
+    setLocationsState(locs);
+    setSelectedLoc(locs[0]);
   }, []);
 
   // Refresh badge counts when pathname changes (user navigated after making changes)

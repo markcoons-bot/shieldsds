@@ -5,7 +5,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import GHSPictogram, { GHS_LABELS } from "@/components/GHSPictogram";
 import SDSFetchHelper from "@/components/SDSFetchHelper";
 import HelpCard from "@/components/HelpCard";
-import { getChemicals, initializeStore, updateChemical } from "@/lib/chemicals";
+import { getChemicals, initializeStore, updateChemical, getCompanyProfile } from "@/lib/chemicals";
 import type { Chemical } from "@/lib/types";
 import {
   Search,
@@ -137,21 +137,22 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 
 function EmailModal({ chem, onClose }: { chem: Chemical; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
+  const profile = getCompanyProfile();
   const subject = `SDS Request: ${chem.product_name}`;
   const body = `Dear ${chem.manufacturer} Safety Department,
 
 We are writing to request the current Safety Data Sheet (SDS) for:
 
 Product: ${chem.product_name}
-Our Company: Mike's Auto Body
-Address: 1847 Pacific Coast Hwy, Long Beach, CA 90806
-Contact: Mike Rodriguez — (562) 555-0147
+Our Company: ${profile.name}
+Address: ${profile.address}${profile.city ? `, ${profile.city}` : ""}${profile.state ? `, ${profile.state}` : ""} ${profile.zip || ""}
+Contact: ${profile.owner}${profile.phone ? ` — ${profile.phone}` : ""}
 
 Per OSHA 29 CFR 1910.1200, we are required to maintain current SDS for all hazardous chemicals in our workplace. Please send the most recent revision at your earliest convenience.
 
 Thank you,
-Mike Rodriguez
-Mike's Auto Body`;
+${profile.owner}
+${profile.name}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`);
