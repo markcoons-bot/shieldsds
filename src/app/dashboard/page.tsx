@@ -128,10 +128,10 @@ function getDynamicActionItems(chemicals: Chemical[], employees: Employee[]): Da
         detail: `${daysOverdue} day${daysOverdue !== 1 ? "s" : ""} overdue — annual refresher expired. ${completed}/7 modules completed.`,
         timeEstimate: "~3 min",
         oshaRisk: "Critical",
-        fixHref: "/training",
-        fixLabel: "Send Training Link",
+        fixHref: `/training/learn?employee=${emp.id}`,
+        fixLabel: "Start Training",
         employeeId: emp.id,
-        actionType: "send-link",
+        actionType: "link",
       });
     } else if (info.status === "due-soon") {
       items.push({
@@ -141,10 +141,10 @@ function getDynamicActionItems(chemicals: Chemical[], employees: Employee[]): Da
         detail: `Due in ${info.daysUntilDue} day${info.daysUntilDue !== 1 ? "s" : ""} — schedule refresher training now.`,
         timeEstimate: "~3 min",
         oshaRisk: "High",
-        fixHref: "/training",
-        fixLabel: "Send Training Link",
+        fixHref: `/training/learn?employee=${emp.id}`,
+        fixLabel: "Start Training",
         employeeId: emp.id,
-        actionType: "send-link",
+        actionType: "link",
       });
     } else if (info.status === "not-started") {
       items.push({
@@ -154,10 +154,10 @@ function getDynamicActionItems(chemicals: Chemical[], employees: Employee[]): Da
         detail: `${completed}/7 modules completed — ${7 - completed} remaining.`,
         timeEstimate: "~2 min",
         oshaRisk: "High",
-        fixHref: "/training",
-        fixLabel: "Send Training Link",
+        fixHref: `/training/learn?employee=${emp.id}`,
+        fixLabel: "Start Training",
         employeeId: emp.id,
-        actionType: "send-link",
+        actionType: "link",
       });
     }
   });

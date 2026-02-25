@@ -613,12 +613,12 @@ export default function SDSSearchPage() {
                           if (e.target.value === "__new__") setShowNewBulkLoc(true);
                           else setBulkLocation(e.target.value);
                         }}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:border-amber-400 focus:outline-none"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:border-amber-400 focus:outline-none"
                       >
                         {locations.map((l) => (
-                          <option key={l.id} value={l.name}>{l.name}</option>
+                          <option key={l.id} value={l.name} className="text-gray-900">{l.name}</option>
                         ))}
-                        <option value="__new__">+ Add New Location</option>
+                        <option value="__new__" className="text-gray-900">+ Add New Location</option>
                       </select>
                     ) : (
                       <div className="flex gap-2">
@@ -627,7 +627,7 @@ export default function SDSSearchPage() {
                           value={newBulkLocName}
                           onChange={(e) => setNewBulkLocName(e.target.value)}
                           placeholder="New location name..."
-                          className="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:border-amber-400 focus:outline-none"
+                          className="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:border-amber-400 focus:outline-none"
                           autoFocus
                         />
                         <button onClick={() => { setShowNewBulkLoc(false); setNewBulkLocName(""); }} className="text-xs text-gray-500 hover:text-gray-700 px-2">
@@ -641,10 +641,10 @@ export default function SDSSearchPage() {
                     <select
                       value={bulkContainer}
                       onChange={(e) => setBulkContainer(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:border-amber-400 focus:outline-none"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:border-amber-400 focus:outline-none"
                     >
                       {["Spray Can", "Bottle", "Jug", "Drum", "Tube", "Bucket", "Bag", "Box", "Aerosol Can", "Other"].map((ct) => (
-                        <option key={ct} value={ct}>{ct}</option>
+                        <option key={ct} value={ct} className="text-gray-900">{ct}</option>
                       ))}
                     </select>
                   </div>

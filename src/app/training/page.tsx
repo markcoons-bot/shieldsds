@@ -15,6 +15,7 @@ import type { Employee } from "@/lib/types";
 import {
   GraduationCap,
   AlertTriangle,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   ChevronRight,
   Camera,
   CheckCircle2,
@@ -311,24 +312,6 @@ export default function TrainingPage() {
         </div>
       )}
 
-      {/* Launch Interactive Training */}
-      <Link href="/training/learn" className="block mb-6">
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-5 flex items-center justify-between hover:border-amber-500/50 transition-all group cursor-pointer">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-amber-400" />
-            </div>
-            <div>
-              <div className="text-white font-display font-bold text-lg">Launch Interactive HazCom Training</div>
-              <div className="text-gray-400 text-sm">7-module foundation track &middot; Industry-specific &middot; OSHA compliant</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-amber-400 font-semibold text-sm group-hover:translate-x-1 transition-transform">
-            Start Training <ChevronRight className="w-4 h-4" />
-          </div>
-        </div>
-      </Link>
-
       {/* Employee Cards */}
       <div className="space-y-4">
         {enrichedEmployees.map((emp) => {
@@ -349,14 +332,6 @@ export default function TrainingPage() {
                     {cfg.icon} {cfg.label}
                   </span>
                   <div className="flex items-center gap-2">
-                    {emp.trainingStatus !== "up-to-date" && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setShowLinkPopup(emp.id); }}
-                        className="flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 px-2.5 py-1.5 rounded-lg bg-amber-500/10 transition-colors"
-                      >
-                        <Link2 className="h-3 w-3" /> Send Link
-                      </button>
-                    )}
                     <div className="relative">
                       <button
                         onClick={(e) => { e.stopPropagation(); setMenuOpenId(isMenuOpen ? null : emp.id); }}
@@ -428,6 +403,30 @@ export default function TrainingPage() {
                   </div>
                   {(emp.trainingStatus === "up-to-date" || emp.trainingStatus === "due-soon") && emp.last_training && (
                     <p className="text-xs text-gray-500 mt-1">Last completed: {formatDate(emp.last_training)}</p>
+                  )}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="mt-4 flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                  {emp.trainingStatus === "up-to-date" ? (
+                    <>
+                      <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-status-green bg-status-green/10 rounded-lg cursor-default">
+                        <CheckCircle2 className="h-4 w-4" /> Up to Date
+                      </span>
+                      <Link
+                        href={`/training/learn?employee=${emp.id}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-400 hover:text-white bg-navy-800 hover:bg-navy-700 rounded-lg transition-colors"
+                      >
+                        🔄 Refresher Training
+                      </Link>
+                    </>
+                  ) : (
+                    <Link
+                      href={`/training/learn?employee=${emp.id}`}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-navy-950 rounded-lg transition-colors"
+                    >
+                      ▶ Start Training
+                    </Link>
                   )}
                 </div>
               </div>

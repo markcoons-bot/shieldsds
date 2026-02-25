@@ -404,7 +404,7 @@ export default function ShieldSDSTraining() {
           }
         }
 
-        // Check for employee URL parameter (Part B: linked from training page)
+        // Check for employee URL parameter — zero-friction launch
         const params = new URLSearchParams(window.location.search);
         const empParam = params.get("employee");
         if (empParam) {
@@ -413,23 +413,18 @@ export default function ShieldSDSTraining() {
           if (emp) {
             setEmployeeName(emp.name);
             setCompanyName("Mike's Auto Body");
+            setIndustry("auto-body");
             // Load employee's completed modules
             if (emp.completed_modules.length > 0) {
               const empModules = emp.completed_modules.filter(m => m.startsWith("m"));
               if (empModules.length > 0) setCompletedModules(empModules);
             }
-            // If all 7 complete, show certificate
-            if (emp.completed_modules.length >= 7) {
-              setPhase("certificate");
-            } else if (raw) {
-              const saved = JSON.parse(raw);
-              if (saved.industry) {
-                setPhase("modules");
-              } else {
-                setPhase("profile");
-              }
+            // Skip welcome + profile — go directly to modules (or certificate if all done)
+            const completedCount = emp.completed_modules.filter(m => m.startsWith("m")).length;
+            if (completedCount >= 7) {
+              setPhase("modules"); // Show refresher mode, not certificate directly
             } else {
-              setPhase("profile");
+              setPhase("modules");
             }
           }
         }
@@ -535,9 +530,11 @@ export default function ShieldSDSTraining() {
 
   // ── AFTER QUIZ ──
   const afterQuiz = () => {
-    if (completedModules.length === 7) {
+    if (completedModules.length === 7 && !employeeId) {
+      // Standalone mode: go to certificate
       transitionTo("certificate");
     } else {
+      // Employee-linked mode or still modules remaining: back to module picker
       transitionTo("modules");
     }
   };
@@ -759,6 +756,17 @@ export default function ShieldSDSTraining() {
     const progressPct = Math.round((completedModules.length / 7) * 100);
     return (
       <div style={{ ...S.fadeIn, opacity: transitioning ? 0 : 1, transition:"opacity 0.3s", padding:"32px 20px", maxWidth:720, margin:"0 auto" }}>
+        {/* Employee greeting for linked mode */}
+        {employeeId && (
+          <div style={{ ...S.card(completedModules.length === 7 ? T.goodBg : T.amberGlow), padding:"16px 20px", marginBottom:20, border:`1px solid ${completedModules.length === 7 ? T.good : T.amber}33` }}>
+            <span style={{ fontSize:15, fontWeight:700, color: completedModules.length === 7 ? T.good : T.white, fontFamily:T.font }}>
+              {completedModules.length === 7
+                ? `All modules complete! Select any module for a refresher.`
+                : `Hi ${employeeName.split(" ")[0]}! Pick up where you left off.`}
+            </span>
+          </div>
+        )}
+
         {/* Header */}
         <div style={{ ...S.flexBetween, marginBottom:8, flexWrap:"wrap", gap:12 }}>
           <div>
@@ -819,10 +827,15 @@ export default function ShieldSDSTraining() {
 
         {/* All complete CTA */}
         {completedModules.length === 7 && (
-          <div style={{ textAlign:"center", marginTop:32 }}>
+          <div style={{ textAlign:"center", marginTop:32, display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
             <button onClick={() => transitionTo("certificate")} style={{ ...S.btn(T.good, T.white), fontSize:16, padding:"16px 36px" }}>
-              🎓 View Your Certificate
+              🎓 View Certificate
             </button>
+            {employeeId && (
+              <a href="/training" style={{ ...S.btnOutline(T.muted), fontSize:14, padding:"14px 24px", textDecoration:"none", display:"inline-flex", alignItems:"center" }}>
+                ← Back to Training Dashboard
+              </a>
+            )}
           </div>
         )}
 
@@ -2519,7 +2532,7 @@ export default function ShieldSDSTraining() {
               </p>
               {score >= 80 ? (
                 <button onClick={afterQuiz} style={S.btn(T.good, T.white)}>
-                  {completedModules.length >= 7 ? "🎓 Get Certificate" : "← Back to Modules"}
+                  {completedModules.length >= 7 && !employeeId ? "🎓 Get Certificate" : "← Back to Modules"}
                 </button>
               ) : (
                 <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
@@ -2652,10 +2665,10 @@ export default function ShieldSDSTraining() {
         <a href="/training" style={{ display:"flex", alignItems:"center", gap:6, color:T.muted, fontSize:13, fontFamily:T.font, textDecoration:"none", cursor:"pointer" }}
           onMouseEnter={e => (e.currentTarget.style.color = T.white)}
           onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
-          ← Back to Training
+          ← Exit Training
         </a>
         <span style={{ fontSize:13, fontWeight:700, color:T.amber, fontFamily:T.font, letterSpacing:0.5 }}>
-          ShieldSDS Training
+          ShieldSDS Training{employeeId && employeeName ? ` — ${employeeName}` : ""}
         </span>
         <span style={{ fontSize:12, color:T.muted, fontFamily:T.font, minWidth:120, textAlign:"right" }}>
           {phase === "training" || phase === "quiz"

@@ -73,23 +73,20 @@ export default function Sidebar() {
     };
     let overdue = 0;
     let dueSoon = 0;
+    let notStarted = 0;
     employees.forEach((emp) => {
       const completed = ALL_MODS.filter((mid) =>
         MOD_EQ[mid].some((eq) => emp.completed_modules?.includes(eq))
       ).length;
-      if (completed < 7 || !emp.last_training) {
-        // not-started counts as an issue
-        if (completed < 7) { overdue++; return; }
-      }
-      if (emp.last_training) {
-        const due = new Date(emp.last_training);
-        due.setFullYear(due.getFullYear() + 1);
-        const days = Math.ceil((due.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-        if (days < 0) overdue++;
-        else if (days <= 30) dueSoon++;
-      }
+      if (completed < 7) { notStarted++; return; }
+      if (!emp.last_training) { notStarted++; return; }
+      const due = new Date(emp.last_training);
+      due.setFullYear(due.getFullYear() + 1);
+      const days = Math.ceil((due.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (days < 0) overdue++;
+      else if (days <= 30) dueSoon++;
     });
-    return { overdue, dueSoon, total: overdue + dueSoon };
+    return { overdue, dueSoon, notStarted, total: overdue + dueSoon + notStarted };
   }, [employees]);
 
   // Badge counts
@@ -202,8 +199,8 @@ export default function Sidebar() {
             item.badgeKey === "unlabeled"
               ? "bg-status-amber text-navy-950"
               : item.badgeKey === "trainingIssues" && trainingCounts.overdue === 0
-              ? "bg-status-amber text-navy-950"
-              : "bg-status-red text-white";
+                ? "bg-status-amber text-navy-950"
+                : "bg-status-red text-white";
 
           return (
             <Link

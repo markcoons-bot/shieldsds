@@ -218,12 +218,12 @@ export default function SDSSearchCard({
                         setLocation(e.target.value);
                       }
                     }}
-                    className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:border-amber-400 focus:outline-none"
+                    className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm text-gray-900 focus:border-amber-400 focus:outline-none"
                   >
                     {locations.map((l) => (
-                      <option key={l.id} value={l.name}>{l.name}</option>
+                      <option key={l.id} value={l.name} className="text-gray-900">{l.name}</option>
                     ))}
-                    <option value="__new__">+ Add New Location</option>
+                    <option value="__new__" className="text-gray-900">+ Add New Location</option>
                   </select>
                   <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                 </div>
@@ -237,7 +237,7 @@ export default function SDSSearchCard({
                     value={newLocName}
                     onChange={(e) => setNewLocName(e.target.value)}
                     placeholder="New location name..."
-                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-amber-400 focus:outline-none"
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:border-amber-400 focus:outline-none"
                     autoFocus
                   />
                 </div>
@@ -259,10 +259,10 @@ export default function SDSSearchCard({
                 <select
                   value={containerType}
                   onChange={(e) => setContainerType(e.target.value)}
-                  className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:border-amber-400 focus:outline-none"
+                  className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm text-gray-900 focus:border-amber-400 focus:outline-none"
                 >
                   {CONTAINER_TYPES.map((ct) => (
-                    <option key={ct} value={ct}>{ct}</option>
+                    <option key={ct} value={ct} className="text-gray-900">{ct}</option>
                   ))}
                 </select>
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
@@ -275,7 +275,7 @@ export default function SDSSearchCard({
                 min={1}
                 value={quantity}
                 onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:border-amber-400 focus:outline-none"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 text-center focus:border-amber-400 focus:outline-none"
               />
             </div>
           </div>
