@@ -421,10 +421,10 @@ export default function ShieldSDSTraining() {
               const empModules = emp.completed_modules.filter(m => m.startsWith("m"));
               if (empModules.length > 0) setCompletedModules(empModules);
             }
-            // Skip welcome + profile — go directly to modules (or certificate if all done)
+            // Skip welcome + profile — certificate if all done, otherwise module picker
             const completedCount = emp.completed_modules.filter(m => m.startsWith("m")).length;
             if (completedCount >= 7) {
-              setPhase("modules"); // Show refresher mode, not certificate directly
+              setPhase("certificate");
             } else {
               setPhase("modules");
             }
@@ -2813,7 +2813,7 @@ export default function ShieldSDSTraining() {
       {/* Actions */}
       <div style={{ textAlign:"center", marginTop:24, display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
         <button onClick={printCertificate} style={S.btn(T.amber, T.navy)}>🖨️ Print Certificate</button>
-        <button onClick={() => { transitionTo("modules"); }} style={S.btnOutline(T.muted)}>← Back to Modules</button>
+        <button onClick={() => { transitionTo("modules"); }} style={S.btnOutline(T.muted)}>🔄 Refresher Training</button>
         {employeeId && (
           <a href="/training" style={{ ...S.btnOutline(T.muted), textDecoration:"none", display:"inline-flex", alignItems:"center" }}>
             ← Back to Training
