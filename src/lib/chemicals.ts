@@ -1455,3 +1455,130 @@ export function initializeStore(): void {
     seedDemoData();
   }
 }
+
+// ══════════════════════════════════════════════════════════
+// DEMO MODE
+// ══════════════════════════════════════════════════════════
+
+interface DemoData {
+  chemicals: Chemical[];
+  employees: Employee[];
+  locations: Location[];
+  trainingRecords: TrainingRecord[];
+  labels: LabelRecord[];
+  companyProfile: CompanyProfile;
+}
+
+/** Returns demo data objects without writing to localStorage */
+export function getDemoData(): DemoData {
+  const employees: Employee[] = SEED_EMPLOYEES.map((e) => ({
+    ...e,
+    id: genId(),
+  }));
+
+  const chemicals: Chemical[] = SEED_CHEMICALS.map((c) => ({
+    ...c,
+    id: genId(),
+  }));
+
+  const locations: Location[] = SEED_LOCATIONS.map((loc) => ({
+    ...loc,
+    id: genId(),
+    chemical_ids: chemicals
+      .filter((c) => c.location === loc.name)
+      .map((c) => c.id),
+  }));
+
+  const companyProfile: CompanyProfile = {
+    name: "Mike\u2019s Auto Body",
+    industry: "Auto Body & Collision",
+    address: "1847 Pacific Coast Hwy",
+    city: "Long Beach",
+    state: "CA",
+    zip: "90806",
+    phone: "(562) 555-0147",
+    owner: "Mike Rodriguez",
+    ownerRole: "Owner / Manager",
+  };
+
+  const trainingRecords: TrainingRecord[] = [];
+  for (const emp of employees) {
+    for (const modId of emp.completed_modules) {
+      trainingRecords.push({
+        id: genId(),
+        employee_id: emp.id,
+        module_id: modId,
+        completed_date:
+          emp.last_training || new Date().toISOString().split("T")[0],
+        score: 85 + Math.floor(Math.random() * 16),
+        certificate_data:
+          emp.completed_modules.length >= 6
+            ? {
+                employee_name: emp.name,
+                company_name: companyProfile.name,
+                industry: companyProfile.industry,
+                date:
+                  emp.last_training ||
+                  new Date().toISOString().split("T")[0],
+              }
+            : null,
+      });
+    }
+  }
+
+  const labels: LabelRecord[] = chemicals
+    .filter((c) => c.labeled && c.label_printed_date)
+    .map((c) => ({
+      id: genId(),
+      chemical_id: c.id,
+      label_size: "full" as const,
+      printed_date: c.label_printed_date,
+      copies: c.container_count,
+    }));
+
+  return { chemicals, employees, locations, trainingRecords, labels, companyProfile };
+}
+
+/** Backs up current user data to sessionStorage and loads demo data */
+export function loadDemoMode(): void {
+  // Back up current localStorage data
+  const backup: Record<string, string | null> = {};
+  for (const key of Object.values(KEYS)) {
+    backup[key] = localStorage.getItem(key);
+  }
+  backup["shieldsds-company"] = localStorage.getItem("shieldsds-company");
+  backup["shieldsds-setup-complete"] = localStorage.getItem("shieldsds-setup-complete");
+  backup["shieldsds-welcome-shown"] = localStorage.getItem("shieldsds-welcome-shown");
+  sessionStorage.setItem("shieldsds-user-backup", JSON.stringify(backup));
+
+  // Load demo data into localStorage
+  const demo = getDemoData();
+  writeStore(KEYS.chemicals, demo.chemicals);
+  writeStore(KEYS.employees, demo.employees);
+  writeStore(KEYS.locations, demo.locations);
+  writeStore(KEYS.trainingRecords, demo.trainingRecords);
+  writeStore(KEYS.labels, demo.labels);
+  localStorage.setItem("shieldsds-company", JSON.stringify(demo.companyProfile));
+
+  // Set demo mode flag
+  sessionStorage.setItem("shieldsds-demo-mode", "true");
+}
+
+/** Restores user data from sessionStorage backup and exits demo mode */
+export function exitDemoMode(): void {
+  const raw = sessionStorage.getItem("shieldsds-user-backup");
+  if (!raw) return;
+
+  const backup: Record<string, string | null> = JSON.parse(raw);
+  for (const [key, value] of Object.entries(backup)) {
+    if (value === null) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, value);
+    }
+  }
+
+  // Clear demo flags
+  sessionStorage.removeItem("shieldsds-demo-mode");
+  sessionStorage.removeItem("shieldsds-user-backup");
+}

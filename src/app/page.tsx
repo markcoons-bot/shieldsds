@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
+import { isRealUser, loadDemoMode } from "@/lib/chemicals";
 import {
   Shield,
   CheckCircle2,
@@ -20,7 +21,6 @@ import {
   Check,
   Star,
   Users,
-  X,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -171,7 +171,7 @@ const pricing = [
       "Written HazCom program",
       "Email support",
     ],
-    cta: "Start Free Trial",
+    cta: "Get Started — Free",
     popular: false,
   },
   {
@@ -186,7 +186,7 @@ const pricing = [
       "Inspection Mode with scoring",
       "Priority support",
     ],
-    cta: "Start Free Trial",
+    cta: "Get Started — Free",
     popular: true,
   },
   {
@@ -206,32 +206,19 @@ const pricing = [
   },
 ];
 
-function CtaToast({ message, onClose }: { message: string; onClose: () => void }) {
-  return (
-    <div className="fixed bottom-6 right-6 z-50 bg-status-green/15 border border-status-green/30 text-status-green rounded-xl px-5 py-3 flex items-center gap-3 shadow-2xl">
-      <CheckCircle2 className="h-5 w-5 flex-shrink-0" />
-      <span className="text-sm font-medium">{message}</span>
-      <button onClick={onClose} className="ml-2 hover:text-white transition-colors"><X className="h-4 w-4" /></button>
-    </div>
-  );
-}
 
 export default function LandingPage() {
-  const [ctaName, setCtaName] = useState("");
-  const [ctaEmail, setCtaEmail] = useState("");
-  const [ctaShop, setCtaShop] = useState("");
-  const [ctaChemicals, setCtaChemicals] = useState("");
-  const [ctaToast, setCtaToast] = useState<string | null>(null);
+  const [hasSetup, setHasSetup] = useState(false);
 
-  const handleCtaSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!ctaName.trim() || !ctaEmail.trim()) return;
-    setCtaToast("Thanks! We'll be in touch within 24 hours.");
-    setCtaName("");
-    setCtaEmail("");
-    setCtaShop("");
-    setCtaChemicals("");
-    setTimeout(() => setCtaToast(null), 5000);
+  useEffect(() => {
+    setHasSetup(isRealUser());
+  }, []);
+
+  const handleViewDemo = () => {
+    if (hasSetup) {
+      loadDemoMode();
+    }
+    window.location.href = "/dashboard";
   };
 
   return (
@@ -257,16 +244,16 @@ export default function LandingPage() {
                   href="/setup"
                   className="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold px-6 py-3 rounded-lg transition-colors"
                 >
-                  Free SDS Health Check
+                  Set Up My Shop — Free
                   <ArrowRight className="h-4 w-4" />
                 </Link>
-                <Link
-                  href="/dashboard"
+                <button
+                  onClick={handleViewDemo}
                   className="inline-flex items-center justify-center gap-2 border border-navy-600 hover:border-gray-400 text-gray-200 hover:text-white font-semibold px-6 py-3 rounded-lg transition-colors"
                 >
-                  Demo Dashboard
+                  {hasSetup ? "View Demo" : "Demo Dashboard"}
                   <ArrowRight className="h-4 w-4" />
-                </Link>
+                </button>
               </div>
             </div>
 
@@ -556,73 +543,29 @@ export default function LandingPage() {
 
       {/* ========== CTA ========== */}
       <section id="cta" className="py-20 px-4 sm:px-6 lg:px-8 bg-navy-900/50">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-10">
-            <Shield className="h-12 w-12 text-amber-400 mx-auto mb-6" />
-            <h2 className="font-display font-black text-3xl sm:text-4xl mb-4">
-              Get a Free SDS Audit
-            </h2>
-            <p className="text-gray-400 text-lg">
-              Find out where you stand in 10 minutes. We&apos;ll show you
-              what&apos;s current, what&apos;s missing, and what needs
-              attention — no credit card required.
-            </p>
-          </div>
-          <form onSubmit={handleCtaSubmit} className="max-w-md mx-auto space-y-4">
-            <div>
-              <input
-                type="text"
-                value={ctaName}
-                onChange={(e) => setCtaName(e.target.value)}
-                placeholder="Your name"
-                required
-                className="w-full bg-navy-800 border border-navy-600 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
-              />
-            </div>
-            <div>
-              <input
-                type="email"
-                value={ctaEmail}
-                onChange={(e) => setCtaEmail(e.target.value)}
-                placeholder="Email address"
-                required
-                className="w-full bg-navy-800 border border-navy-600 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
-              />
-            </div>
-            <div>
-              <input
-                type="text"
-                value={ctaShop}
-                onChange={(e) => setCtaShop(e.target.value)}
-                placeholder="Shop name"
-                className="w-full bg-navy-800 border border-navy-600 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
-              />
-            </div>
-            <div>
-              <input
-                type="text"
-                value={ctaChemicals}
-                onChange={(e) => setCtaChemicals(e.target.value)}
-                placeholder="Estimated number of chemicals (e.g., 20-50)"
-                className="w-full bg-navy-800 border border-navy-600 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
-              />
-            </div>
+        <div className="max-w-3xl mx-auto text-center">
+          <Shield className="h-12 w-12 text-amber-400 mx-auto mb-6" />
+          <h2 className="font-display font-black text-3xl sm:text-4xl mb-4">
+            Ready to Get Compliant?
+          </h2>
+          <p className="text-gray-400 text-lg mb-8">
+            Set up your shop in 5 minutes. Add your chemicals, train your team, and be inspection-ready before lunch.
+          </p>
+          <Link
+            href="/setup"
+            className="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold px-8 py-3.5 rounded-lg transition-colors text-lg"
+          >
+            Set Up My Shop — Free
+            <ArrowRight className="h-5 w-5" />
+          </Link>
+          <p className="mt-4">
             <button
-              type="submit"
-              className="w-full inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold px-8 py-3.5 rounded-lg transition-colors text-lg"
+              onClick={handleViewDemo}
+              className="inline-flex items-center justify-center gap-2 text-gray-400 hover:text-white font-semibold text-sm transition-colors"
             >
-              Get Your Free Audit
-              <ArrowRight className="h-5 w-5" />
+              Or explore the demo dashboard <ArrowRight className="h-4 w-4" />
             </button>
-            <p className="text-center">
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center justify-center gap-2 text-gray-400 hover:text-white font-semibold text-sm transition-colors"
-              >
-                Or explore the demo dashboard <ArrowRight className="h-4 w-4" />
-              </Link>
-            </p>
-          </form>
+          </p>
         </div>
       </section>
 
@@ -648,7 +591,6 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
-      {ctaToast && <CtaToast message={ctaToast} onClose={() => setCtaToast(null)} />}
     </div>
   );
 }

@@ -7,7 +7,7 @@ import StatusDot from "@/components/StatusDot";
 import HelpTooltip from "@/components/HelpTooltip";
 import HelpCard from "@/components/HelpCard";
 import FixAllPanel from "@/components/FixAllPanel";
-import { getChemicals, getEmployees, initializeStore, updateChemical, getCompanyProfile } from "@/lib/chemicals";
+import { getChemicals, getEmployees, initializeStore, updateChemical, getCompanyProfile, exitDemoMode } from "@/lib/chemicals";
 import { calculateComplianceScore, getEmployeeTrainingStatus } from "@/lib/compliance-score";
 import type { Chemical, Employee } from "@/lib/types";
 import {
@@ -279,6 +279,8 @@ export default function DashboardPage() {
   const [trainingLinkCopied, setTrainingLinkCopied] = useState(false);
   const [companyName, setCompanyName] = useState("");
   const [showWelcome, setShowWelcome] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [realCompanyName, setRealCompanyName] = useState("");
 
   const handleFindSDS = useCallback(async (item: DashboardActionItem) => {
     if (!item.chemicalId) return;
@@ -320,6 +322,27 @@ export default function DashboardPage() {
     // Read company name from profile
     const profile = getCompanyProfile();
     setCompanyName(profile.name);
+
+    // Check demo mode
+    const demoActive = sessionStorage.getItem("shieldsds-demo-mode") === "true";
+    setIsDemoMode(demoActive);
+    if (demoActive) {
+      try {
+        const backup = sessionStorage.getItem("shieldsds-user-backup");
+        if (backup) {
+          const parsed = JSON.parse(backup);
+          const companyRaw = parsed["shieldsds-company"];
+          if (companyRaw) {
+            const realProfile = JSON.parse(companyRaw);
+            setRealCompanyName(realProfile.name || "My Shop");
+          } else {
+            setRealCompanyName("My Shop");
+          }
+        }
+      } catch {
+        setRealCompanyName("My Shop");
+      }
+    }
 
     // Show welcome banner once after setup
     try {
@@ -430,6 +453,27 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
+      {/* Demo mode banner */}
+      {isDemoMode && (
+        <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0" />
+            <p className="text-sm text-white font-medium">
+              You&apos;re viewing the demo shop (Mike&apos;s Auto Body). Your data is saved.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              exitDemoMode();
+              window.location.href = "/dashboard";
+            }}
+            className="text-sm font-medium text-amber-400 hover:text-amber-300 transition-colors ml-3 flex-shrink-0 whitespace-nowrap"
+          >
+            Back to {realCompanyName} →
+          </button>
+        </div>
+      )}
+
       {/* Top bar */}
       <div className="flex items-center justify-between mb-8">
         <div>

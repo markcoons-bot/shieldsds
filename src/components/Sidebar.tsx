@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { getChemicals, getEmployees, initializeStore, getCompanyProfile } from "@/lib/chemicals";
+import { getChemicals, getEmployees, initializeStore, getCompanyProfile, loadDemoMode, exitDemoMode, isRealUser } from "@/lib/chemicals";
 import type { Chemical, Employee } from "@/lib/types";
 import {
   Shield,
@@ -20,7 +20,8 @@ import {
   Package,
   Users,
   CheckCircle2,
-  Search,
+  ClipboardList,
+  ArrowRight,
 } from "lucide-react";
 
 const navItems = [
@@ -32,7 +33,6 @@ const navItems = [
   { label: "Training", href: "/training", icon: GraduationCap, badgeKey: "trainingIssues" as const },
   { label: "Contractors", href: "/contractors", icon: Users, badgeKey: null },
   { label: "Inspection Mode", href: "/inspection", icon: ClipboardCheck, badgeKey: null },
-  { label: "Browse & Add", href: "/sds-search", icon: Search, badgeKey: null },
 ];
 
 function getDefaultLocations() {
@@ -51,6 +51,10 @@ export default function Sidebar() {
   const [selectedLoc, setSelectedLoc] = useState(() => getDefaultLocations()[0]);
   const dropRef = useRef<HTMLDivElement>(null);
 
+  // Demo mode state
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [realUser, setRealUser] = useState(false);
+
   // Live data for badges
   const [chemicals, setChemicals] = useState<Chemical[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -64,6 +68,10 @@ export default function Sidebar() {
     const locs = getDefaultLocations();
     setLocationsState(locs);
     setSelectedLoc(locs[0]);
+
+    // Check demo mode and real user state
+    setIsDemoMode(sessionStorage.getItem("shieldsds-demo-mode") === "true");
+    setRealUser(isRealUser());
   }, []);
 
   // Refresh badge counts when pathname changes (user navigated after making changes)
@@ -138,6 +146,27 @@ export default function Sidebar() {
 
   return (
     <aside className="fixed top-0 left-0 bottom-0 w-64 bg-navy-900 border-r border-navy-700/50 flex flex-col z-40">
+      {/* Demo mode banner */}
+      {isDemoMode && (
+        <div className="px-3 py-3 bg-amber-500/15 border-b border-amber-500/30">
+          <div className="flex items-center gap-2 mb-2">
+            <ClipboardList className="h-4 w-4 text-amber-400 flex-shrink-0" />
+            <span className="text-xs font-medium text-amber-400">Viewing Demo</span>
+          </div>
+          <p className="text-xs text-gray-300 mb-2">Mike&rsquo;s Auto Body</p>
+          <button
+            onClick={() => {
+              exitDemoMode();
+              window.location.href = "/dashboard";
+            }}
+            className="flex items-center gap-1.5 text-xs font-medium text-white bg-navy-800 hover:bg-navy-700 px-3 py-1.5 rounded-lg transition-colors w-full justify-center"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to My Shop
+          </button>
+        </div>
+      )}
+
       {/* Logo */}
       <div className="px-5 py-5 border-b border-navy-700/50">
         <Link href="/" className="flex items-center gap-2 group">
@@ -235,6 +264,19 @@ export default function Sidebar() {
 
       {/* Bottom */}
       <div className="px-3 py-3 border-t border-navy-700/50 space-y-2">
+        {!isDemoMode && realUser && (
+          <button
+            onClick={() => {
+              loadDemoMode();
+              window.location.href = "/dashboard";
+            }}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-navy-800 transition-colors w-full text-left"
+          >
+            <ClipboardList className="h-5 w-5" />
+            View Demo Shop
+            <ArrowRight className="h-4 w-4 ml-auto" />
+          </button>
+        )}
         <Link
           href="/"
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-navy-800 transition-colors"

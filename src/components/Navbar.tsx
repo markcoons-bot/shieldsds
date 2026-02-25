@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Shield, Menu, X } from "lucide-react";
+import { isRealUser, loadDemoMode } from "@/lib/chemicals";
 
 const navLinks = [
   { label: "Features", href: "#features" },
@@ -13,6 +14,16 @@ const navLinks = [
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [hasSetup, setHasSetup] = useState(false);
+
+  useEffect(() => {
+    setHasSetup(isRealUser());
+  }, []);
+
+  const handleViewDemo = () => {
+    loadDemoMode();
+    window.location.href = "/dashboard";
+  };
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-navy-950/90 backdrop-blur-md border-b border-navy-700/50">
@@ -37,12 +48,37 @@ export default function Navbar() {
                 {link.label}
               </a>
             ))}
-            <Link
-              href="/dashboard"
-              className="bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
-            >
-              Demo Dashboard
-            </Link>
+            {hasSetup ? (
+              <>
+                <button
+                  onClick={handleViewDemo}
+                  className="border border-navy-600 hover:border-gray-400 text-gray-200 hover:text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+                >
+                  View Demo
+                </button>
+                <Link
+                  href="/dashboard"
+                  className="bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+                >
+                  My Dashboard
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/dashboard"
+                  className="border border-navy-600 hover:border-gray-400 text-gray-200 hover:text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+                >
+                  View Demo
+                </Link>
+                <Link
+                  href="/setup"
+                  className="bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+                >
+                  Get Started — Free
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile toggle */}
@@ -68,13 +104,40 @@ export default function Navbar() {
               {link.label}
             </a>
           ))}
-          <Link
-            href="/dashboard"
-            onClick={() => setMobileOpen(false)}
-            className="block bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg text-center transition-colors"
-          >
-            Demo Dashboard
-          </Link>
+          {hasSetup ? (
+            <>
+              <button
+                onClick={() => { setMobileOpen(false); handleViewDemo(); }}
+                className="block w-full border border-navy-600 hover:border-gray-400 text-gray-200 hover:text-white font-semibold text-sm px-4 py-2 rounded-lg text-center transition-colors"
+              >
+                View Demo
+              </button>
+              <Link
+                href="/dashboard"
+                onClick={() => setMobileOpen(false)}
+                className="block bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg text-center transition-colors"
+              >
+                My Dashboard
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/dashboard"
+                onClick={() => setMobileOpen(false)}
+                className="block border border-navy-600 hover:border-gray-400 text-gray-200 hover:text-white font-semibold text-sm px-4 py-2 rounded-lg text-center transition-colors"
+              >
+                View Demo
+              </Link>
+              <Link
+                href="/setup"
+                onClick={() => setMobileOpen(false)}
+                className="block bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg text-center transition-colors"
+              >
+                Get Started — Free
+              </Link>
+            </>
+          )}
         </div>
       )}
     </nav>
