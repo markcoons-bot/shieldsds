@@ -1164,24 +1164,27 @@ function mergeResults(known: KnownChemical, ai: Record<string, any>): Record<str
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    let { image } = body as { image: string; mimeType: string };
     const { mimeType } = body as { image: string; mimeType: string };
+    const imageRaw = (body as { image: string }).image;
 
-    if (!image || !mimeType) {
+    if (!imageRaw || !mimeType) {
       return NextResponse.json(
         { error: "Missing image or mimeType in request body" },
         { status: 400 }
       );
     }
 
-    // Strip data URI prefix if present
-    if (image.includes(",")) {
-      image = image.split(",")[1];
-    }
+    // Strip data URI prefix aggressively (data:image/jpeg;base64, or data:image/png;base64,)
+    const cleanBase64 = imageRaw.replace(/^data:image\/\w+;base64,/, "");
+    // Also handle if there's still a comma (other formats)
+    const imageBase64 = cleanBase64.includes(",") ? cleanBase64.split(",")[1] : cleanBase64;
+
+    console.log("[scan] Image base64 length:", imageBase64.length, "mimeType:", mimeType);
 
     // Check for API key
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
+      console.error("[scan] ANTHROPIC_API_KEY is not set");
       return NextResponse.json(
         { error: "ANTHROPIC_API_KEY not configured. Add it to your .env.local file." },
         { status: 500 }
@@ -1189,6 +1192,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Call Claude Vision API
+    console.log("[scan] Calling Claude Vision API...");
     const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -1208,7 +1212,7 @@ export async function POST(request: NextRequest) {
                 source: {
                   type: "base64",
                   media_type: mimeType,
-                  data: image,
+                  data: imageBase64,
                 },
               },
               {
@@ -1271,8 +1275,22 @@ Rules:
     });
 
     if (!claudeResponse.ok) {
-      const errText = await claudeResponse.text();
-      console.error("[scan] Claude API error:", claudeResponse.status, errText);
+      const errBody = await claudeResponse.text();
+      console.error("[scan] Claude API error — status:", claudeResponse.status);
+      console.error("[scan] Claude API error — body:", errBody);
+
+      if (claudeResponse.status === 401) {
+        return NextResponse.json(
+          { error: "Invalid ANTHROPIC_API_KEY. Check your API key in .env.local." },
+          { status: 500 }
+        );
+      }
+      if (claudeResponse.status === 400) {
+        return NextResponse.json(
+          { error: `Bad request to AI service: ${errBody.substring(0, 200)}` },
+          { status: 500 }
+        );
+      }
       return NextResponse.json(
         { error: `AI service error (${claudeResponse.status}). Please try again.` },
         { status: 500 }
@@ -1289,28 +1307,42 @@ Rules:
       }
     }
 
-    // Strip markdown fencing if present
-    textContent = textContent.trim();
-    if (textContent.startsWith("```")) {
-      textContent = textContent.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+    console.log("[scan] Raw Claude response text:", textContent.substring(0, 500));
+
+    // Aggressively strip markdown code fences
+    let cleaned = textContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+
+    // Extract JSON substring: find first { and last }
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
     }
+
+    console.log("[scan] Cleaned text for parsing:", cleaned.substring(0, 500));
 
     // Parse JSON
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let aiResult: Record<string, any>;
     try {
-      aiResult = JSON.parse(textContent);
-    } catch {
-      console.error("[scan] Failed to parse Claude response as JSON:", textContent.substring(0, 500));
+      aiResult = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error("[scan] JSON parse error:", parseErr);
+      console.error("[scan] Full cleaned text that failed to parse:", cleaned);
       return NextResponse.json(
         { error: "Failed to parse AI response. Try a clearer photo." },
         { status: 500 }
       );
     }
 
+    console.log("[scan] Parsed AI result — product_name:", aiResult.product_name);
+
     // Fuzzy match against known chemicals
     const productName = aiResult.product_name || "";
     const knownMatch = findKnownChemical(productName);
+    if (knownMatch) {
+      console.log("[scan] Matched known chemical:", knownMatch.product_name);
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let finalResult: Record<string, any>;
