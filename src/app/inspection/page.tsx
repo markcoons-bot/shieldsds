@@ -3,30 +3,28 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
-import HelpCard from "@/components/HelpCard";
+import GHSPictogram from "@/components/GHSPictogram";
 import { getChemicals, getEmployees, initializeStore } from "@/lib/chemicals";
 import { calculateComplianceScore, getEmployeeTrainingStatus } from "@/lib/compliance-score";
+import type { TrainingStatus } from "@/lib/compliance-score";
 import type { Chemical, Employee } from "@/lib/types";
 import {
   CheckCircle2,
   AlertTriangle,
   XCircle,
   Download,
-  Clock,
   ShieldCheck,
   ChevronDown,
   ChevronRight,
   FileText,
-  Tags,
-  GraduationCap,
-  FlaskConical,
-  BookOpen,
   Link2,
   X,
   ArrowRight,
   Copy,
-  MapPin,
   Send,
+  Printer,
+  ExternalLink,
+  AlertCircle,
 } from "lucide-react";
 
 // ─── Shop Info (static config) ──────────────────────────────────────────────
@@ -41,14 +39,95 @@ const shopInfo = {
   phone: "(562) 555-0147",
 };
 
-// ─── Audit category helpers ─────────────────────────────────────────────────
+// ─── Local helper components ────────────────────────────────────────────────
 
-function getAuditCategory(entry: string): { icon: typeof FileText; color: string } {
-  if (entry.includes("SDS")) return { icon: FileText, color: "text-blue-400" };
-  if (entry.includes("Label") || entry.includes("label")) return { icon: Tags, color: "text-purple-400" };
-  if (entry.includes("Training") || entry.includes("training")) return { icon: GraduationCap, color: "text-amber-400" };
-  if (entry.includes("Program") || entry.includes("program")) return { icon: BookOpen, color: "text-emerald-400" };
-  return { icon: FlaskConical, color: "text-cyan-400" };
+function ProgramSection({
+  number,
+  title,
+  id,
+  pageBreak,
+  children,
+}: {
+  number: number;
+  title: string;
+  id: string;
+  pageBreak?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      id={id}
+      className={`hazcom-section ${pageBreak ? "hazcom-page-break" : ""} mb-10`}
+    >
+      <h2 className="text-xl font-bold text-gray-900 border-b-2 border-gray-300 pb-2 mb-4">
+        Section {number}: {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+function DeficiencyNotice({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="deficiency-notice border border-red-300 bg-red-50 rounded-lg p-4 mt-4 flex items-start gap-3">
+      <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+      <div className="text-sm text-red-800">{children}</div>
+    </div>
+  );
+}
+
+function SignalWordBadge({ word }: { word: string | null }) {
+  if (!word) return <span className="text-gray-400 text-xs">—</span>;
+  if (word === "DANGER") {
+    return (
+      <span className="signal-danger inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700">
+        DANGER
+      </span>
+    );
+  }
+  return (
+    <span className="signal-warning inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-700">
+      WARNING
+    </span>
+  );
+}
+
+function SdsStatusBadge({ status }: { status: string }) {
+  if (status === "current") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+        Current
+      </span>
+    );
+  }
+  if (status === "expired") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+        Expired
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+      Missing
+    </span>
+  );
+}
+
+function TrainingStatusBadge({ status }: { status: TrainingStatus }) {
+  const config: Record<TrainingStatus, { label: string; bg: string; text: string }> = {
+    current: { label: "Current", bg: "bg-green-100", text: "text-green-700" },
+    "due-soon": { label: "Due Soon", bg: "bg-amber-100", text: "text-amber-700" },
+    overdue: { label: "Overdue", bg: "bg-red-100", text: "text-red-700" },
+    "in-progress": { label: "In Progress", bg: "bg-blue-100", text: "text-blue-700" },
+    "not-started": { label: "Not Started", bg: "bg-gray-100", text: "text-gray-700" },
+  };
+  const c = config[status];
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${c.bg} ${c.text}`}>
+      {c.label}
+    </span>
+  );
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -193,6 +272,7 @@ interface ChecklistItem {
   maxScore: number;
   detail: string;
   subItems: { label: string; ok: boolean; link?: string; fixDescription?: string; fixAction?: string }[];
+  sectionLink?: string;
 }
 
 function ChecklistCard({ item }: { item: ChecklistItem }) {
@@ -234,6 +314,15 @@ function ChecklistCard({ item }: { item: ChecklistItem }) {
           </div>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0 ml-4">
+          {item.sectionLink && (
+            <a
+              href={item.sectionLink}
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs text-amber-400 hover:text-amber-300 transition-colors whitespace-nowrap"
+            >
+              View section &darr;
+            </a>
+          )}
           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeClass}`}>
             {badgeText}
           </span>
@@ -393,6 +482,18 @@ export default function InspectionPage() {
   const readinessLabel = compliance.status;
   const readinessColor = score >= 90 ? "#34C759" : score >= 70 ? "#F5A623" : "#FF3B30";
 
+  // ── New derived data ────────────────────────────────────────────────────
+  const sortedChemicals = useMemo(
+    () => [...chemicals].sort((a, b) => a.location.localeCompare(b.location) || a.product_name.localeCompare(b.product_name)),
+    [chemicals]
+  );
+  const uniqueLocations = useMemo(() => Array.from(new Set(chemicals.map((c) => c.location))).sort(), [chemicals]);
+  const formattedDateTime = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) + " at " + new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
+  const dangerCount = chemicals.filter((c) => c.signal_word === "DANGER").length;
+  const warningCount = chemicals.filter((c) => c.signal_word === "WARNING").length;
+  const labeledChemCount = chemicals.filter((c) => c.labeled).length;
+
   // ── Build checklist items ───────────────────────────────────────────────
 
   const checklist: ChecklistItem[] = useMemo(() => [
@@ -404,6 +505,7 @@ export default function InspectionPage() {
       score: compliance.breakdown.program.pct === 100 ? 15 : 0,
       maxScore: 15,
       detail: "Program document current. All 10 required sections addressed.",
+      sectionLink: "#section-1",
       subItems: [
         { label: "Written program exists and is accessible", ok: true },
         { label: "Program covers all 10 required sections", ok: true, link: "/hazcom-program" },
@@ -420,6 +522,7 @@ export default function InspectionPage() {
       detail: missingSdsChems.length === 0 && expiredSdsChems.length === 0
         ? `All ${totalSDS} SDS on file and current`
         : `${currentSDS} of ${totalSDS} SDS current \u2014 ${missingSdsChems.length} missing${expiredSdsChems.length > 0 ? `, ${expiredSdsChems.length} expired` : ""}`,
+      sectionLink: "#section-3",
       subItems: [
         ...missingSdsChems.map((c) => ({
           label: `Missing SDS: ${c.product_name} (${c.location})`,
@@ -452,6 +555,7 @@ export default function InspectionPage() {
       detail: unlabeledChems.length === 0
         ? `All ${totalContainers} containers across ${new Set(chemicals.map((c) => c.location)).size} locations properly labeled`
         : `${labeledContainers} of ${totalContainers} containers labeled \u2014 ${unlabeledChems.length} chemical${unlabeledChems.length > 1 ? "s" : ""} need labels`,
+      sectionLink: "#section-4",
       subItems: [
         ...unlabeledChems.map((c) => ({
           label: `${c.location}: ${c.product_name} (${c.container_count} ${c.container_type}, unlabeled)`,
@@ -476,18 +580,16 @@ export default function InspectionPage() {
       detail: fullyTrained === totalEmployees
         ? `All ${totalEmployees} employees current on required training`
         : `${fullyTrained} of ${totalEmployees} employees current${overdueEmployees.length > 0 ? ` \u2014 ${overdueEmployees.length} overdue` : ""}${inProgressEmployees.length > 0 ? ` \u2014 ${inProgressEmployees.length} in progress` : ""}${notStartedEmployees.length > 0 ? ` \u2014 ${notStartedEmployees.length} not started` : ""}`,
+      sectionLink: "#section-5",
       subItems: [
-        // Current employees (green)
         ...employeeStatuses.filter((es) => es.info.status === "current").map((es) => ({
           label: `${es.emp.name} \u2014 Up to date${es.emp.last_training ? ` (completed ${new Date(es.emp.last_training).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})` : ""}`,
           ok: true,
         })),
-        // Due soon (green, with warning text)
         ...employeeStatuses.filter((es) => es.info.status === "due-soon").map((es) => ({
           label: `${es.emp.name} \u2014 Due soon: refresher due in ${es.info.daysUntilDue} days`,
           ok: true,
         })),
-        // Overdue (red)
         ...overdueEmployees.map((es) => ({
           label: `${es.emp.name} \u2014 Overdue: annual refresher${es.info.daysUntilDue != null ? ` (${Math.abs(es.info.daysUntilDue)} days past due)` : ""}`,
           ok: false,
@@ -495,7 +597,6 @@ export default function InspectionPage() {
           fixDescription: `All 7 modules complete but annual refresher has expired`,
           fixAction: "Start Training",
         })),
-        // In progress (amber - shown as not-ok)
         ...inProgressEmployees.map((es) => ({
           label: `${es.emp.name} \u2014 In progress: ${es.info.completedCount} of 7 modules complete`,
           ok: false,
@@ -503,7 +604,6 @@ export default function InspectionPage() {
           fixDescription: `${es.info.remainingCount} modules remaining to complete training`,
           fixAction: "Start Training",
         })),
-        // Not started (red)
         ...notStartedEmployees.map((es) => ({
           label: `${es.emp.name} \u2014 Not started: new hire needs orientation`,
           ok: false,
@@ -522,6 +622,7 @@ export default function InspectionPage() {
       score: 0,
       maxScore: 0,
       detail: `${chemicals.length} chemicals tracked across ${new Set(chemicals.map((c) => c.location)).size} storage locations`,
+      sectionLink: "#section-2",
       subItems: [
         { label: "All chemicals have matching product identifiers", ok: true },
         { label: `Inventory reconciled: ${chemicals.length} items verified`, ok: true },
@@ -536,6 +637,7 @@ export default function InspectionPage() {
       score: 10,
       maxScore: 10,
       detail: "Contractor safety packet generation available via ShieldSDS",
+      sectionLink: "#section-7",
       subItems: [
         { label: "Contractor Safety Packet template ready", ok: true },
         { label: "Packet includes relevant SDS, labeling info, and emergency procedures", ok: true },
@@ -544,26 +646,16 @@ export default function InspectionPage() {
     },
   ], [sdsPct, labelPct, trainingPct, totalSDS, currentSDS, totalContainers, labeledContainers, totalEmployees, fullyTrained, chemicals, missingSdsChems, expiredSdsChems, unlabeledChems, overdueEmployees, inProgressEmployees, notStartedEmployees, employeeStatuses, compliance]);
 
-  // Next action recommendation
-  const nextAction = useMemo(() => {
-    if (missingSdsChems.length > 0) return { text: `Upload missing SDS for ${missingSdsChems[0].product_name}`, link: "/sds-library" };
-    if (overdueEmployees.length > 0) return { text: `Complete overdue training for ${overdueEmployees[0].emp.name}`, link: "/training" };
-    if (notStartedEmployees.length > 0) return { text: `Complete new hire training for ${notStartedEmployees[0].emp.name}`, link: "/training" };
-    if (inProgressEmployees.length > 0) return { text: `Finish training for ${inProgressEmployees[0].emp.name}`, link: "/training" };
-    if (unlabeledChems.length > 0) return { text: `Print labels for ${unlabeledChems[0].product_name}`, link: "/labels" };
-    return null;
-  }, [missingSdsChems, overdueEmployees, notStartedEmployees, inProgressEmployees, unlabeledChems]);
-
   // Audit log from live data
   const auditLog = useMemo(() => generateAuditLog(chemicals, employees), [chemicals, employees]);
 
   return (
     <DashboardLayout>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      {/* ─── Screen-only top bar ─────────────────────────────────────────── */}
+      <div className="flex items-center justify-between mb-8 print:hidden">
         <div>
-          <h1 className="font-display font-black text-2xl text-white">Inspection Mode</h1>
-          <p className="text-sm text-gray-400 mt-1">HazCom compliance audit and readiness report</p>
+          <h1 className="font-display font-black text-2xl text-white">Written HazCom Program</h1>
+          <p className="text-sm text-gray-400 mt-1">Living OSHA compliance document — always current</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -574,31 +666,20 @@ export default function InspectionPage() {
             Share Link
           </button>
           <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 text-sm px-4 py-2 rounded-lg transition-colors"
+          >
+            <Printer className="h-4 w-4" />
+            Print Program
+          </button>
+          <button
             onClick={() => showToast("Export feature available with PDF generator module")}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
           >
             <Download className="h-4 w-4" />
-            Export Packet
+            Export PDF
           </button>
         </div>
-      </div>
-
-      <div className="mb-6">
-        <HelpCard>
-          <p><strong className="text-white">During an OSHA HazCom inspection, the compliance officer evaluates your program against all requirements of 29 CFR 1910.1200.</strong></p>
-          <p><strong className="text-amber-400">Opening Conference:</strong> Inspector explains why they&apos;re there. They ask to see your written HazCom program immediately.</p>
-          <p><strong className="text-amber-400">Walkthrough:</strong> Inspector observes the workplace — Are containers labeled? Can employees access SDS? Are there unlabeled containers or chemicals without SDS?</p>
-          <p><strong className="text-amber-400">Record Review:</strong> Inspector asks for chemical inventory list, training records, written program, and SDS for specific chemicals they observed.</p>
-          <p><strong className="text-amber-400">Employee Interviews:</strong> Inspector may privately ask employees: &quot;Where do you find SDS?&quot; &quot;What would you do if this chemical got in your eyes?&quot; &quot;When were you last trained on chemical hazards?&quot;</p>
-          <p>Your compliance score on this page reflects exactly what the inspector evaluates. Each Warning or Fail item is a potential citation. Fix them before an inspection — not during one.</p>
-          <p><strong className="text-amber-400">Citation Penalties (current):</strong></p>
-          <ul className="list-none space-y-1 ml-1">
-            <li>&bull; Other-than-serious: up to <strong>$16,131</strong> per violation</li>
-            <li>&bull; Serious: up to <strong>$16,131</strong> per violation</li>
-            <li>&bull; Willful or repeated: up to <strong>$161,323</strong> per violation</li>
-            <li>&bull; Failure to abate: up to <strong>$16,131</strong> per day</li>
-          </ul>
-        </HelpCard>
       </div>
 
       {/* Empty State */}
@@ -617,89 +698,554 @@ export default function InspectionPage() {
       )}
 
       {chemicals.length > 0 && <>
-      {/* Compliance Score + Info Row */}
-      <div className="mb-8 bg-navy-900 border border-navy-700/50 rounded-xl p-6 flex items-center gap-8">
-        {/* Ring */}
-        <div className="relative flex-shrink-0">
-          <svg className="h-36 w-36 -rotate-90" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="52" fill="none" stroke="#1A2D4D" strokeWidth="10" />
-            <circle
-              cx="60" cy="60" r="52" fill="none"
-              stroke={readinessColor}
-              strokeWidth="10" strokeLinecap="round"
-              strokeDasharray={`${circumference * (score / 100)} ${circumference * (1 - score / 100)}`}
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="font-display font-black text-3xl text-white">{score}%</span>
-            <span className="text-xs text-gray-400">Compliant</span>
+      {/* ═══════════════════════════════════════════════════════════════════
+          WHITE DOCUMENT CONTAINER
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div className="bg-white text-gray-900 rounded-xl p-8 md:p-12 print:rounded-none print:p-0 print:shadow-none shadow-lg mb-10">
+
+        {/* ─── Part A: Document Header ──────────────────────────────────── */}
+        <div className="text-center mb-10 pb-8 border-b-2 border-gray-200">
+          <h1 className="text-2xl md:text-3xl font-black uppercase tracking-wide text-gray-900 mb-1">
+            Written Hazard Communication Program
+          </h1>
+          <p className="text-sm text-gray-500 mb-6">Per OSHA 29 CFR 1910.1200</p>
+          <p className="text-lg font-bold text-gray-800">{shopInfo.name}</p>
+          <p className="text-sm text-gray-600">{shopInfo.address}, {shopInfo.city}, {shopInfo.state} {shopInfo.zip}</p>
+          <p className="text-sm text-gray-600">{shopInfo.phone}</p>
+          <div className="mt-4 inline-flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 text-sm font-medium px-4 py-1.5 rounded-full">
+            <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            Document Status: LIVE — Last updated: {formattedDateTime}
           </div>
+          <p className="text-xs text-gray-400 mt-2">Prepared by: ShieldSDS Compliance Platform</p>
         </div>
 
-        {/* Details */}
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <ShieldCheck className={`h-6 w-6 ${score === 100 ? "text-status-green" : score >= 80 ? "text-status-amber" : "text-status-red"}`} />
-            <h2 className="font-display font-bold text-xl text-white">{readinessLabel}</h2>
-          </div>
-          <p className="text-sm text-gray-400 max-w-lg">
-            {compliance.actionItemCount > 0
-              ? `${compliance.actionItemCount} item${compliance.actionItemCount > 1 ? "s" : ""} need${compliance.actionItemCount === 1 ? "s" : ""} attention before your next inspection. Address the outstanding items to reach 100%.`
-              : "All compliance checks passing. You are fully prepared for an OSHA inspection."}
-          </p>
-          {nextAction && (
-            <Link href={nextAction.link} className="inline-flex items-center gap-1.5 mt-2 text-sm text-amber-400 hover:text-amber-300 transition-colors">
-              <ArrowRight className="h-3.5 w-3.5" />
-              Next: {nextAction.text}
-            </Link>
-          )}
-          <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
-            <div className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              Report generated: {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} at {new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-            </div>
-            <div className="flex items-center gap-1">
-              <MapPin className="h-3 w-3" />
-              {shopInfo.name} &mdash; {shopInfo.address}, {shopInfo.city}, {shopInfo.state} {shopInfo.zip}
-            </div>
-          </div>
-        </div>
-
-        {/* Score Breakdown Mini */}
-        <div className="flex-shrink-0 space-y-1.5 min-w-[180px]">
-          <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-2">Score Breakdown</p>
-          {[
-            { label: "SDS Coverage", pct: compliance.breakdown.sds.pct, weight: compliance.breakdown.sds.weight },
-            { label: "Labeling", pct: compliance.breakdown.labels.pct, weight: compliance.breakdown.labels.weight },
-            { label: "Training", pct: compliance.breakdown.training.pct, weight: compliance.breakdown.training.weight },
-            { label: "Written Program", pct: compliance.breakdown.program.pct, weight: compliance.breakdown.program.weight },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center gap-2 text-xs">
-              <span className="text-gray-400 w-24 truncate">{item.label}</span>
-              <div className="flex-1 h-1.5 bg-navy-800 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${item.pct === 100 ? "bg-status-green" : item.pct >= 50 ? "bg-status-amber" : "bg-status-red"}`}
-                  style={{ width: `${item.pct}%` }}
+        {/* ─── Part A continued: Compliance Score Banner ─────────────────── */}
+        <div className="compliance-ring-print bg-gray-50 border border-gray-200 rounded-xl p-6 mb-10">
+          <div className="flex flex-col md:flex-row items-center gap-8">
+            {/* Ring */}
+            <div className="relative flex-shrink-0">
+              <svg className="h-32 w-32 -rotate-90" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="52" fill="none" stroke="#e5e7eb" strokeWidth="10" />
+                <circle
+                  cx="60" cy="60" r="52" fill="none"
+                  stroke={readinessColor}
+                  strokeWidth="10" strokeLinecap="round"
+                  strokeDasharray={`${circumference * (score / 100)} ${circumference * (1 - score / 100)}`}
                 />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="font-black text-3xl text-gray-900">{score}%</span>
+                <span className="text-xs text-gray-500">Compliant</span>
               </div>
-              <span className="text-gray-500 w-14 text-right">{item.pct}% <span className="text-gray-600">({item.weight}%)</span></span>
             </div>
-          ))}
-          {compliance.improvements.length > 0 && score < 100 && (
-            <div className="mt-3 pt-2 border-t border-navy-700/30">
-              <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-1.5">Top Improvements</p>
-              {compliance.improvements.map((imp, i) => (
-                <p key={i} className="text-[11px] text-gray-400 leading-relaxed">
-                  {imp.text} <span className="font-semibold text-amber-400">(+{imp.points})</span>
-                </p>
-              ))}
+
+            {/* Summary */}
+            <div className="flex-1 text-center md:text-left">
+              <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
+                <ShieldCheck className={`h-6 w-6 ${score === 100 ? "text-green-600" : score >= 80 ? "text-amber-600" : "text-red-600"}`} />
+                <h2 className="font-bold text-xl text-gray-900">{readinessLabel}</h2>
+              </div>
+              <p className="text-sm text-gray-600 mb-3">
+                {chemicals.length} chemicals across {uniqueLocations.length} locations &bull; {currentSDS} of {totalSDS} SDS current &bull; {labeledChemCount} of {chemicals.length} labeled &bull; {fullyTrained} of {totalEmployees} employees trained
+              </p>
+
+              {/* Breakdown bars */}
+              <div className="space-y-1.5 max-w-md">
+                {[
+                  { label: "SDS Coverage", pct: compliance.breakdown.sds.pct, weight: compliance.breakdown.sds.weight },
+                  { label: "Labeling", pct: compliance.breakdown.labels.pct, weight: compliance.breakdown.labels.weight },
+                  { label: "Training", pct: compliance.breakdown.training.pct, weight: compliance.breakdown.training.weight },
+                  { label: "Written Program", pct: compliance.breakdown.program.pct, weight: compliance.breakdown.program.weight },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center gap-2 text-xs">
+                    <span className="text-gray-600 w-28 truncate">{item.label}</span>
+                    <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${item.pct === 100 ? "bg-green-500" : item.pct >= 50 ? "bg-amber-500" : "bg-red-500"}`}
+                        style={{ width: `${item.pct}%` }}
+                      />
+                    </div>
+                    <span className="text-gray-500 w-16 text-right">{item.pct}% <span className="text-gray-400">({item.weight}%)</span></span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Top improvements */}
+              {compliance.improvements.length > 0 && score < 100 && (
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-1">Top Improvements</p>
+                  {compliance.improvements.map((imp, i) => (
+                    <p key={i} className="text-xs text-gray-600 leading-relaxed">
+                      {imp.text} <span className="font-semibold text-amber-600">(+{imp.points})</span>
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
+          </div>
+        </div>
+
+        {/* ─── Part B: Section 1 — Purpose and Scope ──────────────────── */}
+        <ProgramSection number={1} title="Purpose and Scope" id="section-1">
+          <div className="prose prose-sm max-w-none text-gray-700 space-y-3">
+            <p>
+              This Written Hazard Communication Program has been established for <strong>{shopInfo.name}</strong> located
+              at {shopInfo.address}, {shopInfo.city}, {shopInfo.state} {shopInfo.zip} in compliance with
+              OSHA&apos;s Hazard Communication Standard, 29 CFR 1910.1200.
+            </p>
+            <p>
+              The purpose of this program is to ensure that all employees are informed about the chemical
+              hazards present in the workplace, and to provide them with the knowledge and tools needed to
+              protect themselves. This program applies to all work operations where employees may be exposed
+              to hazardous chemicals under normal working conditions or during foreseeable emergencies.
+            </p>
+            <p>
+              <strong>Safety Coordinator:</strong> {shopInfo.owner}<br />
+              <strong>Total Employees:</strong> {totalEmployees}<br />
+              <strong>Chemicals on Inventory:</strong> {chemicals.length}<br />
+              <strong>Storage Locations:</strong> {uniqueLocations.length} ({uniqueLocations.join(", ")})
+            </p>
+            <p>
+              This document is maintained as a live digital record via the ShieldSDS Compliance Platform.
+              All chemical inventory data, SDS records, labeling status, and training records referenced
+              herein are current as of the date and time shown in the document header.
+            </p>
+          </div>
+        </ProgramSection>
+
+        {/* ─── Part C: Section 2 — Chemical Inventory ────────────────── */}
+        <ProgramSection number={2} title="Chemical Inventory" id="section-2" pageBreak>
+          <p className="text-sm text-gray-700 mb-4">
+            The following table lists all hazardous chemicals known to be present in the workplace.
+            This inventory is maintained digitally and updated whenever chemicals are added, removed,
+            or relocated. Each entry includes GHS classification, signal word, and current compliance status.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="hazcom-table w-full text-xs border-collapse border border-gray-300">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">#</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Product Name</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Manufacturer</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Location</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Signal Word</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">GHS Hazards</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">SDS Status</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Labeled</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedChemicals.map((c, i) => (
+                  <tr
+                    key={c.id}
+                    className={
+                      c.sds_status === "missing" ? "bg-red-50" :
+                      c.sds_status === "expired" ? "bg-amber-50" :
+                      i % 2 === 0 ? "bg-white" : "bg-gray-50"
+                    }
+                  >
+                    <td className="border border-gray-300 px-2 py-1.5 text-gray-500">{i + 1}</td>
+                    <td className="border border-gray-300 px-2 py-1.5 font-medium text-gray-900">{c.product_name}</td>
+                    <td className="border border-gray-300 px-2 py-1.5 text-gray-600">{c.manufacturer}</td>
+                    <td className="border border-gray-300 px-2 py-1.5 text-gray-600">{c.location}</td>
+                    <td className="border border-gray-300 px-2 py-1.5"><SignalWordBadge word={c.signal_word} /></td>
+                    <td className="border border-gray-300 px-2 py-1.5">
+                      <div className="flex gap-0.5">
+                        {c.pictogram_codes.map((code) => (
+                          <GHSPictogram key={code} code={code} size={20} />
+                        ))}
+                      </div>
+                    </td>
+                    <td className="border border-gray-300 px-2 py-1.5"><SdsStatusBadge status={c.sds_status} /></td>
+                    <td className="border border-gray-300 px-2 py-1.5">
+                      {c.labeled ? (
+                        <span className="text-green-700 font-medium">Yes</span>
+                      ) : (
+                        <span className="text-red-700 font-medium">No</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-gray-100 font-semibold text-gray-700">
+                  <td className="border border-gray-300 px-2 py-2" colSpan={2}>
+                    Total: {chemicals.length} chemicals
+                  </td>
+                  <td className="border border-gray-300 px-2 py-2" />
+                  <td className="border border-gray-300 px-2 py-2">{uniqueLocations.length} locations</td>
+                  <td className="border border-gray-300 px-2 py-2">{dangerCount}D / {warningCount}W</td>
+                  <td className="border border-gray-300 px-2 py-2" />
+                  <td className="border border-gray-300 px-2 py-2">{currentSDS}/{totalSDS} current</td>
+                  <td className="border border-gray-300 px-2 py-2">{labeledChemCount}/{chemicals.length}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </ProgramSection>
+
+        {/* ─── Part D: Section 3 — SDS Management ─────────────────────── */}
+        <ProgramSection number={3} title="Safety Data Sheet (SDS) Management" id="section-3" pageBreak>
+          <div className="prose prose-sm max-w-none text-gray-700 mb-4">
+            <p>
+              Safety Data Sheets are maintained digitally via the ShieldSDS platform and are accessible
+              to all employees at all times through the shop tablet and any networked device. SDS documents
+              are indexed by product name and manufacturer, and are available in both English and Spanish
+              where applicable. Physical binders are maintained as backup at Station 1.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="hazcom-table w-full text-xs border-collapse border border-gray-300">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Product</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Manufacturer</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">SDS Status</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">SDS Source</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Last Verified</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700 print:hidden">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedChemicals.map((c, i) => (
+                  <tr
+                    key={c.id}
+                    className={
+                      c.sds_status === "missing" ? "bg-red-50" :
+                      c.sds_status === "expired" ? "bg-amber-50" :
+                      i % 2 === 0 ? "bg-white" : "bg-gray-50"
+                    }
+                  >
+                    <td className="border border-gray-300 px-2 py-1.5 font-medium text-gray-900">{c.product_name}</td>
+                    <td className="border border-gray-300 px-2 py-1.5 text-gray-600">{c.manufacturer}</td>
+                    <td className="border border-gray-300 px-2 py-1.5"><SdsStatusBadge status={c.sds_status} /></td>
+                    <td className="border border-gray-300 px-2 py-1.5 text-gray-600">
+                      {c.sds_uploaded ? "Uploaded" : "Not on file"}
+                    </td>
+                    <td className="border border-gray-300 px-2 py-1.5 text-gray-600">
+                      {c.sds_date ? new Date(c.sds_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                    </td>
+                    <td className="border border-gray-300 px-2 py-1.5 print:hidden">
+                      {c.sds_url ? (
+                        <a href={c.sds_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium">
+                          View SDS <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : c.sds_status !== "current" ? (
+                        <Link href="/sds-search" className="text-amber-600 hover:text-amber-800 font-medium">
+                          Find SDS &rarr;
+                        </Link>
+                      ) : (
+                        <Link href="/sds-library" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium">
+                          View SDS <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {(missingSdsChems.length > 0 || expiredSdsChems.length > 0) && (
+            <DeficiencyNotice>
+              <p className="font-semibold mb-1">SDS Deficiency — 29 CFR 1910.1200(g)</p>
+              {missingSdsChems.length > 0 && (
+                <p>Missing SDS: {missingSdsChems.map((c) => c.product_name).join(", ")}</p>
+              )}
+              {expiredSdsChems.length > 0 && (
+                <p>Expired SDS: {expiredSdsChems.map((c) => c.product_name).join(", ")}</p>
+              )}
+              <p className="mt-1 text-xs">
+                Employers must maintain an SDS for each hazardous chemical in the workplace and ensure
+                they are readily accessible during each work shift. Failure to do so may result in citation
+                under 29 CFR 1910.1200(g)(1).
+              </p>
+            </DeficiencyNotice>
           )}
+        </ProgramSection>
+
+        {/* ─── Part E: Section 4 — Container Labeling ─────────────────── */}
+        <ProgramSection number={4} title="Container Labeling" id="section-4" pageBreak>
+          <div className="prose prose-sm max-w-none text-gray-700 mb-4">
+            <p>
+              All containers of hazardous chemicals in the workplace must be labeled with the product
+              identifier, signal word, hazard statement(s), pictogram(s), precautionary statement(s),
+              and the name/address of the manufacturer per GHS requirements. Secondary containers must
+              bear labels that include at minimum the product identifier and hazard warnings.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="hazcom-table w-full text-xs border-collapse border border-gray-300">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Product</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Location</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Containers</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Labeled</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Label Date</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700 print:hidden">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedChemicals.map((c, i) => (
+                  <tr key={c.id} className={!c.labeled ? "bg-red-50" : i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                    <td className="border border-gray-300 px-2 py-1.5 font-medium text-gray-900">{c.product_name}</td>
+                    <td className="border border-gray-300 px-2 py-1.5 text-gray-600">{c.location}</td>
+                    <td className="border border-gray-300 px-2 py-1.5 text-gray-600">{c.container_count} {c.container_type}</td>
+                    <td className="border border-gray-300 px-2 py-1.5">
+                      {c.labeled ? (
+                        <span className="text-green-700 font-medium">Yes</span>
+                      ) : (
+                        <span className="text-red-700 font-medium">No</span>
+                      )}
+                    </td>
+                    <td className="border border-gray-300 px-2 py-1.5 text-gray-600">
+                      {c.label_printed_date ? new Date(c.label_printed_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                    </td>
+                    <td className="border border-gray-300 px-2 py-1.5 print:hidden">
+                      {!c.labeled ? (
+                        <Link href="/labels" className="text-amber-600 hover:text-amber-800 font-medium">
+                          Print Label &rarr;
+                        </Link>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {unlabeledChems.length > 0 && (
+            <DeficiencyNotice>
+              <p className="font-semibold mb-1">Labeling Deficiency — 29 CFR 1910.1200(f)</p>
+              <p>Unlabeled chemicals: {unlabeledChems.map((c) => c.product_name).join(", ")}</p>
+              <p className="mt-1 text-xs">
+                Each container of hazardous chemicals in the workplace must be labeled, tagged, or marked
+                with the product identifier and words, pictures, symbols, or combination thereof, which provide
+                at least general information regarding the hazards of the chemicals. Citation may be issued
+                under 29 CFR 1910.1200(f)(6).
+              </p>
+            </DeficiencyNotice>
+          )}
+        </ProgramSection>
+
+        {/* ─── Part F: Section 5 — Employee Training ──────────────────── */}
+        <ProgramSection number={5} title="Employee Training" id="section-5" pageBreak>
+          <div className="prose prose-sm max-w-none text-gray-700 mb-4">
+            <p>
+              Per 29 CFR 1910.1200(h), employers must provide employees with effective information and
+              training on hazardous chemicals in their work area at the time of initial assignment and
+              whenever a new chemical hazard is introduced. Annual refresher training is required to maintain
+              compliance. Training covers 7 core modules including hazard identification, SDS interpretation,
+              label reading, PPE usage, emergency procedures, chemical storage, and program overview.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="hazcom-table w-full text-xs border-collapse border border-gray-300">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Employee</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Role</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Status</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Modules</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Initial Training</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Last Training</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Next Due</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700 print:hidden">Certificate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employeeStatuses.map((es, i) => {
+                  const nextDue = (() => {
+                    if (es.info.completedCount < 7) return "Complete training first";
+                    if (!es.emp.last_training) return "—";
+                    const d = new Date(es.emp.last_training);
+                    d.setFullYear(d.getFullYear() + 1);
+                    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                  })();
+
+                  return (
+                    <tr
+                      key={es.emp.id}
+                      className={
+                        es.info.status === "overdue" || es.info.status === "not-started" ? "bg-red-50" :
+                        es.info.status === "in-progress" ? "bg-amber-50" :
+                        i % 2 === 0 ? "bg-white" : "bg-gray-50"
+                      }
+                    >
+                      <td className="border border-gray-300 px-2 py-1.5 font-medium text-gray-900">{es.emp.name}</td>
+                      <td className="border border-gray-300 px-2 py-1.5 text-gray-600">{es.emp.role}</td>
+                      <td className="border border-gray-300 px-2 py-1.5"><TrainingStatusBadge status={es.info.status} /></td>
+                      <td className="border border-gray-300 px-2 py-1.5 text-gray-600">{es.info.completedCount}/7</td>
+                      <td className="border border-gray-300 px-2 py-1.5 text-gray-600">
+                        {es.emp.initial_training ? new Date(es.emp.initial_training).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                      </td>
+                      <td className="border border-gray-300 px-2 py-1.5 text-gray-600">
+                        {es.emp.last_training ? new Date(es.emp.last_training).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                      </td>
+                      <td className="border border-gray-300 px-2 py-1.5 text-gray-600">{nextDue}</td>
+                      <td className="border border-gray-300 px-2 py-1.5 print:hidden">
+                        {(es.info.status === "current" || es.info.status === "due-soon") ? (
+                          <Link href={`/training/learn?employee=${es.emp.id}`} className="text-blue-600 hover:text-blue-800 font-medium">
+                            View
+                          </Link>
+                        ) : (
+                          <Link href={`/training/learn?employee=${es.emp.id}`} className="text-amber-600 hover:text-amber-800 font-medium">
+                            Start &rarr;
+                          </Link>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {(overdueEmployees.length > 0 || notStartedEmployees.length > 0 || inProgressEmployees.length > 0) && (
+            <DeficiencyNotice>
+              <p className="font-semibold mb-1">Training Deficiency — 29 CFR 1910.1200(h)</p>
+              {overdueEmployees.length > 0 && (
+                <p>Overdue: {overdueEmployees.map((es) => es.emp.name).join(", ")}</p>
+              )}
+              {notStartedEmployees.length > 0 && (
+                <p>Not started: {notStartedEmployees.map((es) => es.emp.name).join(", ")}</p>
+              )}
+              {inProgressEmployees.length > 0 && (
+                <p>In progress: {inProgressEmployees.map((es) => es.emp.name).join(", ")}</p>
+              )}
+              <p className="mt-1 text-xs">
+                Employers shall provide employees with effective information and training on hazardous
+                chemicals in their work area at the time of their initial assignment, and whenever a new
+                chemical hazard the employees have not previously been trained about is introduced into
+                their work area.
+              </p>
+            </DeficiencyNotice>
+          )}
+        </ProgramSection>
+
+        {/* ─── Part G: Section 6 — Non-Routine Tasks ─────────────────── */}
+        <ProgramSection number={6} title="Non-Routine Tasks" id="section-6" pageBreak>
+          <div className="prose prose-sm max-w-none text-gray-700 space-y-3">
+            <p>
+              Employees who perform non-routine tasks that may involve exposure to hazardous chemicals
+              shall receive additional training prior to performing the task. The Safety Coordinator
+              ({shopInfo.owner}) must be consulted before any non-routine task involving chemicals is initiated.
+            </p>
+            <p>Examples of non-routine tasks at {shopInfo.name} include:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Spray booth deep cleaning and filter replacement</li>
+              <li>Chemical spill cleanup and containment</li>
+              <li>Paint mixing room ventilation system maintenance</li>
+              <li>Waste solvent and paint disposal operations</li>
+              <li>Emergency response to chemical releases</li>
+              <li>Annual flammable storage cabinet inspection and reorganization</li>
+            </ul>
+            <p>
+              Before any non-routine task, employees must review the relevant SDS, verify PPE requirements,
+              and confirm emergency procedures with the Safety Coordinator. Contact: {shopInfo.owner}
+              at {shopInfo.phone}.
+            </p>
+          </div>
+        </ProgramSection>
+
+        {/* ─── Part H: Section 7 — Multi-Employer Communication ──────── */}
+        <ProgramSection number={7} title="Multi-Employer Workplace Communication" id="section-7">
+          <div className="prose prose-sm max-w-none text-gray-700 space-y-3">
+            <p>
+              When contractors, temporary workers, or other outside employers perform work at {shopInfo.name},
+              the following information shall be provided to them:
+            </p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Hazardous chemicals to which their employees may be exposed while performing their work</li>
+              <li>Measures the contractor&apos;s employees can take to lessen the possibility of exposure</li>
+              <li>Location and availability of Safety Data Sheets</li>
+              <li>Procedures to follow if employees are exposed or need emergency assistance</li>
+              <li>The labeling system used in the workplace</li>
+            </ul>
+            <p>
+              A Contractor Safety Packet is available that includes relevant SDS, site-specific hazard
+              information, emergency procedures, and a digital acknowledgment form.
+            </p>
+          </div>
+          <button
+            onClick={() => showToast("Contractor packet generation coming soon")}
+            className="mt-4 inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-4 py-2 rounded-lg transition-colors print:hidden"
+          >
+            <FileText className="h-4 w-4" />
+            Generate Contractor Packet
+          </button>
+        </ProgramSection>
+
+        {/* ─── Part I: Section 8 — Program Review + Audit Log ────────── */}
+        <ProgramSection number={8} title="Program Review and Audit Log" id="section-8" pageBreak>
+          <div className="prose prose-sm max-w-none text-gray-700 mb-4 space-y-3">
+            <p>
+              This Written Hazard Communication Program is maintained as a living document that updates
+              automatically as chemical inventory, SDS records, labeling, and training data change.
+              The program shall be formally reviewed by the Safety Coordinator under the following conditions:
+            </p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>At least annually, or more frequently as needed</li>
+              <li>When new chemicals are introduced to the workplace</li>
+              <li>When there is a change in work processes or equipment that introduces new hazards</li>
+              <li>When an employee reports a chemical exposure incident</li>
+              <li>After any OSHA inspection or compliance audit</li>
+              <li>When regulatory requirements change</li>
+            </ul>
+          </div>
+
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Recent Activity Log</h3>
+          <div className="overflow-x-auto">
+            <table className="hazcom-table w-full text-xs border-collapse border border-gray-300">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700 w-28">Date</th>
+                  <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-gray-700">Event</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLog.slice(0, 20).map((entry, i) => (
+                  <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                    <td className="border border-gray-300 px-2 py-1.5 text-gray-600 whitespace-nowrap">
+                      {(() => {
+                        try {
+                          return new Date(entry.time).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                        } catch {
+                          return entry.time;
+                        }
+                      })()}
+                    </td>
+                    <td className="border border-gray-300 px-2 py-1.5 text-gray-700">{entry.entry}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </ProgramSection>
+
+        {/* ─── Document Footer ────────────────────────────────────────── */}
+        <div className="border-t-2 border-gray-200 pt-6 mt-10 text-center">
+          <p className="text-xs text-gray-500">
+            Generated: {formattedDateTime} &bull; {shopInfo.name} &bull; {shopInfo.address}, {shopInfo.city}, {shopInfo.state} {shopInfo.zip}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            This document is generated by ShieldSDS and reflects real-time compliance data. It is the
+            employer&apos;s responsibility to verify accuracy and maintain this program in accordance with
+            29 CFR 1910.1200.
+          </p>
+          <div className="hidden print:block mt-4 text-xs text-gray-500">
+            ShieldSDS HazCom Program — {shopInfo.name} — Generated {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+          </div>
         </div>
       </div>
 
-      {/* Compliance Checklist */}
-      <div className="mb-8">
+      {/* ═══════════════════════════════════════════════════════════════════
+          COMPLIANCE CHECKLIST (dark theme, below document)
+          ═══════════════════════════════════════════════════════════════════ */}
+      <div className="mb-8 print:hidden">
         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
           Compliance Checklist
         </h2>
@@ -707,48 +1253,6 @@ export default function InspectionPage() {
           {checklist.map((item) => (
             <ChecklistCard key={item.id} item={item} />
           ))}
-        </div>
-      </div>
-
-      {/* Audit Log */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
-          Audit Log
-        </h2>
-        <div className="bg-navy-900 border border-navy-700/50 rounded-xl overflow-hidden">
-          {auditLog.length > 0 ? (
-            auditLog.map((entry, i) => {
-              const cat = getAuditCategory(entry.entry);
-              const Icon = cat.icon;
-              return (
-                <div
-                  key={i}
-                  className={`flex items-start gap-4 px-5 py-3.5 hover:bg-navy-800/30 transition-colors ${
-                    i < auditLog.length - 1 ? "border-b border-navy-700/30" : ""
-                  }`}
-                >
-                  <div className="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap min-w-[100px]">
-                    <Clock className="h-3 w-3 flex-shrink-0" />
-                    {(() => {
-                      try {
-                        return new Date(entry.time).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                      } catch {
-                        return entry.time;
-                      }
-                    })()}
-                  </div>
-                  <div className="h-6 w-6 rounded-md bg-navy-800 flex items-center justify-center flex-shrink-0">
-                    <Icon className={`h-3.5 w-3.5 ${cat.color}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-300">{entry.entry}</p>
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="py-8 text-center text-gray-500 text-sm">No audit entries yet</div>
-          )}
         </div>
       </div>
 

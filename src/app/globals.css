@@ -49,6 +49,9 @@ body {
   .print\:shadow-none {
     box-shadow: none !important;
   }
+  .print\:block {
+    display: block !important;
+  }
 }
 
 /* Label print window styles */
@@ -59,6 +62,51 @@ body {
   }
   .label-crop-marks {
     border: 0.5pt dashed #999;
+  }
+}
+
+/* HazCom Living Document print styles */
+@media print {
+  .hazcom-section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .hazcom-page-break {
+    page-break-before: always;
+    break-before: page;
+  }
+  .hazcom-table {
+    font-size: 8pt !important;
+  }
+  .hazcom-table th {
+    background-color: #f3f4f6 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .hazcom-table tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .signal-danger {
+    color: #dc2626 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .signal-warning {
+    color: #d97706 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .deficiency-notice {
+    border: 1pt solid #fca5a5 !important;
+    background-color: #fef2f2 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .compliance-ring-print {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    page-break-inside: avoid;
   }
 }
 
