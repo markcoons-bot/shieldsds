@@ -1,18 +1,53 @@
 "use client";
 
+import { useState, useEffect, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import HelpCard from "@/components/HelpCard";
 import { generateHazComProgramPDF } from "@/lib/pdf-generator";
-import {
-  sdsEntries,
-  employees,
-  trainingCourses,
-  nonRoutineTasks,
-  programVersionHistory,
-  shopInfo,
-  getEmployeeTrainingStats,
-} from "@/lib/data";
-import { Printer, Download, Clock } from "lucide-react";
+import { getChemicals, getEmployees, initializeStore } from "@/lib/chemicals";
+import { getEmployeeTrainingStatus } from "@/lib/compliance-score";
+import type { TrainingStatus } from "@/lib/compliance-score";
+import type { Chemical, Employee } from "@/lib/types";
+import { Printer, Download, Clock, AlertTriangle } from "lucide-react";
+
+// ─── Shop Info (static config — matches inspection page) ────────────────────
+
+const shopInfo = {
+  name: "Mike's Auto Body",
+  owner: "Mike Rodriguez",
+  address: "1847 Pacific Coast Hwy",
+  city: "Long Beach",
+  state: "CA",
+  zip: "90806",
+  phone: "(562) 555-0147",
+  ownerPhone: "(562) 555-0147",
+  ownerEmail: "mike@mikesautobody.com",
+  emergencyContacts: {
+    fire: "911",
+    police: "911",
+    poisonControl: "1-800-222-1222",
+    nearestHospital: {
+      name: "Long Beach Memorial Medical Center",
+      address: "2801 Atlantic Ave, Long Beach, CA 90806",
+      phone: "(562) 933-2000",
+      distance: "1.8 miles",
+    },
+  },
+};
+
+// ─── The 7 real training modules (matches learn page exactly) ───────────────
+
+const TRAINING_MODULES = [
+  { id: "m1", title: "Your Right to Know", duration: "5 min", description: "Why this training exists and your legal rights under OSHA's HazCom standard" },
+  { id: "m2", title: "The GHS System", duration: "7 min", description: "9 pictograms, signal words, hazard classes, and the globally harmonized system" },
+  { id: "m3", title: "Reading a Chemical Label", duration: "7 min", description: "Anatomy of a GHS label — product identifier, hazard statements, precautionary statements" },
+  { id: "m4", title: "Understanding the SDS", duration: "8 min", description: "All 16 sections of a Safety Data Sheet — finding what saves your life" },
+  { id: "m5", title: "Protecting Yourself — PPE", duration: "7 min", description: "Selecting and using the right personal protective equipment for each chemical" },
+  { id: "m6", title: "When Things Go Wrong", duration: "7 min", description: "Spill response, chemical exposure first aid, and emergency procedures" },
+  { id: "m7", title: "Your Shop's HazCom Program", duration: "5 min", description: "Your chemicals, your locations, your plan — site-specific HazCom procedures" },
+];
+
+// ─── Section wrapper ────────────────────────────────────────────────────────
 
 function HazComSection({
   number,
@@ -33,12 +68,14 @@ function HazComSection({
   );
 }
 
-const statusLabel = (status: string) => {
+// ─── Status badges ──────────────────────────────────────────────────────────
+
+const sdsStatusLabel = (status: string) => {
   switch (status) {
     case "current":
       return <span className="text-green-700 font-medium">Current</span>;
-    case "review":
-      return <span className="text-amber-700 font-medium">Review Needed</span>;
+    case "expired":
+      return <span className="text-amber-700 font-medium">Expired</span>;
     case "missing":
       return <span className="text-red-700 font-medium">Missing</span>;
     default:
@@ -46,28 +83,111 @@ const statusLabel = (status: string) => {
   }
 };
 
-const trainingStatusLabel = (status: string) => {
-  switch (status) {
-    case "current":
-      return <span className="text-green-700 font-medium">Current</span>;
-    case "overdue":
-      return <span className="text-red-700 font-medium">Overdue</span>;
-    case "pending":
-      return <span className="text-amber-700 font-medium">Pending (New Hire)</span>;
-    default:
-      return <span>{status}</span>;
-  }
+const trainingStatusBadge = (status: TrainingStatus) => {
+  const config: Record<TrainingStatus, { label: string; className: string }> = {
+    current: { label: "Current", className: "text-green-700 font-medium" },
+    "due-soon": { label: "Due Soon", className: "text-amber-700 font-medium" },
+    overdue: { label: "Overdue", className: "text-red-700 font-medium" },
+    "in-progress": { label: "In Progress", className: "text-amber-700 font-medium" },
+    "not-started": { label: "Pending (New Hire)", className: "text-red-700 font-medium" },
+  };
+  const c = config[status];
+  return <span className={c.className}>{c.label}</span>;
 };
 
+// ─── Generate version history from real events ──────────────────────────────
+
+interface VersionEntry {
+  date: string;
+  summary: string;
+}
+
+function generateVersionHistory(chemicals: Chemical[], employees: Employee[]): VersionEntry[] {
+  const events: { date: string; text: string }[] = [];
+
+  chemicals.forEach((c) => {
+    if (c.added_date) {
+      events.push({ date: c.added_date, text: `Added ${c.product_name} to inventory` });
+    }
+    if (c.sds_uploaded && c.sds_date) {
+      events.push({ date: c.sds_date, text: `SDS linked for ${c.product_name}` });
+    }
+    if (c.label_printed_date) {
+      events.push({ date: c.label_printed_date, text: `Label printed for ${c.product_name}` });
+    }
+  });
+
+  employees.forEach((emp) => {
+    if (emp.initial_training) {
+      events.push({ date: emp.initial_training, text: `Employee added: ${emp.name}` });
+    }
+    if (emp.last_training) {
+      events.push({ date: emp.last_training, text: `Training completed: ${emp.name}` });
+    }
+  });
+
+  // Sort by date descending
+  events.sort((a, b) => b.date.localeCompare(a.date));
+
+  // Group events by date
+  const grouped = new Map<string, string[]>();
+  events.forEach((e) => {
+    const existing = grouped.get(e.date);
+    if (existing) {
+      existing.push(e.text);
+    } else {
+      grouped.set(e.date, [e.text]);
+    }
+  });
+
+  // Build summary entries (limit to 15)
+  const entries: VersionEntry[] = [];
+  grouped.forEach((texts, date) => {
+    const summary = texts.length <= 3
+      ? texts.join("; ")
+      : `${texts.slice(0, 2).join("; ")} and ${texts.length - 2} more event${texts.length - 2 > 1 ? "s" : ""}`;
+    entries.push({ date, summary });
+  });
+
+  return entries.slice(0, 15);
+}
+
+// ─── Main Page ──────────────────────────────────────────────────────────────
+
 export default function HazComProgramPage() {
-  const currentSDS = sdsEntries.filter((s) => s.sdsStatus === "current").length;
-  const missingSDS = sdsEntries.filter((s) => s.sdsStatus === "missing").length;
+  const [chemicals, setChemicals] = useState<Chemical[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+
+  useEffect(() => {
+    initializeStore();
+    setChemicals(getChemicals());
+    setEmployees(getEmployees());
+  }, []);
+
+  const currentSDS = chemicals.filter((c) => c.sds_status === "current").length;
+  const missingSDS = chemicals.filter((c) => c.sds_status === "missing").length;
+  const expiredSDS = chemicals.filter((c) => c.sds_status === "expired").length;
+  const totalSDS = chemicals.length;
   const today = new Date().toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
   });
-  const currentVersion = programVersionHistory[0];
+
+  const sortedChemicals = useMemo(
+    () => [...chemicals].sort((a, b) => a.location.localeCompare(b.location) || a.product_name.localeCompare(b.product_name)),
+    [chemicals]
+  );
+
+  const employeeStatuses = useMemo(
+    () => employees.map((e) => ({ emp: e, info: getEmployeeTrainingStatus(e) })),
+    [employees]
+  );
+
+  const versionHistory = useMemo(
+    () => generateVersionHistory(chemicals, employees),
+    [chemicals, employees]
+  );
 
   return (
     <DashboardLayout>
@@ -78,8 +198,7 @@ export default function HazComProgramPage() {
             Written HazCom Program
           </h1>
           <p className="text-sm text-gray-400 mt-1">
-            OSHA 29 CFR 1910.1200 compliance document &middot; Version{" "}
-            {currentVersion.version}
+            OSHA 29 CFR 1910.1200 compliance document &middot; Live
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -140,15 +259,8 @@ export default function HazComProgramPage() {
             <p>{shopInfo.phone}</p>
           </div>
           <div className="mt-3 flex items-center justify-center gap-6 text-xs text-gray-500">
-            <span>
-              Version {currentVersion.version} &mdash;{" "}
-              {new Date(currentVersion.date).toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}
-            </span>
-            <span>Printed: {today}</span>
+            <span>Live Document</span>
+            <span>Generated: {today}</span>
           </div>
         </div>
 
@@ -217,7 +329,7 @@ export default function HazComProgramPage() {
           <p className="text-sm leading-relaxed mb-3">
             A complete inventory of all hazardous chemicals present at{" "}
             {shopInfo.name} is maintained in the ShieldSDS system. The current
-            inventory includes <strong>{sdsEntries.length}</strong> chemical
+            inventory includes <strong>{totalSDS}</strong> chemical
             products, of which <strong>{currentSDS}</strong> have current SDS on
             file
             {missingSDS > 0 && (
@@ -227,67 +339,50 @@ export default function HazComProgramPage() {
                 {missingSDS === 1 ? "is" : "are"} missing SDS documentation
               </>
             )}
+            {expiredSDS > 0 && (
+              <>
+                {" "}
+                and <strong className="text-amber-700">{expiredSDS}</strong>{" "}
+                {expiredSDS === 1 ? "has" : "have"} expired SDS
+              </>
+            )}
             .
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse border border-gray-300">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    #
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Product Name
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Manufacturer
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Storage Location
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Signal Word
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    SDS Status
-                  </th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">#</th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">Product Name</th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">Manufacturer</th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">Storage Location</th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">Signal Word</th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">SDS Status</th>
                 </tr>
               </thead>
               <tbody>
-                {sdsEntries.map((sds, i) => (
+                {sortedChemicals.map((c, i) => (
                   <tr
-                    key={sds.id}
+                    key={c.id}
                     className={
-                      sds.sdsStatus === "missing" ? "bg-red-50" : ""
+                      c.sds_status === "missing" ? "bg-red-50" :
+                      c.sds_status === "expired" ? "bg-amber-50" : ""
                     }
                   >
+                    <td className="border border-gray-300 px-2 py-1">{i + 1}</td>
+                    <td className="border border-gray-300 px-2 py-1 font-medium">{c.product_name}</td>
+                    <td className="border border-gray-300 px-2 py-1">{c.manufacturer}</td>
+                    <td className="border border-gray-300 px-2 py-1">{c.location}</td>
                     <td className="border border-gray-300 px-2 py-1">
-                      {i + 1}
-                    </td>
-                    <td className="border border-gray-300 px-2 py-1 font-medium">
-                      {sds.productName}
-                    </td>
-                    <td className="border border-gray-300 px-2 py-1">
-                      {sds.manufacturer}
-                    </td>
-                    <td className="border border-gray-300 px-2 py-1">
-                      {sds.storageLocation}
-                    </td>
-                    <td className="border border-gray-300 px-2 py-1">
-                      <span
-                        className={
-                          sds.signalWord === "Danger"
-                            ? "text-red-700 font-bold"
-                            : sds.signalWord === "Warning"
-                            ? "text-amber-700 font-bold"
-                            : "text-gray-500"
-                        }
-                      >
-                        {sds.signalWord}
+                      <span className={
+                        c.signal_word === "DANGER" ? "text-red-700 font-bold" :
+                        c.signal_word === "WARNING" ? "text-amber-700 font-bold" : "text-gray-500"
+                      }>
+                        {c.signal_word || "—"}
                       </span>
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
-                      {statusLabel(sds.sdsStatus)}
+                      {sdsStatusLabel(c.sds_status)}
                     </td>
                   </tr>
                 ))}
@@ -295,14 +390,7 @@ export default function HazComProgramPage() {
             </table>
           </div>
           <p className="text-xs text-gray-500 mt-2 italic">
-            Last updated:{" "}
-            {new Date(currentVersion.date).toLocaleDateString("en-US", {
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-            })}
-            . Full interactive inventory available in ShieldSDS Chemical
-            Inventory module.
+            Live data from ShieldSDS — {totalSDS} chemicals as of {today}. Full interactive inventory available in the Chemical Inventory module.
           </p>
         </HazComSection>
 
@@ -311,30 +399,37 @@ export default function HazComProgramPage() {
           <p className="text-sm leading-relaxed mb-3">
             Safety Data Sheets for all hazardous chemicals are accessible to all
             employees at all times during their work shift. No supervisor
-            permission is required to access any SDS. Access methods:
+            permission is required to access any SDS.
           </p>
-          <ul className="text-sm space-y-2 ml-4 list-disc">
+          <p className="text-sm leading-relaxed mb-3">Access methods:</p>
+          <ul className="text-sm space-y-2 ml-4 list-disc mb-3">
             <li>
-              <strong>Primary:</strong> ShieldSDS application on the shop tablet
-              (mounted at Station 1 near the Paint Booth A entrance) and via
-              personal mobile device using QR codes on secondary container
-              labels.
+              <strong>Primary:</strong> ShieldSDS web application — accessible
+              on any device with internet (computer, tablet, or phone)
             </li>
             <li>
-              <strong>Backup (Offline):</strong> Offline-cached SDS library on
-              the shop tablet. Functions during internet or power outage via
-              device battery.
+              <strong>Search:</strong> Employees can search by product name,
+              manufacturer, or CAS number
             </li>
             <li>
-              <strong>Secondary Backup:</strong> Printed PDF binder in the Front
-              Office filing cabinet. Binder is reprinted quarterly to ensure
-              current SDS revisions.
+              <strong>SDS count:</strong> <strong>{currentSDS}</strong> of{" "}
+              <strong>{totalSDS}</strong> chemicals have current SDS on file
             </li>
           </ul>
+          {(missingSDS > 0 || expiredSDS > 0) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2 text-sm">
+              <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <span className="text-amber-800">
+                {missingSDS > 0 && <>{missingSDS} chemical{missingSDS > 1 ? "s are" : " is"} pending SDS retrieval. </>}
+                {expiredSDS > 0 && <>{expiredSDS} chemical{expiredSDS > 1 ? "s have" : " has"} expired SDS requiring update. </>}
+                Automated lookup is in progress.
+              </span>
+            </div>
+          )}
           <p className="text-sm leading-relaxed mt-3">
-            SDS access training is included in the HazCom Initial Orientation
-            (Section 6). Employees are trained to search by product name,
-            manufacturer, or scan the QR code on any labeled container.
+            SDS access training is included in the HazCom training program
+            (Module 4: Understanding the SDS). Employees are trained to search
+            by product name, manufacturer, or CAS number.
           </p>
         </HazComSection>
 
@@ -370,7 +465,6 @@ export default function HazComProgramPage() {
             <li>Hazard statement(s)</li>
             <li>GHS pictogram(s)</li>
             <li>Precautionary statement(s)</li>
-            <li>QR code linking to the full SDS in ShieldSDS</li>
           </ul>
 
           <h3 className="text-sm font-bold mt-4 mb-2">Exemptions</h3>
@@ -400,7 +494,7 @@ export default function HazComProgramPage() {
               area
             </li>
             <li>
-              <strong>Annual refresher:</strong> All required courses reviewed
+              <strong>Annual refresher:</strong> All 7 required modules reviewed
               annually
             </li>
           </ul>
@@ -410,34 +504,26 @@ export default function HazComProgramPage() {
             <table className="w-full text-xs border-collapse border border-gray-300">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Course
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Duration
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Required
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Description
-                  </th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">Module</th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">Duration</th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">Required</th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">Description</th>
                 </tr>
               </thead>
               <tbody>
-                {trainingCourses.map((course) => (
-                  <tr key={course.id}>
+                {TRAINING_MODULES.map((mod, i) => (
+                  <tr key={mod.id}>
                     <td className="border border-gray-300 px-2 py-1 font-medium">
-                      {course.title}
+                      {i + 1}. {mod.title}
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
-                      {course.duration}
+                      {mod.duration}
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
-                      {course.required ? "Yes" : "As needed"}
+                      Yes
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
-                      {course.description}
+                      {mod.description}
                     </td>
                   </tr>
                 ))}
@@ -450,51 +536,37 @@ export default function HazComProgramPage() {
             <table className="w-full text-xs border-collapse border border-gray-300">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Employee
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Role
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Hire Date
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Modules Complete
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Status
-                  </th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">Employee</th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">Role</th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">Hire Date</th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">Modules Complete</th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {employees.map((emp) => {
-                  const stats = getEmployeeTrainingStats(emp);
+                {employeeStatuses.map((es) => {
+                  const isDeficient = es.info.status === "overdue" || es.info.status === "not-started";
                   return (
                     <tr
-                      key={emp.id}
-                      className={
-                        emp.status === "overdue" ? "bg-red-50" : ""
-                      }
+                      key={es.emp.id}
+                      className={isDeficient ? "bg-red-50" : es.info.status === "in-progress" ? "bg-amber-50" : ""}
                     >
                       <td className="border border-gray-300 px-2 py-1 font-medium">
-                        {emp.name}
+                        {es.emp.name}
                       </td>
                       <td className="border border-gray-300 px-2 py-1">
-                        {emp.role}
+                        {es.emp.role}
                       </td>
                       <td className="border border-gray-300 px-2 py-1">
-                        {new Date(emp.hireDate).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
+                        {es.emp.initial_training
+                          ? new Date(es.emp.initial_training).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                          : "—"}
                       </td>
                       <td className="border border-gray-300 px-2 py-1">
-                        {stats.completed}/{stats.total}
+                        {es.info.completedCount}/7
                       </td>
                       <td className="border border-gray-300 px-2 py-1">
-                        {trainingStatusLabel(emp.status)}
+                        {trainingStatusBadge(es.info.status)}
                       </td>
                     </tr>
                   );
@@ -517,9 +589,42 @@ export default function HazComProgramPage() {
             {shopInfo.owner}) for specific hazard information and required
             precautions.
           </p>
-          {nonRoutineTasks.map((task) => (
+          {[
+            {
+              task: "Spray Booth Deep Cleaning",
+              location: "Paint Booth A",
+              frequency: "Monthly",
+              hazards: ["Isocyanate residue exposure", "Flammable solvent vapors", "Dust from dried paint overspray"],
+              precautions: ["Ventilation system must be running during cleaning", "No ignition sources within 35 feet", "Two-person buddy system required"],
+              requiredPPE: ["Supplied-air respirator", "Chemical-resistant coveralls", "Nitrile gloves (double layer)", "Safety goggles"],
+            },
+            {
+              task: "Parts Washer Solvent Change",
+              location: "Bay 2 Mechanical",
+              frequency: "Quarterly",
+              hazards: ["Skin contact with spent solvent", "Flammable vapors during transfer", "Environmental spill risk"],
+              precautions: ["Transfer solvent to approved waste container only", "Use grounding/bonding during transfer", "Have spill kit ready before starting"],
+              requiredPPE: ["Chemical splash goggles", "Solvent-resistant gloves", "Chemical-resistant apron", "Face shield for splash protection"],
+            },
+            {
+              task: "Handling Leaking or Damaged Containers",
+              location: "Any Location",
+              frequency: "As needed",
+              hazards: ["Unknown or mixed chemical exposure", "Vapors from opened containers", "Slip hazard from spilled material"],
+              precautions: ["Identify chemical via label or SDS before handling", "Isolate area and alert nearby workers", "Use appropriate spill containment"],
+              requiredPPE: ["Per SDS Section 8 for the specific chemical", "At minimum: nitrile gloves + safety goggles", "Respirator if vapors are present"],
+            },
+            {
+              task: "Custom Paint Mixing — New Formulas",
+              location: "Paint Mixing Room",
+              frequency: "As needed",
+              hazards: ["Exposure to new/unfamiliar chemicals", "Flammable vapor accumulation", "Skin sensitization from isocyanates"],
+              precautions: ["Review SDS for all components before mixing", "Confirm ventilation is adequate", "Never mix without reviewing compatibility"],
+              requiredPPE: ["Organic vapor respirator with P100 filter", "Chemical-resistant gloves", "Safety goggles", "Paint suit or coveralls"],
+            },
+          ].map((task, i) => (
             <div
-              key={task.id}
+              key={i}
               className="mb-5 bg-gray-50 border border-gray-200 rounded-lg p-4"
             >
               <h3 className="text-sm font-bold mb-2">{task.task}</h3>
@@ -537,28 +642,24 @@ export default function HazComProgramPage() {
                 <div>
                   <p className="font-semibold text-red-800 mb-1">Hazards:</p>
                   <ul className="list-disc ml-4 space-y-0.5">
-                    {task.hazards.map((h, i) => (
-                      <li key={i}>{h}</li>
+                    {task.hazards.map((h, j) => (
+                      <li key={j}>{h}</li>
                     ))}
                   </ul>
                 </div>
                 <div>
-                  <p className="font-semibold text-blue-800 mb-1">
-                    Precautions:
-                  </p>
+                  <p className="font-semibold text-blue-800 mb-1">Precautions:</p>
                   <ul className="list-disc ml-4 space-y-0.5">
-                    {task.precautions.map((p, i) => (
-                      <li key={i}>{p}</li>
+                    {task.precautions.map((p, j) => (
+                      <li key={j}>{p}</li>
                     ))}
                   </ul>
                 </div>
                 <div>
-                  <p className="font-semibold text-green-800 mb-1">
-                    Required PPE:
-                  </p>
+                  <p className="font-semibold text-green-800 mb-1">Required PPE:</p>
                   <ul className="list-disc ml-4 space-y-0.5">
-                    {task.requiredPPE.map((ppe, i) => (
-                      <li key={i}>{ppe}</li>
+                    {task.requiredPPE.map((ppe, j) => (
+                      <li key={j}>{ppe}</li>
                     ))}
                   </ul>
                 </div>
@@ -650,37 +751,18 @@ export default function HazComProgramPage() {
 
           <h3 className="text-sm font-bold mt-4 mb-2">Chemical Spill</h3>
           <ol className="text-sm space-y-1 ml-4 list-decimal mb-3">
-            <li>
-              Alert nearby workers and evacuate the immediate area if necessary
-            </li>
-            <li>
-              Consult the SDS (Section 6: Accidental Release Measures) for the
-              spilled chemical
-            </li>
-            <li>
-              Don appropriate PPE before attempting cleanup (per SDS Section 8)
-            </li>
-            <li>
-              Use spill kit materials (absorbent pads, neutralizers) to contain
-              and clean up
-            </li>
-            <li>
-              Dispose of contaminated materials per SDS Section 13 (Disposal
-              Considerations)
-            </li>
+            <li>Alert nearby workers and evacuate the immediate area if necessary</li>
+            <li>Consult the SDS (Section 6: Accidental Release Measures) for the spilled chemical</li>
+            <li>Don appropriate PPE before attempting cleanup (per SDS Section 8)</li>
+            <li>Use spill kit materials (absorbent pads, neutralizers) to contain and clean up</li>
+            <li>Dispose of contaminated materials per SDS Section 13 (Disposal Considerations)</li>
             <li>Report the spill to {shopInfo.owner} and log in ShieldSDS</li>
           </ol>
 
           <h3 className="text-sm font-bold mt-4 mb-2">Chemical Exposure</h3>
           <ol className="text-sm space-y-1 ml-4 list-decimal mb-3">
-            <li>
-              Immediately follow first aid procedures per SDS Section 4 for the
-              specific chemical
-            </li>
-            <li>
-              Use emergency eyewash station or safety shower if eyes or skin are
-              affected
-            </li>
+            <li>Immediately follow first aid procedures per SDS Section 4 for the specific chemical</li>
+            <li>Use emergency eyewash station or safety shower if eyes or skin are affected</li>
             <li>Call 911 if symptoms are severe or life-threatening</li>
             <li>
               Transport to{" "}
@@ -688,94 +770,72 @@ export default function HazComProgramPage() {
               {shopInfo.emergencyContacts.nearestHospital.distance}) or call{" "}
               {shopInfo.emergencyContacts.nearestHospital.phone}
             </li>
-            <li>
-              Bring a copy of the SDS to the medical facility (accessible via
-              ShieldSDS on any mobile device)
-            </li>
+            <li>Bring a copy of the SDS to the medical facility (accessible via ShieldSDS on any mobile device)</li>
           </ol>
 
-          <h3 className="text-sm font-bold mt-4 mb-2">
-            Fire Involving Chemicals
-          </h3>
+          <h3 className="text-sm font-bold mt-4 mb-2">Fire Involving Chemicals</h3>
           <ol className="text-sm space-y-1 ml-4 list-decimal">
             <li>
               Activate fire alarm and call{" "}
               <strong>{shopInfo.emergencyContacts.fire}</strong>
             </li>
             <li>Evacuate all personnel to the designated assembly point</li>
-            <li>
-              Consult SDS Section 5 (Fire-Fighting Measures) for the chemicals
-              involved &mdash; DO NOT use water on certain chemical fires
-            </li>
-            <li>
-              Only trained employees may attempt to use fire extinguishers on
-              small, contained fires
-            </li>
-            <li>
-              Inform arriving firefighters of the chemicals present (provide SDS
-              access via ShieldSDS)
-            </li>
+            <li>Consult SDS Section 5 (Fire-Fighting Measures) for the chemicals involved &mdash; DO NOT use water on certain chemical fires</li>
+            <li>Only trained employees may attempt to use fire extinguishers on small, contained fires</li>
+            <li>Inform arriving firefighters of the chemicals present (provide SDS access via ShieldSDS)</li>
           </ol>
         </HazComSection>
 
         {/* Section 10: Program Review */}
         <HazComSection number={10} title="Program Review">
           <p className="text-sm leading-relaxed mb-3">
-            This Written Hazard Communication Program is reviewed and updated
-            whenever any of the following occur:
+            This Written Hazard Communication Program is a living document maintained
+            in ShieldSDS that updates automatically as chemical inventory, SDS records,
+            labeling, and training data change. The program is also reviewed whenever
+            any of the following occur:
           </p>
           <ul className="text-sm space-y-1 ml-4 list-disc mb-4">
             <li>New hazardous chemicals are introduced into the workplace</li>
             <li>Hazardous chemicals are removed from inventory</li>
             <li>Changes are made to the labeling system</li>
-            <li>
-              Employee roster changes (new hires, departures, role changes)
-            </li>
-            <li>
-              At least <strong>annually</strong>, regardless of other triggers
-            </li>
+            <li>Employee roster changes (new hires, departures, role changes)</li>
+            <li>At least <strong>annually</strong>, regardless of other triggers</li>
           </ul>
 
-          <h3 className="text-sm font-bold mb-2">Version History</h3>
+          <h3 className="text-sm font-bold mb-2">Recent Activity</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse border border-gray-300">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Version
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Date
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Author
-                  </th>
-                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">
-                    Changes
-                  </th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold w-28">Date</th>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold">Event</th>
                 </tr>
               </thead>
               <tbody>
-                {programVersionHistory.map((v) => (
-                  <tr key={v.version}>
-                    <td className="border border-gray-300 px-2 py-1 font-medium">
-                      {v.version}
-                    </td>
-                    <td className="border border-gray-300 px-2 py-1">
-                      {new Date(v.date).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </td>
-                    <td className="border border-gray-300 px-2 py-1">
-                      {v.author}
-                    </td>
-                    <td className="border border-gray-300 px-2 py-1">
-                      {v.changes}
+                {versionHistory.length > 0 ? (
+                  versionHistory.map((entry, i) => (
+                    <tr key={i} className={i % 2 === 0 ? "" : "bg-gray-50"}>
+                      <td className="border border-gray-300 px-2 py-1 whitespace-nowrap">
+                        {(() => {
+                          try {
+                            return new Date(entry.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                          } catch {
+                            return entry.date;
+                          }
+                        })()}
+                      </td>
+                      <td className="border border-gray-300 px-2 py-1">
+                        {entry.summary}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="border border-gray-300 px-2 py-1" colSpan={2}>
+                      No events recorded yet
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -786,13 +846,9 @@ export default function HazComProgramPage() {
           <div className="flex items-center justify-between text-xs text-gray-500 mb-4">
             <div className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              <span>
-                Generated by ShieldSDS on {today}
-              </span>
+              <span>Generated by ShieldSDS on {today}</span>
             </div>
-            <span>
-              Version {currentVersion.version} &mdash; {shopInfo.name}
-            </span>
+            <span>Live Document &mdash; {shopInfo.name}</span>
           </div>
           <p className="text-xs text-gray-500 italic leading-relaxed">
             <strong>Disclaimer:</strong> This Written Hazard Communication
@@ -811,13 +867,7 @@ export default function HazComProgramPage() {
       {/* Screen-only bottom actions */}
       <div className="mt-6 flex items-center justify-between print:hidden">
         <p className="text-xs text-gray-500">
-          Version {currentVersion.version} &middot; Last updated{" "}
-          {new Date(currentVersion.date).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })}{" "}
-          by {currentVersion.author}
+          Live document &middot; {shopInfo.name}
         </p>
         <div className="flex items-center gap-3">
           <button

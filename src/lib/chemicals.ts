@@ -175,24 +175,24 @@ const SEED_EMPLOYEES: Omit<Employee, "id">[] = [
     pending_modules: [],
   },
   {
-    // DUE SOON: all 7 modules, trained ~11 months ago (due in ~30 days)
+    // IN PROGRESS: 5 of 7 modules, partway through training
     name: "Carlos Mendez",
     role: "Body Tech",
-    initial_training: "2024-03-22",
-    last_training: "2025-03-20",
-    status: "current",
-    completed_modules: ["m1", "m2", "m3", "m4", "m5", "m6", "m7"],
-    pending_modules: [],
+    initial_training: null,
+    last_training: null,
+    status: "pending",
+    completed_modules: ["m1", "m2", "m3", "m4", "m5"],
+    pending_modules: ["m6", "m7"],
   },
   {
-    // OVERDUE: trained ~14 months ago, only 3 of 7 on current cycle
+    // OVERDUE: completed all training 14 months ago but it expired, needs full refresher
     name: "Marcus Thompson",
     role: "Painter",
     initial_training: "2024-06-10",
     last_training: "2024-12-15",
     status: "overdue",
-    completed_modules: ["m1", "m2", "m3"],
-    pending_modules: ["m4", "m5", "m6", "m7"],
+    completed_modules: [],
+    pending_modules: ["m1", "m2", "m3", "m4", "m5", "m6", "m7"],
   },
   {
     // NOT STARTED: new hire, no training
