@@ -63,13 +63,42 @@ export default function Sidebar() {
     setEmployees(getEmployees());
   }, [pathname]);
 
+  // Training status helpers (matches training page logic)
+  const trainingCounts = useMemo(() => {
+    const ALL_MODS = ["m1", "m2", "m3", "m4", "m5", "m6", "m7"];
+    const MOD_EQ: Record<string, string[]> = {
+      m1: ["m1", "hazcom-overview"], m2: ["m2", "reading-sds"], m3: ["m3", "ghs-labels"],
+      m4: ["m4", "ppe-selection"], m5: ["m5", "chemical-storage"], m6: ["m6", "emergency-response"],
+      m7: ["m7", "spill-response"],
+    };
+    let overdue = 0;
+    let dueSoon = 0;
+    employees.forEach((emp) => {
+      const completed = ALL_MODS.filter((mid) =>
+        MOD_EQ[mid].some((eq) => emp.completed_modules?.includes(eq))
+      ).length;
+      if (completed < 7 || !emp.last_training) {
+        // not-started counts as an issue
+        if (completed < 7) { overdue++; return; }
+      }
+      if (emp.last_training) {
+        const due = new Date(emp.last_training);
+        due.setFullYear(due.getFullYear() + 1);
+        const days = Math.ceil((due.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        if (days < 0) overdue++;
+        else if (days <= 30) dueSoon++;
+      }
+    });
+    return { overdue, dueSoon, total: overdue + dueSoon };
+  }, [employees]);
+
   // Badge counts
   const badges = useMemo(() => {
     const missingSds = chemicals.filter((c) => c.sds_status === "missing").length;
     const unlabeled = chemicals.filter((c) => !c.labeled).length;
-    const trainingIssues = employees.filter((e) => e.status === "overdue" || e.status === "pending").length;
+    const trainingIssues = trainingCounts.total;
     return { missingSds, unlabeled, trainingIssues };
-  }, [chemicals, employees]);
+  }, [chemicals, trainingCounts]);
 
   // Dynamic user — first employee with Owner/Manager role, or first employee
   const currentUser = useMemo(() => {
@@ -171,6 +200,8 @@ export default function Sidebar() {
           const badgeCount = item.badgeKey ? badges[item.badgeKey] : 0;
           const badgeColor =
             item.badgeKey === "unlabeled"
+              ? "bg-status-amber text-navy-950"
+              : item.badgeKey === "trainingIssues" && trainingCounts.overdue === 0
               ? "bg-status-amber text-navy-950"
               : "bg-status-red text-white";
 

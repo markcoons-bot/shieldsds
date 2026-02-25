@@ -32,6 +32,34 @@ import {
   Link2,
 } from "lucide-react";
 
+// ─── Training Status Helpers (matches training page logic) ───────────────────
+
+const ALL_MODULES = ["m1", "m2", "m3", "m4", "m5", "m6", "m7"];
+const MODULE_EQUIVALENTS: Record<string, string[]> = {
+  m1: ["m1", "hazcom-overview"], m2: ["m2", "reading-sds"], m3: ["m3", "ghs-labels"],
+  m4: ["m4", "ppe-selection"], m5: ["m5", "chemical-storage"], m6: ["m6", "emergency-response"],
+  m7: ["m7", "spill-response"],
+};
+
+function countCompleted(emp: Employee): number {
+  return ALL_MODULES.filter((mid) =>
+    MODULE_EQUIVALENTS[mid].some((eq) => emp.completed_modules?.includes(eq))
+  ).length;
+}
+
+function getTrainingInfo(emp: Employee): { status: "overdue" | "due-soon" | "not-started" | "up-to-date"; daysUntilDue: number | null } {
+  const completed = countCompleted(emp);
+  if (completed < 7 && !emp.last_training) return { status: "not-started", daysUntilDue: null };
+  if (completed < 7) return { status: "not-started", daysUntilDue: null };
+  if (!emp.last_training) return { status: "not-started", daysUntilDue: null };
+  const due = new Date(emp.last_training);
+  due.setFullYear(due.getFullYear() + 1);
+  const days = Math.ceil((due.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  if (days < 0) return { status: "overdue", daysUntilDue: days };
+  if (days <= 30) return { status: "due-soon", daysUntilDue: days };
+  return { status: "up-to-date", daysUntilDue: days };
+}
+
 // ─── Action Item Type ────────────────────────────────────────────────────────
 
 interface DashboardActionItem {
@@ -86,38 +114,52 @@ function getDynamicActionItems(chemicals: Chemical[], employees: Employee[]): Da
     });
   });
 
-  // Overdue training
-  const overdueEmps = employees.filter((e) => e.status === "overdue");
-  overdueEmps.forEach((emp) => {
-    items.push({
-      id: String(counter++),
-      priority: "medium",
-      title: `Training overdue: ${emp.name}`,
-      detail: emp.pending_modules.join(", ") || "Overdue training modules",
-      timeEstimate: "~3 min",
-      oshaRisk: "High",
-      fixHref: "/training",
-      fixLabel: "Send Training Link",
-      employeeId: emp.id,
-      actionType: "send-link",
-    });
-  });
+  // Training items — use date-based status
+  employees.forEach((emp) => {
+    const info = getTrainingInfo(emp);
+    const completed = countCompleted(emp);
 
-  // Pending new hire training
-  const pendingEmps = employees.filter((e) => e.status === "pending");
-  pendingEmps.forEach((emp) => {
-    items.push({
-      id: String(counter++),
-      priority: "medium",
-      title: `New hire training: ${emp.name}`,
-      detail: `${emp.pending_modules.length} module${emp.pending_modules.length !== 1 ? "s" : ""} remaining`,
-      timeEstimate: "~2 min",
-      oshaRisk: "High",
-      fixHref: "/training",
-      fixLabel: "Send Training Link",
-      employeeId: emp.id,
-      actionType: "send-link",
-    });
+    if (info.status === "overdue") {
+      const daysOverdue = Math.abs(info.daysUntilDue!);
+      items.push({
+        id: String(counter++),
+        priority: "high",
+        title: `Training overdue: ${emp.name}`,
+        detail: `${daysOverdue} day${daysOverdue !== 1 ? "s" : ""} overdue — annual refresher expired. ${completed}/7 modules completed.`,
+        timeEstimate: "~3 min",
+        oshaRisk: "Critical",
+        fixHref: "/training",
+        fixLabel: "Send Training Link",
+        employeeId: emp.id,
+        actionType: "send-link",
+      });
+    } else if (info.status === "due-soon") {
+      items.push({
+        id: String(counter++),
+        priority: "medium",
+        title: `Training due soon: ${emp.name}`,
+        detail: `Due in ${info.daysUntilDue} day${info.daysUntilDue !== 1 ? "s" : ""} — schedule refresher training now.`,
+        timeEstimate: "~3 min",
+        oshaRisk: "High",
+        fixHref: "/training",
+        fixLabel: "Send Training Link",
+        employeeId: emp.id,
+        actionType: "send-link",
+      });
+    } else if (info.status === "not-started") {
+      items.push({
+        id: String(counter++),
+        priority: "medium",
+        title: `Training not started: ${emp.name}`,
+        detail: `${completed}/7 modules completed — ${7 - completed} remaining.`,
+        timeEstimate: "~2 min",
+        oshaRisk: "High",
+        fixHref: "/training",
+        fixLabel: "Send Training Link",
+        employeeId: emp.id,
+        actionType: "send-link",
+      });
+    }
   });
 
   // Unlabeled containers
@@ -206,11 +248,20 @@ function getRecentActivity(chemicals: Chemical[], employees: Employee[]): Activi
         type: "training",
       });
     }
-    if (emp.status === "overdue") {
+    const tInfo = getTrainingInfo(emp);
+    if (tInfo.status === "overdue") {
       items.push({
         id: `warn-train-${emp.id}`,
         action: "Training overdue",
-        detail: `${emp.name} has overdue modules`,
+        detail: `${emp.name} — ${Math.abs(tInfo.daysUntilDue!)} days overdue`,
+        time: emp.last_training || new Date().toISOString().split("T")[0],
+        type: "warning",
+      });
+    } else if (tInfo.status === "due-soon") {
+      items.push({
+        id: `warn-train-${emp.id}`,
+        action: "Training due soon",
+        detail: `${emp.name} — due in ${tInfo.daysUntilDue} days`,
         time: emp.last_training || new Date().toISOString().split("T")[0],
         type: "warning",
       });
@@ -253,8 +304,8 @@ function calculateComplianceScore(chemicals: Chemical[], employees: Employee[]) 
   const labelPct = totalContainers > 0 ? labeledContainers / totalContainers : 1;
   const labelScore = labelPct === 1 ? 25 : labelPct >= 0.8 ? 13 : 0;
 
-  // Training (25 points)
-  const fullyTrained = employees.filter((e) => e.status === "current").length;
+  // Training (25 points) — date-based
+  const fullyTrained = employees.filter((e) => getTrainingInfo(e).status === "up-to-date").length;
   const trainingPct = totalEmps > 0 ? fullyTrained / totalEmps : 1;
   const trainingScore = trainingPct === 1 ? 25 : trainingPct >= 0.8 ? 13 : 0;
 
@@ -333,7 +384,8 @@ export default function DashboardPage() {
   const totalContainers = chemicals.reduce((sum, c) => sum + c.container_count, 0);
   const missingSDS = chemicals.filter((c) => c.sds_status === "missing").length;
   const unlabeledCount = chemicals.filter((c) => !c.labeled).length;
-  const overdueCount = employees.filter((e) => e.status === "overdue").length;
+  const overdueCount = employees.filter((e) => getTrainingInfo(e).status === "overdue").length;
+  const dueSoonCount = employees.filter((e) => getTrainingInfo(e).status === "due-soon").length;
   const uniqueLocations = new Set(chemicals.map((c) => c.location)).size;
 
   const statusCards = [
@@ -367,7 +419,7 @@ export default function DashboardPage() {
     {
       label: "Training Compliance",
       value: `${compliance.training.pct}%`,
-      sub: overdueCount > 0 ? `${overdueCount} overdue \u00b7 ${compliance.training.current}/${compliance.training.total} current` : `${compliance.training.current}/${compliance.training.total} fully trained`,
+      sub: overdueCount > 0 ? `${overdueCount} overdue${dueSoonCount > 0 ? ` \u00b7 ${dueSoonCount} due soon` : ""} \u00b7 ${compliance.training.current}/${compliance.training.total} current` : dueSoonCount > 0 ? `${dueSoonCount} due soon \u00b7 ${compliance.training.current}/${compliance.training.total} current` : `${compliance.training.current}/${compliance.training.total} fully trained`,
       icon: GraduationCap,
       color: compliance.training.pct === 100 ? "text-status-green" : "text-amber-400",
       bgColor: "bg-amber-400/10",

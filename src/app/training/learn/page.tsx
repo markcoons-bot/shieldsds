@@ -777,46 +777,40 @@ export default function ShieldSDSTraining() {
           <div style={{ height:"100%", width:`${progressPct}%`, background:`linear-gradient(90deg, ${T.amber}, ${T.amberBright})`, borderRadius:8, transition:"width 0.6s ease" }} />
         </div>
 
-        {/* Module cards */}
+        {/* Module cards — all unlocked, any order */}
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          {MODULES.map((mod, idx) => {
+          {MODULES.map((mod) => {
             const done = completedModules.includes(mod.id);
-            const canStart = idx === 0 || completedModules.includes(MODULES[idx-1].id);
-            const isNext = !done && canStart;
-            const locked = !done && !canStart;
             const hasContent = mod.slides > 0;
-            
+
             return (
               <div key={mod.id} style={{
-                ...S.card(isNext ? T.navyLight : T.navyCard),
+                ...S.card(done ? T.navyCard : T.navyLight),
                 display:"flex", alignItems:"center", gap:16, padding:"16px 20px",
-                border: isNext ? `2px solid ${T.amber}` : done ? `1px solid ${T.good}33` : `1px solid rgba(255,255,255,0.04)`,
-                opacity: locked ? 0.5 : 1,
-                cursor: (isNext && hasContent) ? "pointer" : locked ? "not-allowed" : done ? "default" : "pointer",
+                border: done ? `1px solid ${T.good}33` : `2px solid rgba(255,255,255,0.08)`,
+                cursor: hasContent ? "pointer" : "default",
                 transition:"all 0.2s",
               }} onClick={() => {
-                if (done) return;
-                if (isNext && hasContent) startModule(mod.id);
+                if (hasContent) startModule(mod.id);
               }}>
                 <div style={{
                   width:48, height:48, borderRadius:12, ...S.flexCenter,
-                  background: done ? T.goodBg : isNext ? T.amberGlow : "rgba(255,255,255,0.04)",
+                  background: done ? T.goodBg : T.amberGlow,
                   fontSize:24, flexShrink:0,
                 }}>
                   {done ? "✅" : mod.icon}
                 </div>
                 <div style={{ flex:1 }}>
                   <div style={{ ...S.flexBetween }}>
-                    <span style={{ fontSize:15, fontWeight:700, color: done ? T.good : isNext ? T.amber : T.ghost, fontFamily:T.font }}>{mod.title}</span>
+                    <span style={{ fontSize:15, fontWeight:700, color: done ? T.good : T.ghost, fontFamily:T.font }}>{mod.title}</span>
                     <span style={{ fontSize:11, color:T.muted, fontFamily:T.font }}>{mod.duration}</span>
                   </div>
                   <div style={{ fontSize:12, color:T.muted, fontFamily:T.font, marginTop:2 }}>{mod.subtitle}</div>
                 </div>
                 <div>
                   {done && <span style={{ ...S.tag(T.goodBg, T.good), fontSize:10 }}>PASSED</span>}
-                  {isNext && hasContent && <span style={{ ...S.tag(T.amberGlow, T.amber), fontSize:10 }}>START →</span>}
-                  {isNext && !hasContent && <span style={{ ...S.tag(T.warnBg, T.warn), fontSize:10 }}>SOON</span>}
-                  {locked && <span style={{ fontSize:16, color:T.muted }}>🔒</span>}
+                  {!done && hasContent && <span style={{ ...S.tag(T.amberGlow, T.amber), fontSize:10 }}>START →</span>}
+                  {!done && !hasContent && <span style={{ ...S.tag(T.warnBg, T.warn), fontSize:10 }}>SOON</span>}
                 </div>
               </div>
             );
@@ -2514,23 +2508,23 @@ export default function ShieldSDSTraining() {
             const score = quizScore ?? 0;
             return (
             <div style={{ ...S.card(score >= 80 ? T.goodBg : T.badBg), padding:24, border:`1px solid ${score>=80 ? T.good : T.bad}44`, animation:"shieldFadeIn 0.3s ease" }}>
-              <div style={{ fontSize:40, marginBottom:8 }}>{score >= 80 ? "🎉" : "📚"}</div>
+              <div style={{ fontSize:40, marginBottom:8 }}>{score >= 80 ? "✅" : "📚"}</div>
               <h3 style={{ ...S.heading(20), color: score >= 80 ? T.good : T.bad }}>
-                {score}% — {score >= 80 ? "Passed!" : "Not quite yet"}
+                {score >= 80 ? "Module Complete!" : "Not quite — try again"}
               </h3>
               <p style={{ ...S.sub(13), marginTop:8, marginBottom:16 }}>
                 {score >= 80
-                  ? `Great work, ${employeeName.split(" ")[0]}! Module complete.`
-                  : "You need 80% to pass. Review the material and try again — you've got this!"}
+                  ? `Great work, ${employeeName.split(" ")[0]}! You passed with ${score}%.`
+                  : `You scored ${score}% — you need 80% to pass. Review the material and try again — you've got this!`}
               </p>
               {score >= 80 ? (
                 <button onClick={afterQuiz} style={S.btn(T.good, T.white)}>
-                  {completedModules.length >= 7 ? "🎓 Get Certificate" : "Continue to Next Module →"}
+                  {completedModules.length >= 7 ? "🎓 Get Certificate" : "← Back to Modules"}
                 </button>
               ) : (
                 <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
                   <button onClick={() => { setCurrentSlide(0); transitionTo("training"); }} style={S.btnOutline(T.muted)}>
-                    Review Material
+                    Review Module
                   </button>
                   <button onClick={retakeQuiz} style={S.btn(T.amber, T.navy)}>
                     Retake Quiz
@@ -2646,6 +2640,29 @@ export default function ShieldSDSTraining() {
           h2 { font-size:22px !important; }
         }
       `}</style>
+
+      {/* ── PERSISTENT HEADER BAR ── */}
+      <div style={{
+        position:"sticky", top:0, zIndex:50,
+        background:`${T.navy}ee`, backdropFilter:"blur(12px)",
+        borderBottom:`1px solid rgba(255,255,255,0.06)`,
+        padding:"10px 20px",
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+      }}>
+        <a href="/training" style={{ display:"flex", alignItems:"center", gap:6, color:T.muted, fontSize:13, fontFamily:T.font, textDecoration:"none", cursor:"pointer" }}
+          onMouseEnter={e => (e.currentTarget.style.color = T.white)}
+          onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
+          ← Back to Training
+        </a>
+        <span style={{ fontSize:13, fontWeight:700, color:T.amber, fontFamily:T.font, letterSpacing:0.5 }}>
+          ShieldSDS Training
+        </span>
+        <span style={{ fontSize:12, color:T.muted, fontFamily:T.font, minWidth:120, textAlign:"right" }}>
+          {phase === "training" || phase === "quiz"
+            ? (MODULES.find(m => m.id === currentModule)?.title || "Module")
+            : phase === "certificate" ? "Certificate" : "Module Select"}
+        </span>
+      </div>
 
       {phase === "welcome" && renderWelcome()}
       {phase === "profile" && renderProfile()}

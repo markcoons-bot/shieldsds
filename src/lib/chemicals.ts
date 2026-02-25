@@ -165,71 +165,53 @@ export function addLabelRecord(record: Omit<LabelRecord, "id">): LabelRecord {
 
 const SEED_EMPLOYEES: Omit<Employee, "id">[] = [
   {
+    // UP TO DATE: all 7 modules, trained ~3 months ago
     name: "Mike Rodriguez",
     role: "Owner / Manager",
     initial_training: "2024-01-15",
-    last_training: "2025-12-08",
+    last_training: "2025-11-25",
     status: "current",
-    completed_modules: [
-      "hazcom-overview",
-      "ghs-labels",
-      "sds-reading",
-      "ppe-selection",
-      "chemical-storage",
-      "emergency-response",
-    ],
+    completed_modules: ["m1", "m2", "m3", "m4", "m5", "m6", "m7"],
     pending_modules: [],
   },
   {
+    // DUE SOON: all 7 modules, trained ~11 months ago (due in ~30 days)
     name: "Carlos Mendez",
     role: "Body Tech",
     initial_training: "2024-03-22",
-    last_training: "2026-02-16",
+    last_training: "2025-03-20",
     status: "current",
-    completed_modules: [
-      "hazcom-overview",
-      "ghs-labels",
-      "sds-reading",
-      "ppe-selection",
-      "chemical-storage",
-    ],
+    completed_modules: ["m1", "m2", "m3", "m4", "m5", "m6", "m7"],
     pending_modules: [],
   },
   {
+    // OVERDUE: trained ~14 months ago, only 3 of 7 on current cycle
     name: "Marcus Thompson",
     role: "Painter",
     initial_training: "2024-06-10",
-    last_training: "2025-11-20",
+    last_training: "2024-12-15",
     status: "overdue",
-    completed_modules: [
-      "hazcom-overview",
-      "ghs-labels",
-      "sds-reading",
-      "ppe-selection",
-    ],
-    pending_modules: ["new-chemical-ppg-dbc"],
+    completed_modules: ["m1", "m2", "m3"],
+    pending_modules: ["m4", "m5", "m6", "m7"],
   },
   {
+    // NOT STARTED: new hire, no training
     name: "Jamie Reyes",
     role: "Detail Tech (New Hire)",
     initial_training: null,
     last_training: null,
     status: "pending",
     completed_modules: [],
-    pending_modules: ["hazcom-overview", "ghs-labels"],
+    pending_modules: ["m1", "m2", "m3", "m4", "m5", "m6", "m7"],
   },
   {
+    // UP TO DATE: all 7 modules, trained ~6 months ago
     name: "David Park",
     role: "Mechanic",
     initial_training: "2024-08-05",
-    last_training: "2026-01-10",
+    last_training: "2025-08-15",
     status: "current",
-    completed_modules: [
-      "hazcom-overview",
-      "ghs-labels",
-      "sds-reading",
-      "ppe-selection",
-    ],
+    completed_modules: ["m1", "m2", "m3", "m4", "m5", "m6", "m7"],
     pending_modules: [],
   },
 ];
