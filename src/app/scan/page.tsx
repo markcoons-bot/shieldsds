@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   Camera,
-  Upload,
   Pencil,
   ArrowLeft,
   Check,
@@ -22,6 +21,7 @@ import {
   Loader2,
   Merge,
   StickyNote,
+  Search,
 } from "lucide-react";
 import { addChemical, addLocation, getLocations, initializeStore, getCompanyProfile } from "@/lib/chemicals";
 import GHSPictogram from "@/components/GHSPictogram";
@@ -212,6 +212,7 @@ function ScanPageInner() {
   const [manualNewLocName, setManualNewLocName] = useState("");
   const [manualContainerType, setManualContainerType] = useState("Spray Can");
   const [manualQuantity, setManualQuantity] = useState(1);
+  const [manualOriginalContainer, setManualOriginalContainer] = useState(true);
   const [manualNotes, setManualNotes] = useState("");
   const [verifiedMatch, setVerifiedMatch] = useState<VerifiedMatch | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -227,13 +228,13 @@ function ScanPageInner() {
   const [showNewLocation, setShowNewLocation] = useState(false);
   const [editContainerType, setEditContainerType] = useState("Aerosol Can");
   const [editContainerCount, setEditContainerCount] = useState(1);
+  const [originalContainer, setOriginalContainer] = useState(true);
   const [locations, setLocations] = useState<Location[]>([]);
 
   // Success animation
   const [successItems, setSuccessItems] = useState<number[]>([]);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize store + load locations
   useEffect(() => {
@@ -386,7 +387,7 @@ function ScanPageInner() {
       location: locationName,
       container_type: editContainerType,
       container_count: editContainerCount,
-      labeled: false,
+      labeled: originalContainer,
       label_printed_date: null,
       sds_url: scanResult.sds_url || null,
       sds_uploaded: !!scanResult.sds_url,
@@ -409,6 +410,7 @@ function ScanPageInner() {
     editLocation,
     editContainerType,
     editContainerCount,
+    originalContainer,
     showNewLocation,
     newLocationName,
     imageUrl,
@@ -492,7 +494,7 @@ function ScanPageInner() {
       location: locationName,
       container_type: manualContainerType,
       container_count: manualQuantity,
-      labeled: false,
+      labeled: manualOriginalContainer,
       label_printed_date: null,
       sds_url: sdsUrl,
       sds_uploaded: !!sdsUrl,
@@ -509,7 +511,7 @@ function ScanPageInner() {
     addChemical(chemData);
     setManualSavedData({ sdsFound: !!sdsUrl, verified: useVerified });
     setStep("manual-success");
-  }, [manualProductName, manualManufacturer, manualSignalWord, manualHazardCodes, manualDontKnowHazards, manualLocation, manualShowNewLoc, manualNewLocName, manualContainerType, manualQuantity]);
+  }, [manualProductName, manualManufacturer, manualSignalWord, manualHazardCodes, manualDontKnowHazards, manualLocation, manualShowNewLoc, manualNewLocName, manualContainerType, manualQuantity, manualOriginalContainer]);
 
   // Manual success cascade animation
   useEffect(() => {
@@ -563,21 +565,24 @@ function ScanPageInner() {
           </div>
 
           <h1 className="text-xl font-display font-bold text-center mb-2">
-            Scan a Chemical Label
+            Add a Chemical
           </h1>
           <p className="text-sm text-gray-400 text-center mb-10 max-w-xs">
-            Take a photo of any chemical label and we&apos;ll extract the safety data automatically.
+            Scan a label, search our database, or type in the details manually.
           </p>
 
           {/* Action buttons */}
           <div className="w-full max-w-sm space-y-4">
-            {/* Camera */}
+            {/* Scan or Upload */}
             <button
               onClick={() => cameraInputRef.current?.click()}
               className="w-full flex items-center gap-4 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-lg py-5 px-6 rounded-2xl transition-all active:scale-[0.98]"
             >
               <Camera className="h-7 w-7 flex-shrink-0" />
-              <span>Take a Photo</span>
+              <div className="text-left">
+                <span className="block">Scan or Upload a Label</span>
+                <span className="block text-xs font-medium text-navy-950/70 mt-0.5">Take a photo or choose an image of any chemical label</span>
+              </div>
             </button>
             <input
               ref={cameraInputRef}
@@ -588,23 +593,19 @@ function ScanPageInner() {
               className="hidden"
             />
 
-            {/* Gallery */}
-            <button
-              onClick={() => galleryInputRef.current?.click()}
+            {/* Browse Database */}
+            <Link
+              href="/sds-search"
               className="w-full flex items-center gap-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold text-base py-4 px-6 rounded-2xl transition-all active:scale-[0.98]"
             >
-              <Upload className="h-6 w-6 flex-shrink-0 text-gray-300" />
-              <span>Upload from Gallery</span>
-            </button>
-            <input
-              ref={galleryInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleInputChange}
-              className="hidden"
-            />
+              <Search className="h-6 w-6 flex-shrink-0 text-gray-300" />
+              <div className="text-left">
+                <span className="block">Browse Chemical Database</span>
+                <span className="block text-xs font-normal text-gray-400 mt-0.5">Search our database of 4M+ chemicals and add with one click</span>
+              </div>
+            </Link>
 
-            {/* Manual */}
+            {/* Manual Entry */}
             <button
               onClick={() => {
                 setManualProductName("");
@@ -614,6 +615,7 @@ function ScanPageInner() {
                 setManualDontKnowHazards(false);
                 setManualContainerType("Spray Can");
                 setManualQuantity(1);
+                setManualOriginalContainer(true);
                 setManualNotes("");
                 setVerifiedMatch(null);
                 setManualSearchError(null);
@@ -629,7 +631,10 @@ function ScanPageInner() {
               className="w-full flex items-center gap-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold text-base py-4 px-6 rounded-2xl transition-all active:scale-[0.98]"
             >
               <Pencil className="h-6 w-6 flex-shrink-0 text-gray-300" />
-              <span>Enter Manually</span>
+              <div className="text-left">
+                <span className="block">Enter Manually</span>
+                <span className="block text-xs font-normal text-gray-400 mt-0.5">Type in what you know about the chemical</span>
+              </div>
             </button>
           </div>
 
@@ -1220,6 +1225,37 @@ function ScanPageInner() {
                 />
               </div>
             </div>
+
+            {/* Original Container Toggle */}
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
+                Original Container?
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setOriginalContainer(true)}
+                  className={`py-2.5 px-3 rounded-xl text-sm font-medium border-2 transition-colors ${
+                    originalContainer
+                      ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
+                      : "border-white/10 bg-white/[0.02] text-gray-400 hover:bg-white/[0.04]"
+                  }`}
+                >
+                  Yes, original container
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOriginalContainer(false)}
+                  className={`py-2.5 px-3 rounded-xl text-sm font-medium border-2 transition-colors ${
+                    !originalContainer
+                      ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
+                      : "border-white/10 bg-white/[0.02] text-gray-400 hover:bg-white/[0.04]"
+                  }`}
+                >
+                  No, transferred
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Fixed bottom bar */}
@@ -1574,6 +1610,37 @@ function ScanPageInner() {
                   onChange={(e) => setManualQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                   className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white text-center focus:outline-none focus:border-amber-500/50"
                 />
+              </div>
+            </div>
+
+            {/* Original Container Toggle */}
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
+                Original Container?
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setManualOriginalContainer(true)}
+                  className={`py-2.5 px-3 rounded-xl text-sm font-medium border-2 transition-colors ${
+                    manualOriginalContainer
+                      ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
+                      : "border-white/10 bg-white/[0.02] text-gray-400 hover:bg-white/[0.04]"
+                  }`}
+                >
+                  Yes, original container
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setManualOriginalContainer(false)}
+                  className={`py-2.5 px-3 rounded-xl text-sm font-medium border-2 transition-colors ${
+                    !manualOriginalContainer
+                      ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
+                      : "border-white/10 bg-white/[0.02] text-gray-400 hover:bg-white/[0.04]"
+                  }`}
+                >
+                  No, transferred
+                </button>
               </div>
             </div>
 
