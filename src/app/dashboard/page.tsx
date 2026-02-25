@@ -8,6 +8,7 @@ import HelpTooltip from "@/components/HelpTooltip";
 import HelpCard from "@/components/HelpCard";
 import FixAllPanel from "@/components/FixAllPanel";
 import { getChemicals, getEmployees, initializeStore, updateChemical } from "@/lib/chemicals";
+import { calculateComplianceScore, getEmployeeTrainingStatus } from "@/lib/compliance-score";
 import type { Chemical, Employee } from "@/lib/types";
 import {
   Search,
@@ -31,34 +32,6 @@ import {
   X,
   Link2,
 } from "lucide-react";
-
-// ─── Training Status Helpers (matches training page logic) ───────────────────
-
-const ALL_MODULES = ["m1", "m2", "m3", "m4", "m5", "m6", "m7"];
-const MODULE_EQUIVALENTS: Record<string, string[]> = {
-  m1: ["m1", "hazcom-overview"], m2: ["m2", "reading-sds"], m3: ["m3", "ghs-labels"],
-  m4: ["m4", "ppe-selection"], m5: ["m5", "chemical-storage"], m6: ["m6", "emergency-response"],
-  m7: ["m7", "spill-response"],
-};
-
-function countCompleted(emp: Employee): number {
-  return ALL_MODULES.filter((mid) =>
-    MODULE_EQUIVALENTS[mid].some((eq) => emp.completed_modules?.includes(eq))
-  ).length;
-}
-
-function getTrainingInfo(emp: Employee): { status: "overdue" | "due-soon" | "not-started" | "up-to-date"; daysUntilDue: number | null } {
-  const completed = countCompleted(emp);
-  if (completed < 7 && !emp.last_training) return { status: "not-started", daysUntilDue: null };
-  if (completed < 7) return { status: "not-started", daysUntilDue: null };
-  if (!emp.last_training) return { status: "not-started", daysUntilDue: null };
-  const due = new Date(emp.last_training);
-  due.setFullYear(due.getFullYear() + 1);
-  const days = Math.ceil((due.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  if (days < 0) return { status: "overdue", daysUntilDue: days };
-  if (days <= 30) return { status: "due-soon", daysUntilDue: days };
-  return { status: "up-to-date", daysUntilDue: days };
-}
 
 // ─── Action Item Type ────────────────────────────────────────────────────────
 
@@ -114,48 +87,53 @@ function getDynamicActionItems(chemicals: Chemical[], employees: Employee[]): Da
     });
   });
 
-  // Training items — use date-based status
+  // Training items — use shared training status from compliance-score
   employees.forEach((emp) => {
-    const info = getTrainingInfo(emp);
-    const completed = countCompleted(emp);
+    const info = getEmployeeTrainingStatus(emp);
+
+    if (info.status === "current" || info.status === "due-soon") {
+      // Fully trained and within 12-month window — NO action item needed
+      return;
+    }
 
     if (info.status === "overdue") {
-      const daysOverdue = Math.abs(info.daysUntilDue!);
       items.push({
         id: String(counter++),
         priority: "high",
-        title: `Training overdue: ${emp.name}`,
-        detail: `${daysOverdue} day${daysOverdue !== 1 ? "s" : ""} overdue — annual refresher expired. ${completed}/7 modules completed.`,
+        title: `Training overdue: ${emp.name} — annual refresher due`,
+        detail: info.daysUntilDue != null
+          ? `${Math.abs(info.daysUntilDue)} days overdue — all 7 modules complete but refresher expired.`
+          : `Annual refresher overdue — all 7 modules complete but date unknown.`,
         timeEstimate: "~3 min",
         oshaRisk: "Critical",
         fixHref: `/training/learn?employee=${emp.id}`,
-        fixLabel: "Start Training",
+        fixLabel: "Start Training →",
         employeeId: emp.id,
         actionType: "link",
       });
-    } else if (info.status === "due-soon") {
+    } else if (info.status === "in-progress") {
       items.push({
         id: String(counter++),
         priority: "medium",
-        title: `Training due soon: ${emp.name}`,
-        detail: `Due in ${info.daysUntilDue} day${info.daysUntilDue !== 1 ? "s" : ""} — schedule refresher training now.`,
-        timeEstimate: "~3 min",
+        title: `Training in progress: ${emp.name} — ${info.remainingCount} of 7 modules remaining`,
+        detail: `${info.completedCount}/7 modules completed — needs ${info.remainingCount} more to finish.`,
+        timeEstimate: "~2 min",
         oshaRisk: "High",
         fixHref: `/training/learn?employee=${emp.id}`,
-        fixLabel: "Start Training",
+        fixLabel: "Start Training →",
         employeeId: emp.id,
         actionType: "link",
       });
     } else if (info.status === "not-started") {
       items.push({
         id: String(counter++),
-        priority: "medium",
-        title: `Training not started: ${emp.name}`,
-        detail: `${completed}/7 modules completed — ${7 - completed} remaining.`,
+        priority: "high",
+        title: `Training not started: ${emp.name} — new hire orientation needed`,
+        detail: `0/7 modules completed — needs full HazCom training before chemical exposure.`,
         timeEstimate: "~2 min",
-        oshaRisk: "High",
+        oshaRisk: "Critical",
         fixHref: `/training/learn?employee=${emp.id}`,
-        fixLabel: "Start Training",
+        fixLabel: "Start Training →",
         employeeId: emp.id,
         actionType: "link",
       });
@@ -248,20 +226,20 @@ function getRecentActivity(chemicals: Chemical[], employees: Employee[]): Activi
         type: "training",
       });
     }
-    const tInfo = getTrainingInfo(emp);
+    const tInfo = getEmployeeTrainingStatus(emp);
     if (tInfo.status === "overdue") {
       items.push({
         id: `warn-train-${emp.id}`,
         action: "Training overdue",
-        detail: `${emp.name} — ${Math.abs(tInfo.daysUntilDue!)} days overdue`,
+        detail: `${emp.name} — ${tInfo.daysUntilDue != null ? `${Math.abs(tInfo.daysUntilDue)} days overdue` : "refresher due"}`,
         time: emp.last_training || new Date().toISOString().split("T")[0],
         type: "warning",
       });
-    } else if (tInfo.status === "due-soon") {
+    } else if (tInfo.status === "not-started" || tInfo.status === "in-progress") {
       items.push({
         id: `warn-train-${emp.id}`,
-        action: "Training due soon",
-        detail: `${emp.name} — due in ${tInfo.daysUntilDue} days`,
+        action: tInfo.status === "not-started" ? "Training not started" : "Training incomplete",
+        detail: `${emp.name} — ${tInfo.completedCount}/7 modules`,
         time: emp.last_training || new Date().toISOString().split("T")[0],
         type: "warning",
       });
@@ -286,44 +264,6 @@ const riskColors: Record<string, { bg: string; text: string }> = {
   High: { bg: "bg-status-amber/15", text: "text-status-amber" },
   Medium: { bg: "bg-yellow-400/15", text: "text-yellow-400" },
 };
-
-// ─── Compliance Score ────────────────────────────────────────────────────────
-
-function calculateComplianceScore(chemicals: Chemical[], employees: Employee[]) {
-  const totalChems = chemicals.length;
-  const totalEmps = employees.length;
-
-  // SDS Coverage (25 points)
-  const currentSDS = chemicals.filter((c) => c.sds_status === "current").length;
-  const sdsPct = totalChems > 0 ? currentSDS / totalChems : 1;
-  const sdsScore = sdsPct === 1 ? 25 : sdsPct >= 0.9 ? 13 : 0;
-
-  // Labels (25 points)
-  const totalContainers = chemicals.reduce((sum, c) => sum + c.container_count, 0);
-  const labeledContainers = chemicals.filter((c) => c.labeled).reduce((sum, c) => sum + c.container_count, 0);
-  const labelPct = totalContainers > 0 ? labeledContainers / totalContainers : 1;
-  const labelScore = labelPct === 1 ? 25 : labelPct >= 0.8 ? 13 : 0;
-
-  // Training (25 points) — date-based
-  const fullyTrained = employees.filter((e) => getTrainingInfo(e).status === "up-to-date").length;
-  const trainingPct = totalEmps > 0 ? fullyTrained / totalEmps : 1;
-  const trainingScore = trainingPct === 1 ? 25 : trainingPct >= 0.8 ? 13 : 0;
-
-  // Written Program (15 points) — always exists
-  const programScore = 15;
-
-  // Multi-employer (10 points) — contractor pack available
-  const multiScore = 10;
-
-  return {
-    total: sdsScore + labelScore + trainingScore + programScore + multiScore,
-    sds: { score: sdsScore, pct: Math.round(sdsPct * 100), count: currentSDS, total: totalChems },
-    labels: { score: labelScore, pct: Math.round(labelPct * 100), labeled: labeledContainers, total: totalContainers },
-    training: { score: trainingScore, pct: Math.round(trainingPct * 100), current: fullyTrained, total: totalEmps },
-    program: { score: programScore },
-    multi: { score: multiScore },
-  };
-}
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
@@ -384,15 +324,26 @@ export default function DashboardPage() {
   const totalContainers = chemicals.reduce((sum, c) => sum + c.container_count, 0);
   const missingSDS = chemicals.filter((c) => c.sds_status === "missing").length;
   const unlabeledCount = chemicals.filter((c) => !c.labeled).length;
-  const overdueCount = employees.filter((e) => getTrainingInfo(e).status === "overdue").length;
-  const dueSoonCount = employees.filter((e) => getTrainingInfo(e).status === "due-soon").length;
   const uniqueLocations = new Set(chemicals.map((c) => c.location)).size;
+
+  // Training counts from shared status
+  const trainingCounts = useMemo(() => {
+    let overdue = 0, dueSoon = 0, inProgress = 0, notStarted = 0;
+    employees.forEach((e) => {
+      const info = getEmployeeTrainingStatus(e);
+      if (info.status === "overdue") overdue++;
+      else if (info.status === "due-soon") dueSoon++;
+      else if (info.status === "in-progress") inProgress++;
+      else if (info.status === "not-started") notStarted++;
+    });
+    return { overdue, dueSoon, inProgress, notStarted, needsAction: overdue + inProgress + notStarted };
+  }, [employees]);
 
   const statusCards = [
     {
       label: "SDS Library",
       value: `${totalChemicals}`,
-      sub: `${compliance.sds.count} current \u00b7 ${missingSDS} missing`,
+      sub: `${compliance.breakdown.sds.current} current · ${missingSDS} missing`,
       icon: FileText,
       color: "text-blue-400",
       bgColor: "bg-blue-400/10",
@@ -401,7 +352,7 @@ export default function DashboardPage() {
     {
       label: "Chemical Inventory",
       value: `${totalChemicals}`,
-      sub: `${totalContainers} containers \u00b7 ${uniqueLocations} locations`,
+      sub: `${totalContainers} containers · ${uniqueLocations} locations`,
       icon: FlaskConical,
       color: "text-emerald-400",
       bgColor: "bg-emerald-400/10",
@@ -409,19 +360,26 @@ export default function DashboardPage() {
     },
     {
       label: "Label Compliance",
-      value: `${compliance.labels.pct}%`,
+      value: `${compliance.breakdown.labels.pct}%`,
       sub: unlabeledCount > 0 ? `${unlabeledCount} need labeling` : "All containers labeled",
       icon: Tags,
-      color: compliance.labels.pct === 100 ? "text-status-green" : "text-purple-400",
+      color: compliance.breakdown.labels.pct === 100 ? "text-status-green" : "text-purple-400",
       bgColor: "bg-purple-400/10",
       href: "/labels",
     },
     {
       label: "Training Compliance",
-      value: `${compliance.training.pct}%`,
-      sub: overdueCount > 0 ? `${overdueCount} overdue${dueSoonCount > 0 ? ` \u00b7 ${dueSoonCount} due soon` : ""} \u00b7 ${compliance.training.current}/${compliance.training.total} current` : dueSoonCount > 0 ? `${dueSoonCount} due soon \u00b7 ${compliance.training.current}/${compliance.training.total} current` : `${compliance.training.current}/${compliance.training.total} fully trained`,
+      value: `${compliance.breakdown.training.pct}%`,
+      sub: (() => {
+        const { overdue, dueSoon } = trainingCounts;
+        const parts: string[] = [];
+        if (overdue > 0) parts.push(`${overdue} overdue`);
+        if (dueSoon > 0) parts.push(`${dueSoon} due soon`);
+        parts.push(`${compliance.breakdown.training.current}/${compliance.breakdown.training.total} fully trained`);
+        return parts.join(" · ");
+      })(),
       icon: GraduationCap,
-      color: compliance.training.pct === 100 ? "text-status-green" : "text-amber-400",
+      color: compliance.breakdown.training.pct === 100 ? "text-status-green" : "text-amber-400",
       bgColor: "bg-amber-400/10",
       href: "/training",
     },
@@ -493,31 +451,46 @@ export default function DashboardPage() {
       </div>
 
       {/* Inspection Readiness Banner */}
-      <div className={`mb-8 rounded-xl bg-gradient-to-r ${compliance.total >= 90 ? "from-status-green/20 via-status-green/10" : compliance.total >= 70 ? "from-status-amber/20 via-status-amber/10" : "from-status-red/20 via-status-red/10"} to-navy-800 border ${compliance.total >= 90 ? "border-status-green/30" : compliance.total >= 70 ? "border-status-amber/30" : "border-status-red/30"} p-6`}>
+      <div className={`mb-8 rounded-xl bg-gradient-to-r ${compliance.overall >= 90 ? "from-status-green/20 via-status-green/10" : compliance.overall >= 70 ? "from-status-amber/20 via-status-amber/10" : "from-status-red/20 via-status-red/10"} to-navy-800 border ${compliance.overall >= 90 ? "border-status-green/30" : compliance.overall >= 70 ? "border-status-amber/30" : "border-status-red/30"} p-6`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className={`h-14 w-14 rounded-full ${compliance.total >= 90 ? "bg-status-green/20 border-status-green" : compliance.total >= 70 ? "bg-status-amber/20 border-status-amber" : "bg-status-red/20 border-status-red"} border-2 flex items-center justify-center`}>
-              <ShieldCheck className={`h-7 w-7 ${compliance.total >= 90 ? "text-status-green" : compliance.total >= 70 ? "text-status-amber" : "text-status-red"}`} />
+            <div className={`h-14 w-14 rounded-full ${compliance.overall >= 90 ? "bg-status-green/20 border-status-green" : compliance.overall >= 70 ? "bg-status-amber/20 border-status-amber" : "bg-status-red/20 border-status-red"} border-2 flex items-center justify-center`}>
+              <ShieldCheck className={`h-7 w-7 ${compliance.overall >= 90 ? "text-status-green" : compliance.overall >= 70 ? "text-status-amber" : "text-status-red"}`} />
             </div>
             <div>
               <div className="flex items-center gap-3">
                 <h2 className="font-display font-bold text-xl text-white">
-                  Inspection Readiness
+                  {compliance.status}
                 </h2>
-                <span className={`text-3xl font-display font-black ${compliance.total >= 90 ? "text-status-green" : compliance.total >= 70 ? "text-status-amber" : "text-status-red"}`}>
-                  {compliance.total}%
+                <span className={`text-3xl font-display font-black ${compliance.overall >= 90 ? "text-status-green" : compliance.overall >= 70 ? "text-status-amber" : "text-status-red"}`}>
+                  {compliance.overall}%
                 </span>
               </div>
               <p className="text-sm text-gray-300 mt-1">
-                {actionItems.length > 0
-                  ? `${actionItems.length} action item${actionItems.length > 1 ? "s" : ""} to resolve — ${missingSDS > 0 ? `${missingSDS} missing SDS` : ""}${missingSDS > 0 && overdueCount > 0 ? ", " : ""}${overdueCount > 0 ? `${overdueCount} overdue training` : ""}${(missingSDS > 0 || overdueCount > 0) && unlabeledCount > 0 ? ", " : ""}${unlabeledCount > 0 ? `${unlabeledCount} unlabeled` : ""}`.replace(/— $/, "— review action items")
+                {compliance.actionItemCount > 0
+                  ? (() => {
+                      const parts: string[] = [];
+                      if (missingSDS > 0) parts.push(`${missingSDS} missing SDS`);
+                      if (unlabeledCount > 0) parts.push(`${unlabeledCount} unlabeled`);
+                      if (trainingCounts.needsAction > 0) parts.push(`${trainingCounts.needsAction} training incomplete`);
+                      return `${compliance.actionItemCount} action item${compliance.actionItemCount > 1 ? "s" : ""} to resolve — ${parts.join(", ")}`;
+                    })()
                   : "All compliance checks passing — ready for inspection"}
               </p>
+              {compliance.improvements.length > 0 && compliance.overall < 100 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {compliance.improvements.map((imp, i) => (
+                    <span key={i} className="inline-flex items-center gap-1 text-xs text-gray-400 bg-navy-800/80 rounded px-2 py-0.5">
+                      {imp.text} <span className={`font-semibold ${compliance.overall >= 90 ? "text-status-green" : compliance.overall >= 70 ? "text-status-amber" : "text-status-red"}`}>(+{imp.points} pts)</span>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <Link
             href="/inspection"
-            className={`flex items-center gap-2 ${compliance.total >= 90 ? "text-status-green" : compliance.total >= 70 ? "text-status-amber" : "text-status-red"} hover:text-white text-sm font-medium transition-colors`}
+            className={`flex items-center gap-2 ${compliance.overall >= 90 ? "text-status-green" : compliance.overall >= 70 ? "text-status-amber" : "text-status-red"} hover:text-white text-sm font-medium transition-colors`}
           >
             View Details
             <ArrowRight className="h-4 w-4" />
@@ -766,7 +739,7 @@ export default function DashboardPage() {
         open={fixAllOpen}
         onClose={() => setFixAllOpen(false)}
         actionItems={actionItems}
-        complianceScore={compliance.total}
+        complianceScore={compliance.overall}
       />
     </DashboardLayout>
   );

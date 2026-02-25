@@ -5,6 +5,7 @@ import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import HelpCard from "@/components/HelpCard";
 import { getChemicals, getEmployees, initializeStore } from "@/lib/chemicals";
+import { calculateComplianceScore, getEmployeeTrainingStatus } from "@/lib/compliance-score";
 import type { Chemical, Employee } from "@/lib/types";
 import {
   CheckCircle2,
@@ -370,36 +371,27 @@ export default function InspectionPage() {
   const unlabeledChems = useMemo(() => chemicals.filter((c) => !c.labeled), [chemicals]);
   const labelPct = totalContainers > 0 ? Math.round((labeledContainers / totalContainers) * 100) : 100;
 
-  const totalEmployees = employees.length;
-  const fullyTrained = employees.filter((e) => e.status === "current").length;
-  const overdueEmployees = useMemo(() => employees.filter((e) => e.status === "overdue"), [employees]);
-  const pendingEmployees = useMemo(() => employees.filter((e) => e.status === "pending"), [employees]);
-  const trainingPct = totalEmployees > 0 ? Math.round((fullyTrained / totalEmployees) * 100) : 100;
-
   const sdsPct = totalSDS > 0 ? Math.round((currentSDS / totalSDS) * 100) : 100;
 
-  // ── Weighted score calculation ──────────────────────────────────────────
+  // ── Shared compliance score ─────────────────────────────────────────────
+  const compliance = useMemo(() => calculateComplianceScore(chemicals, employees), [chemicals, employees]);
+  const score = compliance.overall;
 
-  const weights = { sds: 25, labels: 25, training: 25, program: 15, multiEmployer: 10 };
-
-  const sdsScore = sdsPct === 100 ? 1 : sdsPct >= 90 ? 0.5 : 0;
-  const labelScore = labelPct === 100 ? 1 : labelPct >= 80 ? 0.5 : 0;
-  const trainingScore = trainingPct === 100 ? 1 : trainingPct >= 80 ? 0.5 : 0;
-  const programScore = 1;
-  const multiScore = 1;
-
-  const score = Math.round(
-    sdsScore * weights.sds +
-    labelScore * weights.labels +
-    trainingScore * weights.training +
-    programScore * weights.program +
-    multiScore * weights.multiEmployer
-  );
+  // Employee training — use shared getEmployeeTrainingStatus
+  const totalEmployees = employees.length;
+  const employeeStatuses = useMemo(() => employees.map((e) => ({
+    emp: e,
+    info: getEmployeeTrainingStatus(e),
+  })), [employees]);
+  const fullyTrained = employeeStatuses.filter((es) => es.info.status === "current" || es.info.status === "due-soon").length;
+  const overdueEmployees = useMemo(() => employeeStatuses.filter((es) => es.info.status === "overdue"), [employeeStatuses]);
+  const inProgressEmployees = useMemo(() => employeeStatuses.filter((es) => es.info.status === "in-progress"), [employeeStatuses]);
+  const notStartedEmployees = useMemo(() => employeeStatuses.filter((es) => es.info.status === "not-started"), [employeeStatuses]);
+  const trainingPct = totalEmployees > 0 ? Math.round((fullyTrained / totalEmployees) * 100) : 100;
 
   const circumference = 2 * Math.PI * 52;
-  const failCount = [sdsScore, labelScore, trainingScore, programScore, multiScore].filter((s) => s < 1).length;
-  const readinessLabel = score === 100 ? "Fully Ready" : score >= 80 ? "Mostly Ready" : "Needs Work";
-  const readinessColor = score === 100 ? "#34C759" : score >= 80 ? "#F5A623" : "#FF3B30";
+  const readinessLabel = compliance.status;
+  const readinessColor = score >= 90 ? "#34C759" : score >= 70 ? "#F5A623" : "#FF3B30";
 
   // ── Build checklist items ───────────────────────────────────────────────
 
@@ -409,8 +401,8 @@ export default function InspectionPage() {
       item: "Written HazCom Program",
       pass: true,
       warn: false,
-      score: weights.program,
-      maxScore: weights.program,
+      score: compliance.breakdown.program.pct === 100 ? 15 : 0,
+      maxScore: 15,
       detail: "Program document current. All 10 required sections addressed.",
       subItems: [
         { label: "Written program exists and is accessible", ok: true },
@@ -423,8 +415,8 @@ export default function InspectionPage() {
       item: "SDS Coverage",
       pass: sdsPct === 100,
       warn: sdsPct >= 90 && sdsPct < 100,
-      score: Math.round(sdsScore * weights.sds),
-      maxScore: weights.sds,
+      score: Math.round(compliance.breakdown.sds.pct / 100 * 30),
+      maxScore: 30,
       detail: missingSdsChems.length === 0 && expiredSdsChems.length === 0
         ? `All ${totalSDS} SDS on file and current`
         : `${currentSDS} of ${totalSDS} SDS current \u2014 ${missingSdsChems.length} missing${expiredSdsChems.length > 0 ? `, ${expiredSdsChems.length} expired` : ""}`,
@@ -455,8 +447,8 @@ export default function InspectionPage() {
       item: "Container Labeling",
       pass: labelPct === 100,
       warn: labelPct >= 80 && labelPct < 100,
-      score: Math.round(labelScore * weights.labels),
-      maxScore: weights.labels,
+      score: Math.round(compliance.breakdown.labels.pct / 100 * 25),
+      maxScore: 25,
       detail: unlabeledChems.length === 0
         ? `All ${totalContainers} containers across ${new Set(chemicals.map((c) => c.location)).size} locations properly labeled`
         : `${labeledContainers} of ${totalContainers} containers labeled \u2014 ${unlabeledChems.length} chemical${unlabeledChems.length > 1 ? "s" : ""} need labels`,
@@ -479,29 +471,46 @@ export default function InspectionPage() {
       item: "Employee Training",
       pass: trainingPct === 100,
       warn: trainingPct >= 80 && trainingPct < 100,
-      score: Math.round(trainingScore * weights.training),
-      maxScore: weights.training,
-      detail: overdueEmployees.length === 0 && pendingEmployees.length === 0
+      score: Math.round(compliance.breakdown.training.pct / 100 * 25),
+      maxScore: 25,
+      detail: fullyTrained === totalEmployees
         ? `All ${totalEmployees} employees current on required training`
-        : `${fullyTrained} of ${totalEmployees} employees current${overdueEmployees.length > 0 ? ` \u2014 ${overdueEmployees.length} overdue` : ""}${pendingEmployees.length > 0 ? ` \u2014 ${pendingEmployees.length} pending` : ""}`,
+        : `${fullyTrained} of ${totalEmployees} employees current${overdueEmployees.length > 0 ? ` \u2014 ${overdueEmployees.length} overdue` : ""}${inProgressEmployees.length > 0 ? ` \u2014 ${inProgressEmployees.length} in progress` : ""}${notStartedEmployees.length > 0 ? ` \u2014 ${notStartedEmployees.length} not started` : ""}`,
       subItems: [
-        ...overdueEmployees.map((e) => ({
-          label: `Overdue: ${e.name} \u2014 ${e.pending_modules.join(", ") || "overdue modules"}`,
-          ok: false,
-          link: "/training",
-          fixDescription: `Send training reminder or assign overdue courses`,
-          fixAction: "Assign Training",
+        // Current employees (green)
+        ...employeeStatuses.filter((es) => es.info.status === "current").map((es) => ({
+          label: `${es.emp.name} \u2014 Up to date${es.emp.last_training ? ` (completed ${new Date(es.emp.last_training).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})` : ""}`,
+          ok: true,
         })),
-        ...pendingEmployees.map((e) => ({
-          label: `Pending (new hire): ${e.name} \u2014 needs initial orientation`,
-          ok: false,
-          link: "/training",
-          fixDescription: `New hire must complete HazCom orientation within 3 working days of start date`,
-          fixAction: "Assign Training",
+        // Due soon (green, with warning text)
+        ...employeeStatuses.filter((es) => es.info.status === "due-soon").map((es) => ({
+          label: `${es.emp.name} \u2014 Due soon: refresher due in ${es.info.daysUntilDue} days`,
+          ok: true,
         })),
-        ...(overdueEmployees.length === 0 && pendingEmployees.length === 0
-          ? [{ label: "All employees have completed required training modules", ok: true }]
-          : []),
+        // Overdue (red)
+        ...overdueEmployees.map((es) => ({
+          label: `${es.emp.name} \u2014 Overdue: annual refresher${es.info.daysUntilDue != null ? ` (${Math.abs(es.info.daysUntilDue)} days past due)` : ""}`,
+          ok: false,
+          link: `/training/learn?employee=${es.emp.id}`,
+          fixDescription: `All 7 modules complete but annual refresher has expired`,
+          fixAction: "Start Training",
+        })),
+        // In progress (amber - shown as not-ok)
+        ...inProgressEmployees.map((es) => ({
+          label: `${es.emp.name} \u2014 In progress: ${es.info.completedCount} of 7 modules complete`,
+          ok: false,
+          link: `/training/learn?employee=${es.emp.id}`,
+          fixDescription: `${es.info.remainingCount} modules remaining to complete training`,
+          fixAction: "Start Training",
+        })),
+        // Not started (red)
+        ...notStartedEmployees.map((es) => ({
+          label: `${es.emp.name} \u2014 Not started: new hire needs orientation`,
+          ok: false,
+          link: `/training/learn?employee=${es.emp.id}`,
+          fixDescription: `New hire must complete all 7 HazCom modules before chemical exposure`,
+          fixAction: "Start Training",
+        })),
         { label: "Training records maintained with digital acknowledgments", ok: true },
       ],
     },
@@ -524,8 +533,8 @@ export default function InspectionPage() {
       item: "Multi-Employer Communication",
       pass: true,
       warn: false,
-      score: weights.multiEmployer,
-      maxScore: weights.multiEmployer,
+      score: 10,
+      maxScore: 10,
       detail: "Contractor safety packet generation available via ShieldSDS",
       subItems: [
         { label: "Contractor Safety Packet template ready", ok: true },
@@ -533,16 +542,17 @@ export default function InspectionPage() {
         { label: "Digital acknowledgment capture available", ok: true },
       ],
     },
-  ], [sdsPct, sdsScore, labelPct, labelScore, trainingPct, trainingScore, totalSDS, currentSDS, totalContainers, labeledContainers, totalEmployees, fullyTrained, chemicals, missingSdsChems, expiredSdsChems, unlabeledChems, overdueEmployees, pendingEmployees, weights.sds, weights.labels, weights.training, weights.program, weights.multiEmployer]);
+  ], [sdsPct, labelPct, trainingPct, totalSDS, currentSDS, totalContainers, labeledContainers, totalEmployees, fullyTrained, chemicals, missingSdsChems, expiredSdsChems, unlabeledChems, overdueEmployees, inProgressEmployees, notStartedEmployees, employeeStatuses, compliance]);
 
   // Next action recommendation
   const nextAction = useMemo(() => {
     if (missingSdsChems.length > 0) return { text: `Upload missing SDS for ${missingSdsChems[0].product_name}`, link: "/sds-library" };
-    if (overdueEmployees.length > 0) return { text: `Complete overdue training for ${overdueEmployees[0].name}`, link: "/training" };
-    if (pendingEmployees.length > 0) return { text: `Complete new hire training for ${pendingEmployees[0].name}`, link: "/training" };
+    if (overdueEmployees.length > 0) return { text: `Complete overdue training for ${overdueEmployees[0].emp.name}`, link: "/training" };
+    if (notStartedEmployees.length > 0) return { text: `Complete new hire training for ${notStartedEmployees[0].emp.name}`, link: "/training" };
+    if (inProgressEmployees.length > 0) return { text: `Finish training for ${inProgressEmployees[0].emp.name}`, link: "/training" };
     if (unlabeledChems.length > 0) return { text: `Print labels for ${unlabeledChems[0].product_name}`, link: "/labels" };
     return null;
-  }, [missingSdsChems, overdueEmployees, pendingEmployees, unlabeledChems]);
+  }, [missingSdsChems, overdueEmployees, notStartedEmployees, inProgressEmployees, unlabeledChems]);
 
   // Audit log from live data
   const auditLog = useMemo(() => generateAuditLog(chemicals, employees), [chemicals, employees]);
@@ -633,8 +643,8 @@ export default function InspectionPage() {
             <h2 className="font-display font-bold text-xl text-white">{readinessLabel}</h2>
           </div>
           <p className="text-sm text-gray-400 max-w-lg">
-            {failCount > 0
-              ? `${failCount} category${failCount > 1 ? " categories" : ""} need${failCount === 1 ? "s" : ""} attention before your next inspection. Address the outstanding items to reach 100%.`
+            {compliance.actionItemCount > 0
+              ? `${compliance.actionItemCount} item${compliance.actionItemCount > 1 ? "s" : ""} need${compliance.actionItemCount === 1 ? "s" : ""} attention before your next inspection. Address the outstanding items to reach 100%.`
               : "All compliance checks passing. You are fully prepared for an OSHA inspection."}
           </p>
           {nextAction && (
@@ -656,14 +666,13 @@ export default function InspectionPage() {
         </div>
 
         {/* Score Breakdown Mini */}
-        <div className="flex-shrink-0 space-y-1.5 min-w-[160px]">
+        <div className="flex-shrink-0 space-y-1.5 min-w-[180px]">
           <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-2">Score Breakdown</p>
           {[
-            { label: "SDS Coverage", pct: Math.round(sdsScore * 100), weight: weights.sds },
-            { label: "Labeling", pct: Math.round(labelScore * 100), weight: weights.labels },
-            { label: "Training", pct: Math.round(trainingScore * 100), weight: weights.training },
-            { label: "Written Program", pct: Math.round(programScore * 100), weight: weights.program },
-            { label: "Multi-Employer", pct: Math.round(multiScore * 100), weight: weights.multiEmployer },
+            { label: "SDS Coverage", pct: compliance.breakdown.sds.pct, weight: compliance.breakdown.sds.weight },
+            { label: "Labeling", pct: compliance.breakdown.labels.pct, weight: compliance.breakdown.labels.weight },
+            { label: "Training", pct: compliance.breakdown.training.pct, weight: compliance.breakdown.training.weight },
+            { label: "Written Program", pct: compliance.breakdown.program.pct, weight: compliance.breakdown.program.weight },
           ].map((item) => (
             <div key={item.label} className="flex items-center gap-2 text-xs">
               <span className="text-gray-400 w-24 truncate">{item.label}</span>
@@ -673,9 +682,19 @@ export default function InspectionPage() {
                   style={{ width: `${item.pct}%` }}
                 />
               </div>
-              <span className="text-gray-500 w-8 text-right">{item.weight}%</span>
+              <span className="text-gray-500 w-14 text-right">{item.pct}% <span className="text-gray-600">({item.weight}%)</span></span>
             </div>
           ))}
+          {compliance.improvements.length > 0 && score < 100 && (
+            <div className="mt-3 pt-2 border-t border-navy-700/30">
+              <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-1.5">Top Improvements</p>
+              {compliance.improvements.map((imp, i) => (
+                <p key={i} className="text-[11px] text-gray-400 leading-relaxed">
+                  {imp.text} <span className="font-semibold text-amber-400">(+{imp.points})</span>
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
