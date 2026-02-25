@@ -1,58 +1,28 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
-import HelpCard from "@/components/HelpCard";
-import { sdsEntries, inventoryItems, recentLabels, inventoryLocations } from "@/lib/data";
-import { printSingleLabel, printBatchLabels } from "@/lib/print-labels";
-import { generateAllLabelsPDF } from "@/lib/pdf-generator";
+import LabelPreview from "@/components/LabelPreview";
 import GHSPictogram from "@/components/GHSPictogram";
+import { getChemicals, updateChemical, initializeStore } from "@/lib/chemicals";
+import type { Chemical } from "@/lib/types";
 import {
   AlertTriangle,
   Printer,
-  QrCode,
-  ArrowRight,
   Tags,
   Clock,
-  RectangleHorizontal,
-  Square,
   Search,
   X,
   CheckCircle2,
   ChevronDown,
   Layers,
-  FileDown,
+  Camera,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type LabelSize = "4x3" | "2x1.5" | "1x1";
-
-interface LabelLogEntry {
-  product: string;
-  sdsId: string;
-  size: string;
-  container: string;
-  location: string;
-  date: string;
-}
-
-// ─── Templates ────────────────────────────────────────────────────────────────
-
-const templates: { name: string; desc: string; icon: typeof RectangleHorizontal; size: LabelSize }[] = [
-  { name: "Full GHS 4×3", desc: "Standard secondary container label", icon: RectangleHorizontal, size: "4x3" },
-  { name: "Mini GHS 2×1.5", desc: "Small containers and bottles", icon: Square, size: "2x1.5" },
-  { name: "QR-Only 1×1", desc: "Quick-scan link to SDS", icon: QrCode, size: "1x1" },
-  { name: "Pipe Wrap", desc: "For piping and tube labeling", icon: Tags, size: "2x1.5" },
-];
-
-const containerTypes = ["Spray Bottle", "Mix Cup", "Squeeze Bottle", "Bucket", "Drum"];
-
-const sizeDimensions: Record<LabelSize, { label: string; w: string; h: string }> = {
-  "4x3": { label: "4\" × 3\"", w: "w-full", h: "min-h-[380px]" },
-  "2x1.5": { label: "2\" × 1.5\"", w: "w-3/4 mx-auto", h: "min-h-[240px]" },
-  "1x1": { label: "1\" × 1\" QR-Only", w: "w-48 mx-auto", h: "min-h-[180px]" },
-};
+type LabelSize = "full" | "small" | "minimal";
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
@@ -71,88 +41,110 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function LabelsPage() {
-  const [selectedSdsId, setSelectedSdsId] = useState(sdsEntries[8]?.id ?? sdsEntries[0].id);
+  const [chemicals, setChemicals] = useState<Chemical[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState("");
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
-  const [labelSize, setLabelSize] = useState<LabelSize>("4x3");
-  const [containerType, setContainerType] = useState(containerTypes[0]);
-  const [containerLocation, setContainerLocation] = useState(inventoryLocations[0]?.name ?? "");
+  const [labelSize, setLabelSize] = useState<LabelSize>("full");
   const [toast, setToast] = useState<string | null>(null);
-  const [printedLabels, setPrintedLabels] = useState<LabelLogEntry[]>([]);
 
-  const selectedSds = sdsEntries.find((s) => s.id === selectedSdsId) ?? sdsEntries[0];
+  // Load chemicals from store on mount
+  useEffect(() => {
+    initializeStore();
+    const chems = getChemicals();
+    setChemicals(chems);
+    // Select first unlabeled, or first chemical
+    const firstUnlabeled = chems.find((c) => !c.labeled);
+    setSelectedId(firstUnlabeled?.id ?? chems[0]?.id ?? null);
+  }, []);
 
-  // Chemicals that need labels: secondaryContainers > 0 and not labeled
-  const needsLabels = useMemo(
-    () => sdsEntries.filter((s) => s.secondaryContainers > 0 && !s.secondaryLabeled),
-    []
+  const selectedChemical = useMemo(
+    () => chemicals.find((c) => c.id === selectedId) ?? null,
+    [chemicals, selectedId]
   );
 
-  // Unlabeled inventory items for alert banner
-  const unlabeledItems = useMemo(() => inventoryItems.filter((i) => !i.labeled), []);
+  const needsLabels = useMemo(
+    () => chemicals.filter((c) => !c.labeled),
+    [chemicals]
+  );
+
+  const recentlyPrinted = useMemo(
+    () =>
+      chemicals
+        .filter((c) => c.labeled && c.label_printed_date)
+        .sort((a, b) => (b.label_printed_date ?? "").localeCompare(a.label_printed_date ?? "")),
+    [chemicals]
+  );
 
   const filteredProducts = useMemo(() => {
-    if (!productSearch) return sdsEntries;
+    if (!productSearch) return chemicals;
     const q = productSearch.toLowerCase();
-    return sdsEntries.filter(
-      (s) =>
-        s.productName.toLowerCase().includes(q) ||
-        s.manufacturer.toLowerCase().includes(q) ||
-        s.productCode.toLowerCase().includes(q)
+    return chemicals.filter(
+      (c) =>
+        c.product_name.toLowerCase().includes(q) ||
+        c.manufacturer.toLowerCase().includes(q)
     );
-  }, [productSearch]);
-
-  // Combined recent labels: printed this session + seed data
-  const allRecentLabels = useMemo(() => {
-    const printed = printedLabels.map((l) => ({
-      product: l.product,
-      sdsId: l.sdsId,
-      size: l.size,
-      date: l.date,
-    }));
-    return [...printed, ...recentLabels];
-  }, [printedLabels]);
+  }, [productSearch, chemicals]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  function handlePrintLabel() {
-    const sizeLabel = labelSize === "4x3" ? "4×3 GHS" : labelSize === "2x1.5" ? "2×1.5 Mini" : "QR-Only 1×1";
-    const newEntry: LabelLogEntry = {
-      product: selectedSds.productName,
-      sdsId: selectedSds.id,
-      size: sizeLabel,
-      container: containerType,
-      location: containerLocation,
-      date: "Just now",
-    };
-    setPrintedLabels((prev) => [newEntry, ...prev]);
-    printSingleLabel(selectedSds, labelSize);
-    showToast("Label sent to printer — logged to audit trail");
+  function handlePrintLabel(chemId?: string) {
+    const id = chemId ?? selectedId;
+    if (!id) return;
+    const now = new Date().toISOString();
+    updateChemical(id, { labeled: true, label_printed_date: now });
+    setChemicals(getChemicals());
+    showToast("Label printed — chemical marked as labeled");
   }
 
-  function handlePrintAllNeeded() {
-    const count = printBatchLabels(sdsEntries);
-    if (count > 0) {
-      showToast(`Batch printing ${count} label${count !== 1 ? "s" : ""} for unlabeled containers`);
-    } else {
-      showToast("All containers are already labeled!");
+  function handlePrintAllPending() {
+    const pending = chemicals.filter((c) => !c.labeled);
+    if (pending.length === 0) {
+      showToast("All chemicals are already labeled!");
+      return;
     }
+    const now = new Date().toISOString();
+    for (const c of pending) {
+      updateChemical(c.id, { labeled: true, label_printed_date: now });
+    }
+    setChemicals(getChemicals());
+    showToast(`${pending.length} label${pending.length !== 1 ? "s" : ""} printed`);
   }
 
-  function selectChemicalForLabel(sdsId: string) {
-    setSelectedSdsId(sdsId);
+  function selectChemical(id: string) {
+    setSelectedId(id);
     setProductSearch("");
     setProductDropdownOpen(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // Empty state
+  if (chemicals.length === 0) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center py-24">
+          <Tags className="h-16 w-16 text-gray-600 mb-4" />
+          <h2 className="text-xl font-display font-bold text-white mb-2">No chemicals added yet</h2>
+          <p className="text-gray-400 mb-6">Scan your first chemical to get started.</p>
+          <Link
+            href="/scan"
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold px-6 py-3 rounded-lg transition-colors"
+          >
+            <Camera className="h-5 w-5" />
+            Scan Chemical
+          </Link>
+        </div>
+      </DashboardLayout>
+    );
   }
 
   return (
     <DashboardLayout>
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
 
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-display font-black text-2xl text-white">Labels</h1>
@@ -162,61 +154,31 @@ export default function LabelsPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={async () => {
-              try {
-                await generateAllLabelsPDF();
-                showToast("All labels exported as PDF");
-              } catch (err) {
-                console.error("PDF generation error:", err);
-                showToast("PDF error: " + (err instanceof Error ? err.message : "Unknown error"));
-              }
-            }}
-            className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white text-sm px-4 py-2 rounded-lg transition-colors"
-          >
-            <FileDown className="h-4 w-4" />
-            Export All Labels
-          </button>
-          <button
-            onClick={handlePrintAllNeeded}
+            onClick={handlePrintAllPending}
             className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white text-sm px-4 py-2 rounded-lg transition-colors"
           >
             <Layers className="h-4 w-4" />
-            Print All Needed
+            Print All Pending ({needsLabels.length})
           </button>
         </div>
       </div>
 
-      <div className="mb-6">
-        <HelpCard>
-          <p><strong className="text-white">Secondary container labeling is one of OSHA&apos;s most frequently cited HazCom violations.</strong></p>
-          <p><strong className="text-amber-400">Shipped Containers</strong> (what arrives from the manufacturer): Must retain the original label — never remove or deface it. Label must include: product identifier, signal word, hazard statements, pictograms, precautionary statements, and supplier info.</p>
-          <p><strong className="text-amber-400">Workplace/Secondary Containers</strong> (spray bottles, mix cups, etc.): Must have EITHER the full shipped-label elements OR the product identifier plus words/pictures that convey the hazards. ShieldSDS generates full GHS labels with all elements — this is the safest approach.</p>
-          <p><strong className="text-amber-400">The One Exemption:</strong> Portable containers intended for IMMEDIATE USE by the employee who transferred the chemical do not require a label. But &quot;immediate use&quot; means used and emptied during the same work shift by the same person. If that spray bottle sits on a shelf at the end of the day — it needs a label.</p>
-          <p><strong className="text-white">Best Practice:</strong> Label everything. It takes 30 seconds with ShieldSDS and eliminates any ambiguity during an inspection. The QR code on each label also links directly to the full SDS, which demonstrates your SDS accessibility system.</p>
-          <p className="text-amber-500/80 text-xs">[29 CFR 1910.1200(f)(6)]</p>
-        </HelpCard>
-      </div>
-
-      {/* Alert Banner */}
-      {unlabeledItems.length > 0 && (
+      {/* Alert banner for unlabeled */}
+      {needsLabels.length > 0 && (
         <div className="mb-6 rounded-xl bg-status-amber/10 border border-status-amber/30 p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <AlertTriangle className="h-5 w-5 text-status-amber flex-shrink-0" />
             <p className="text-sm text-white">
-              <span className="font-medium">{unlabeledItems.length} containers need labels</span>{" "}
-              <span className="text-gray-400">
-                — {unlabeledItems.map((i) => i.product).join(", ")}
-              </span>
+              <span className="font-medium">{needsLabels.length} chemical{needsLabels.length !== 1 ? "s" : ""} need labels</span>
             </p>
           </div>
           <button
             onClick={() => {
-              const first = unlabeledItems[0];
-              if (first) selectChemicalForLabel(first.sdsId);
+              if (needsLabels[0]) selectChemical(needsLabels[0].id);
             }}
-            className="flex items-center gap-1 text-status-amber hover:text-white text-sm font-medium transition-colors whitespace-nowrap"
+            className="text-status-amber hover:text-white text-sm font-medium transition-colors"
           >
-            Create Labels <ArrowRight className="h-4 w-4" />
+            Create Labels
           </button>
         </div>
       )}
@@ -224,7 +186,7 @@ export default function LabelsPage() {
       <div className="grid grid-cols-2 gap-6">
         {/* ─── Left Column: Label Creator ─── */}
         <div className="space-y-5">
-          {/* Product Selector (Searchable Dropdown) */}
+          {/* Product Selector */}
           <div>
             <label className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
               Select Chemical
@@ -235,8 +197,12 @@ export default function LabelsPage() {
                 className="w-full flex items-center justify-between bg-navy-800 border border-navy-700 rounded-lg px-4 py-2.5 text-left hover:border-navy-600 transition-colors"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{selectedSds.productName}</p>
-                  <p className="text-xs text-gray-500">{selectedSds.manufacturer} · {selectedSds.productCode}</p>
+                  <p className="text-sm font-medium text-white truncate">
+                    {selectedChemical?.product_name ?? "Select a chemical"}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {selectedChemical?.manufacturer ?? ""}
+                  </p>
                 </div>
                 <ChevronDown className={`h-4 w-4 text-gray-400 flex-shrink-0 transition-transform ${productDropdownOpen ? "rotate-180" : ""}`} />
               </button>
@@ -256,30 +222,28 @@ export default function LabelsPage() {
                     </div>
                   </div>
                   <div className="max-h-60 overflow-y-auto">
-                    {filteredProducts.map((sds) => (
+                    {filteredProducts.map((c) => (
                       <button
-                        key={sds.id}
-                        onClick={() => selectChemicalForLabel(sds.id)}
+                        key={c.id}
+                        onClick={() => selectChemical(c.id)}
                         className={`w-full flex items-center justify-between px-4 py-2.5 text-left transition-colors border-b border-navy-700/30 last:border-b-0 ${
-                          sds.id === selectedSdsId
-                            ? "bg-amber-500/10"
-                            : "hover:bg-navy-800/50"
+                          c.id === selectedId ? "bg-amber-500/10" : "hover:bg-navy-800/50"
                         }`}
                       >
                         <div>
-                          <p className={`text-sm font-medium ${sds.id === selectedSdsId ? "text-amber-400" : "text-white"}`}>
-                            {sds.productName}
+                          <p className={`text-sm font-medium ${c.id === selectedId ? "text-amber-400" : "text-white"}`}>
+                            {c.product_name}
                           </p>
-                          <p className="text-xs text-gray-500">{sds.manufacturer} · {sds.productCode}</p>
+                          <p className="text-xs text-gray-500">{c.manufacturer}</p>
                         </div>
                         <span className={`text-xs px-2 py-0.5 rounded font-bold ${
-                          sds.signalWord === "Danger"
+                          c.signal_word === "DANGER"
                             ? "bg-status-red/15 text-status-red"
-                            : sds.signalWord === "Warning"
+                            : c.signal_word === "WARNING"
                             ? "bg-status-amber/15 text-status-amber"
                             : "bg-navy-700/50 text-gray-400"
                         }`}>
-                          {sds.signalWord === "None" ? "—" : sds.signalWord.toUpperCase()}
+                          {c.signal_word ?? "—"}
                         </span>
                       </button>
                     ))}
@@ -292,204 +256,59 @@ export default function LabelsPage() {
             </div>
           </div>
 
-          {/* Label Size Selector */}
+          {/* Label Size Toggle */}
           <div>
             <label className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
               Label Size
             </label>
             <div className="flex gap-2">
-              {(["4x3", "2x1.5", "1x1"] as LabelSize[]).map((size) => (
+              {([
+                { key: "full" as const, label: "Full (4\u00d76)" },
+                { key: "small" as const, label: "Small (2\u00d73)" },
+                { key: "minimal" as const, label: "Minimal (1\u00d73)" },
+              ]).map((opt) => (
                 <button
-                  key={size}
-                  onClick={() => setLabelSize(size)}
+                  key={opt.key}
+                  onClick={() => setLabelSize(opt.key)}
                   className={`flex-1 text-center py-2 px-3 rounded-lg text-sm font-medium transition-colors border ${
-                    labelSize === size
+                    labelSize === opt.key
                       ? "bg-amber-500/15 border-amber-500/50 text-amber-400"
                       : "bg-navy-800 border-navy-700 text-gray-300 hover:border-navy-600"
                   }`}
                 >
-                  {sizeDimensions[size].label}
+                  {opt.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Container Info */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Label Preview */}
+          {selectedChemical && (
             <div>
               <label className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
-                Container Type
+                Label Preview
               </label>
-              <select
-                value={containerType}
-                onChange={(e) => setContainerType(e.target.value)}
-                className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500/50"
-              >
-                {containerTypes.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+              <LabelPreview
+                chemical={selectedChemical}
+                size={labelSize}
+                onPrint={() => handlePrintLabel()}
+              />
             </div>
-            <div>
-              <label className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
-                Location
-              </label>
-              <select
-                value={containerLocation}
-                onChange={(e) => setContainerLocation(e.target.value)}
-                className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500/50"
-              >
-                {inventoryLocations.map((loc) => (
-                  <option key={loc.name} value={loc.name}>{loc.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* ─── LABEL PREVIEW ─── */}
-          <div>
-            <label className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
-              Label Preview
-            </label>
-            <div className={`bg-white rounded-xl p-4 transition-all ${sizeDimensions[labelSize].w}`}>
-              {labelSize === "1x1" ? (
-                /* QR-Only label */
-                <div className="border-2 border-gray-400 rounded-lg p-4 flex flex-col items-center justify-center gap-3">
-                  <div className="h-20 w-20 bg-gray-200 rounded flex items-center justify-center">
-                    <QrCode className="h-14 w-14 text-gray-600" />
-                  </div>
-                  <p className="text-xs font-bold text-gray-700 text-center">{selectedSds.productName}</p>
-                  <p className="text-[10px] text-gray-500 text-center">Scan for full SDS</p>
-                </div>
-              ) : (
-                /* Full / Mini GHS label */
-                <div className={`border-4 border-red-600 rounded-lg ${labelSize === "2x1.5" ? "p-3" : "p-5"}`}>
-                  {/* Product Identifier */}
-                  <div className={`text-center border-b border-gray-300 ${labelSize === "2x1.5" ? "pb-2 mb-2" : "pb-3 mb-4"}`}>
-                    <h3 className={`font-bold text-gray-900 ${labelSize === "2x1.5" ? "text-sm" : "text-lg"}`}>
-                      {selectedSds.productName}
-                    </h3>
-                    <p className={`text-gray-500 ${labelSize === "2x1.5" ? "text-[10px]" : "text-xs"}`}>
-                      Code: {selectedSds.productCode}
-                    </p>
-                  </div>
-
-                  {/* Signal Word Banner */}
-                  {selectedSds.signalWord !== "None" && (
-                    <div className={`text-center font-black rounded mb-3 ${
-                      labelSize === "2x1.5" ? "text-base py-1" : "text-2xl py-1.5"
-                    } ${
-                      selectedSds.signalWord === "Danger"
-                        ? "bg-red-600 text-white"
-                        : "bg-amber-500 text-white"
-                    }`}>
-                      {selectedSds.signalWord.toUpperCase()}
-                    </div>
-                  )}
-
-                  {/* GHS Pictograms */}
-                  {selectedSds.pictograms.length > 0 && (
-                    <div className={`flex justify-center gap-2 flex-wrap ${labelSize === "2x1.5" ? "mb-2" : "mb-4"}`}>
-                      {selectedSds.pictograms.map((p) => (
-                        <GHSPictogram key={p} type={p} size={labelSize === "2x1.5" ? 32 : 48} />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Hazard Statements */}
-                  {selectedSds.hazardStatements.length > 0 && (
-                    <div className={labelSize === "2x1.5" ? "mb-2" : "mb-3"}>
-                      <p className={`font-bold text-gray-900 ${labelSize === "2x1.5" ? "text-[10px] mb-0.5" : "text-xs mb-1"}`}>
-                        Hazard Statements:
-                      </p>
-                      <ul className={`text-gray-700 space-y-0.5 ${labelSize === "2x1.5" ? "text-[9px]" : "text-xs"}`}>
-                        {selectedSds.hazardStatements.slice(0, labelSize === "2x1.5" ? 3 : 5).map((h) => (
-                          <li key={h}>{h}</li>
-                        ))}
-                        {selectedSds.hazardStatements.length > (labelSize === "2x1.5" ? 3 : 5) && (
-                          <li className="text-gray-400 italic">
-                            +{selectedSds.hazardStatements.length - (labelSize === "2x1.5" ? 3 : 5)} more — see SDS
-                          </li>
-                        )}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Precautionary Statements */}
-                  {selectedSds.precautionaryStatements.length > 0 && (
-                    <div className={labelSize === "2x1.5" ? "mb-2" : "mb-3"}>
-                      <p className={`font-bold text-gray-900 ${labelSize === "2x1.5" ? "text-[10px] mb-0.5" : "text-xs mb-1"}`}>
-                        Precautionary Statements:
-                      </p>
-                      <ul className={`text-gray-700 space-y-0.5 ${labelSize === "2x1.5" ? "text-[9px]" : "text-xs"}`}>
-                        {selectedSds.precautionaryStatements.slice(0, labelSize === "2x1.5" ? 2 : 4).map((p) => (
-                          <li key={p}>{p}</li>
-                        ))}
-                        {selectedSds.precautionaryStatements.length > (labelSize === "2x1.5" ? 2 : 4) && (
-                          <li className="text-gray-400 italic">
-                            +{selectedSds.precautionaryStatements.length - (labelSize === "2x1.5" ? 2 : 4)} more — see SDS
-                          </li>
-                        )}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Manufacturer + QR */}
-                  <div className={`flex items-end justify-between border-t border-gray-300 ${labelSize === "2x1.5" ? "pt-2" : "pt-3"}`}>
-                    <div className={`text-gray-600 ${labelSize === "2x1.5" ? "text-[9px]" : "text-xs"}`}>
-                      <p className="font-bold">{selectedSds.manufacturer}</p>
-                      <p>{selectedSds.supplierPhone}</p>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <div className={`bg-gray-200 rounded flex items-center justify-center ${
-                        labelSize === "2x1.5" ? "h-8 w-8" : "h-12 w-12"
-                      }`}>
-                        <QrCode className={`text-gray-500 ${labelSize === "2x1.5" ? "h-5 w-5" : "h-8 w-8"}`} />
-                      </div>
-                      <p className={`text-gray-500 mt-0.5 ${labelSize === "2x1.5" ? "text-[8px]" : "text-[10px]"}`}>
-                        Scan for full SDS
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3">
-            <button
-              onClick={handlePrintLabel}
-              className="flex-1 flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm py-2.5 rounded-lg transition-colors"
-            >
-              <Printer className="h-4 w-4" />
-              Print Label
-            </button>
-            <button
-              onClick={() => {
-                setLabelSize("1x1");
-                handlePrintLabel();
-              }}
-              className="flex-1 flex items-center justify-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white text-sm py-2.5 rounded-lg transition-colors"
-            >
-              <QrCode className="h-4 w-4" />
-              QR Code Only
-            </button>
-          </div>
+          )}
         </div>
 
-        {/* ─── Right Column: Needs Labels + Recent + Templates ─── */}
+        {/* ─── Right Column: Needs Labels + Recently Printed ─── */}
         <div className="space-y-6">
-          {/* Needs Labels Section */}
+          {/* Needs Labels */}
           {needsLabels.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
                 Needs Labels ({needsLabels.length})
               </h2>
               <div className="bg-navy-900 border border-status-amber/30 rounded-xl overflow-hidden">
-                {needsLabels.map((sds, i) => (
+                {needsLabels.map((c, i) => (
                   <div
-                    key={sds.id}
+                    key={c.id}
                     className={`flex items-center justify-between px-4 py-3 ${
                       i < needsLabels.length - 1 ? "border-b border-navy-700/30" : ""
                     }`}
@@ -497,18 +316,33 @@ export default function LabelsPage() {
                     <div className="flex items-center gap-3 min-w-0">
                       <AlertTriangle className="h-4 w-4 text-status-amber flex-shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{sds.productName}</p>
-                        <p className="text-xs text-gray-500">
-                          {sds.secondaryContainers} container{sds.secondaryContainers > 1 ? "s" : ""} · {sds.storageLocation}
-                        </p>
+                        <p className="text-sm font-medium text-white truncate">{c.product_name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-gray-500">{c.location}</span>
+                          {c.signal_word && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                              c.signal_word === "DANGER"
+                                ? "bg-status-red/15 text-status-red"
+                                : "bg-status-amber/15 text-status-amber"
+                            }`}>
+                              {c.signal_word}
+                            </span>
+                          )}
+                          {c.pictogram_codes.slice(0, 3).map((code) => (
+                            <GHSPictogram key={code} code={code} size={16} />
+                          ))}
+                        </div>
                       </div>
                     </div>
                     <button
-                      onClick={() => selectChemicalForLabel(sds.id)}
+                      onClick={() => {
+                        selectChemical(c.id);
+                        handlePrintLabel(c.id);
+                      }}
                       className="flex items-center gap-1 text-xs bg-status-amber/15 hover:bg-status-amber/25 text-status-amber px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                     >
-                      <Tags className="h-3 w-3" />
-                      Create Label
+                      <Printer className="h-3 w-3" />
+                      Print Label
                     </button>
                   </div>
                 ))}
@@ -516,65 +350,51 @@ export default function LabelsPage() {
             </div>
           )}
 
-          {/* Recent Labels */}
+          {/* Recently Printed */}
           <div>
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
-              Recent Labels ({allRecentLabels.length})
+              Recently Printed ({recentlyPrinted.length})
             </h2>
-            <div className="bg-navy-900 border border-navy-700/50 rounded-xl overflow-hidden max-h-72 overflow-y-auto">
-              {allRecentLabels.map((label, i) => (
-                <button
-                  key={`${label.sdsId}-${i}`}
-                  onClick={() => selectChemicalForLabel(label.sdsId)}
-                  className={`w-full flex items-center justify-between px-4 py-3 hover:bg-navy-800/50 transition-colors ${
-                    i < allRecentLabels.length - 1 ? "border-b border-navy-700/30" : ""
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center">
-                      <Tags className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-white">{label.product}</p>
-                      <p className="text-xs text-gray-500">{label.size}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <Clock className="h-3 w-3" />
-                    {label.date}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Label Templates */}
-          <div>
-            <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
-              Label Templates
-            </h2>
-            <div className="grid grid-cols-2 gap-3">
-              {templates.map((t) => {
-                const isActive = labelSize === t.size;
-                return (
-                  <button
-                    key={t.name}
-                    onClick={() => setLabelSize(t.size)}
-                    className={`bg-navy-900 border rounded-xl p-4 transition-colors text-left group ${
-                      isActive
-                        ? "border-amber-500/50 ring-1 ring-amber-500/20"
-                        : "border-navy-700/50 hover:border-amber-500/30"
+            {recentlyPrinted.length > 0 ? (
+              <div className="bg-navy-900 border border-navy-700/50 rounded-xl overflow-hidden max-h-72 overflow-y-auto">
+                {recentlyPrinted.map((c, i) => (
+                  <div
+                    key={c.id}
+                    className={`flex items-center justify-between px-4 py-3 ${
+                      i < recentlyPrinted.length - 1 ? "border-b border-navy-700/30" : ""
                     }`}
                   >
-                    <t.icon className={`h-8 w-8 mb-2 transition-colors ${
-                      isActive ? "text-amber-400" : "text-gray-500 group-hover:text-amber-400"
-                    }`} />
-                    <p className="text-sm font-medium text-white">{t.name}</p>
-                    <p className="text-xs text-gray-500">{t.desc}</p>
-                  </button>
-                );
-              })}
-            </div>
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-lg bg-navy-800 flex items-center justify-center">
+                        <Tags className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white">{c.product_name}</p>
+                        <p className="text-xs text-gray-500">{c.container_count} {c.container_type} &middot; {c.location}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Clock className="h-3 w-3" />
+                        {c.label_printed_date
+                          ? new Date(c.label_printed_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                          : "—"}
+                      </div>
+                      <button
+                        onClick={() => selectChemical(c.id)}
+                        className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                      >
+                        Reprint
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-navy-900 border border-navy-700/50 rounded-xl p-8 text-center">
+                <p className="text-sm text-gray-500">No labels printed yet</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

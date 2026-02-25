@@ -1,34 +1,27 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
-import {
-  sdsEntries,
-  inventoryItems as seedInventory,
-  inventoryLocations,
-} from "@/lib/data";
-import type { InventoryItem } from "@/lib/data";
+import { getChemicals, initializeStore } from "@/lib/chemicals";
+import type { Chemical } from "@/lib/types";
 import {
   Search,
   MapPin,
   CheckCircle2,
   AlertTriangle,
   Printer,
-  FileText,
   FlaskConical,
   X,
   ChevronUp,
   ChevronDown,
-  Pencil,
   Eye,
-  Mail,
   Package,
   Tags,
   ShieldCheck,
   Plus,
+  Camera,
 } from "lucide-react";
-import HelpCard from "@/components/HelpCard";
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
@@ -40,276 +33,6 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
       <button onClick={onClose} className="ml-2 hover:text-white transition-colors">
         <X className="h-4 w-4" />
       </button>
-    </div>
-  );
-}
-
-// ─── Email Modal ──────────────────────────────────────────────────────────────
-
-function EmailModal({
-  item,
-  onClose,
-}: {
-  item: InventoryItem;
-  onClose: () => void;
-}) {
-  const sds = sdsEntries.find((s) => s.id === item.sdsId);
-  const mfr = sds?.manufacturer ?? "Manufacturer";
-  const phone = sds?.supplierPhone ?? "";
-  const subject = encodeURIComponent(`SDS Request: ${item.product}`);
-  const body = encodeURIComponent(
-    `To whom it may concern,\n\nWe are requesting the current Safety Data Sheet (SDS) for:\n\nProduct: ${item.product}\nProduct Code: ${sds?.productCode ?? "N/A"}\n\nPlease send the SDS in PDF format to: mike@mikesautobody.com\n\nFacility: Mike's Auto Body\n1847 Pacific Coast Hwy, Long Beach, CA 90806\n\nThank you,\nMike Rodriguez\nOwner / Manager\n(562) 555-0147`
-  );
-  const mailto = `mailto:sds@${mfr.toLowerCase().replace(/[^a-z]/g, "")}.com?subject=${subject}&body=${body}`;
-
-  const [copied, setCopied] = useState(false);
-
-  function copyEmail() {
-    navigator.clipboard.writeText(decodeURIComponent(body));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-navy-900 border border-navy-700 rounded-2xl shadow-2xl w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-navy-700">
-          <h3 className="text-lg font-display font-bold text-white">Request SDS from {mfr}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="px-6 py-4 space-y-4">
-          <div className="bg-navy-800 rounded-lg p-4 text-sm text-gray-300 whitespace-pre-line font-mono text-xs">
-            {decodeURIComponent(body)}
-          </div>
-          {phone && (
-            <p className="text-xs text-gray-400">Manufacturer phone: {phone}</p>
-          )}
-          <div className="flex gap-3">
-            <a
-              href={mailto}
-              className="flex-1 flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm py-2.5 rounded-lg transition-colors"
-            >
-              <Mail className="h-4 w-4" />
-              Open in Email
-            </a>
-            <button
-              onClick={copyEmail}
-              className="flex-1 flex items-center justify-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white text-sm py-2.5 rounded-lg transition-colors"
-            >
-              {copied ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4 text-status-green" />
-                  Copied!
-                </>
-              ) : (
-                <>Copy to Clipboard</>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Edit Modal ───────────────────────────────────────────────────────────────
-
-function EditModal({
-  item,
-  onSave,
-  onClose,
-}: {
-  item: InventoryItem;
-  onSave: (updated: InventoryItem) => void;
-  onClose: () => void;
-}) {
-  const [containers, setContainers] = useState(item.containers);
-  const [location, setLocation] = useState(item.location);
-  const [labeled, setLabeled] = useState(item.labeled);
-
-  function handleSave() {
-    onSave({ ...item, containers, location, labeled });
-    onClose();
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-navy-900 border border-navy-700 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-navy-700">
-          <h3 className="text-lg font-display font-bold text-white">Edit: {item.product}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="px-6 py-4 space-y-4">
-          <div>
-            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">Containers</label>
-            <input
-              type="number"
-              min={0}
-              value={containers}
-              onChange={(e) => setContainers(parseInt(e.target.value) || 0)}
-              className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">Location</label>
-            <select
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
-            >
-              {inventoryLocations.map((loc) => (
-                <option key={loc.name} value={loc.name}>{loc.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="labeled-check"
-              checked={labeled}
-              onChange={(e) => setLabeled(e.target.checked)}
-              className="h-4 w-4 rounded border-navy-700 bg-navy-800 text-amber-500 focus:ring-amber-500/50"
-            />
-            <label htmlFor="labeled-check" className="text-sm text-white">Secondary container labeled</label>
-          </div>
-          <button
-            onClick={handleSave}
-            className="w-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm py-2.5 rounded-lg transition-colors"
-          >
-            Save Changes
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Add Chemical Modal ───────────────────────────────────────────────────────
-
-function AddChemicalModal({
-  onAdd,
-  onClose,
-  showToast,
-}: {
-  onAdd: (item: InventoryItem) => void;
-  onClose: () => void;
-  showToast: (msg: string) => void;
-}) {
-  const [product, setProduct] = useState("");
-  const [manufacturer, setManufacturer] = useState("");
-  const [location, setLocation] = useState(inventoryLocations[0]?.name ?? "");
-  const [containerType, setContainerType] = useState("Quart cans");
-  const [containerCount, setContainerCount] = useState(1);
-
-  function handleSubmit() {
-    if (!product.trim() || !manufacturer.trim()) return;
-    const newItem: InventoryItem = {
-      id: `new-${Date.now()}`,
-      product: product.trim(),
-      sdsId: "",
-      location,
-      containers: containerCount,
-      containerType,
-      labeled: false,
-      sds: false,
-    };
-    onAdd(newItem);
-    showToast(`${product.trim()} added to inventory — SDS upload pending`);
-    onClose();
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-navy-900 border border-navy-700 rounded-2xl shadow-2xl w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-navy-700">
-          <h3 className="text-lg font-display font-bold text-white">Add Chemical to Inventory</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="px-6 py-4 space-y-4">
-          <div>
-            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">
-              Product Name <span className="text-status-red">*</span>
-            </label>
-            <input
-              type="text"
-              value={product}
-              onChange={(e) => setProduct(e.target.value)}
-              placeholder="e.g. 3M Super 77 Spray Adhesive"
-              className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">
-              Manufacturer <span className="text-status-red">*</span>
-            </label>
-            <input
-              type="text"
-              value={manufacturer}
-              onChange={(e) => setManufacturer(e.target.value)}
-              placeholder="e.g. 3M Company"
-              className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">Storage Location</label>
-              <select
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
-              >
-                {inventoryLocations.map((loc) => (
-                  <option key={loc.name} value={loc.name}>{loc.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">Container Type</label>
-              <input
-                type="text"
-                value={containerType}
-                onChange={(e) => setContainerType(e.target.value)}
-                className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">Container Count</label>
-            <input
-              type="number"
-              min={1}
-              value={containerCount}
-              onChange={(e) => setContainerCount(parseInt(e.target.value) || 1)}
-              className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">Upload SDS (PDF)</label>
-            <button
-              onClick={() => {
-                showToast("SDS file upload simulated — file received");
-              }}
-              className="w-full bg-navy-800 border border-navy-700 border-dashed rounded-lg px-3 py-6 text-sm text-gray-400 hover:text-white hover:border-navy-600 transition-colors"
-            >
-              <FileText className="h-6 w-6 mx-auto mb-1" />
-              Click to select PDF file
-            </button>
-          </div>
-          <button
-            onClick={handleSubmit}
-            disabled={!product.trim() || !manufacturer.trim()}
-            className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-navy-950 font-semibold text-sm py-2.5 rounded-lg transition-colors"
-          >
-            Add to Inventory
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -355,15 +78,18 @@ function SortHeader({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function InventoryPage() {
-  const [localItems, setLocalItems] = useState<InventoryItem[]>([...seedInventory]);
+  const [chemicals, setChemicals] = useState<Chemical[]>([]);
   const [search, setSearch] = useState("");
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [toast, setToast] = useState<string | null>(null);
-  const [emailItem, setEmailItem] = useState<InventoryItem | null>(null);
-  const [editItem, setEditItem] = useState<InventoryItem | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
+
+  // Load chemicals from store on mount
+  useEffect(() => {
+    initializeStore();
+    setChemicals(getChemicals());
+  }, []);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -372,33 +98,42 @@ export default function InventoryPage() {
 
   // Summary stats
   const stats = useMemo(() => {
-    const totalChemicals = localItems.length;
-    const totalContainers = localItems.reduce((sum, i) => sum + i.containers, 0);
-    const labeledContainers = localItems.filter((i) => i.labeled).reduce((sum, i) => sum + i.containers, 0);
-    const withSds = localItems.filter((i) => i.sds).length;
-    const thisMonth = localItems.filter((i) => {
-      const sds = sdsEntries.find((s) => s.id === i.sdsId);
-      if (!sds) return false;
-      return sds.dateAdded.startsWith("2026-02");
+    const totalChemicals = chemicals.length;
+    const totalContainers = chemicals.reduce((sum, c) => sum + c.container_count, 0);
+    const labeledContainers = chemicals.filter((c) => c.labeled).reduce((sum, c) => sum + c.container_count, 0);
+    const withSds = chemicals.filter((c) => c.sds_status === "current").length;
+    const addedThisMonth = chemicals.filter((c) => {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      return c.added_date.startsWith(`${y}-${m}`);
     }).length;
     return {
       totalChemicals,
       totalContainers,
       labeledPct: totalContainers > 0 ? Math.round((labeledContainers / totalContainers) * 100) : 100,
       sdsPct: totalChemicals > 0 ? Math.round((withSds / totalChemicals) * 100) : 100,
-      addedThisMonth: thisMonth,
+      addedThisMonth,
     };
-  }, [localItems]);
+  }, [chemicals]);
 
-  // Location cards — recalculate from local items
+  // Build location cards dynamically by grouping chemicals by location
   const locationCards = useMemo(() => {
-    return inventoryLocations.map((loc) => {
-      const items = localItems.filter((i) => i.location === loc.name);
-      const total = items.reduce((sum, i) => sum + i.containers, 0);
-      const labeled = items.filter((i) => i.labeled).reduce((sum, i) => sum + i.containers, 0);
-      return { name: loc.name, chemicals: items.length, totalContainers: total, labeled };
-    });
-  }, [localItems]);
+    const locMap = new Map<string, Chemical[]>();
+    for (const c of chemicals) {
+      const loc = c.location || "Unknown";
+      if (!locMap.has(loc)) locMap.set(loc, []);
+      locMap.get(loc)!.push(c);
+    }
+    return Array.from(locMap.entries())
+      .map(([name, chems]) => ({
+        name,
+        chemicals: chems.length,
+        totalContainers: chems.reduce((s, c) => s + c.container_count, 0),
+        labeled: chems.filter((c) => c.labeled).reduce((s, c) => s + c.container_count, 0),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [chemicals]);
 
   function handleSort(field: SortField) {
     if (sortField === field) {
@@ -411,77 +146,64 @@ export default function InventoryPage() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    let result = localItems.filter((item) => {
+    let result = chemicals.filter((c) => {
       const matchesSearch =
         !q ||
-        item.product.toLowerCase().includes(q) ||
-        item.location.toLowerCase().includes(q) ||
-        item.containerType.toLowerCase().includes(q);
-      const matchesLocation = !selectedLocation || item.location === selectedLocation;
+        c.product_name.toLowerCase().includes(q) ||
+        c.manufacturer.toLowerCase().includes(q) ||
+        c.location.toLowerCase().includes(q) ||
+        c.container_type.toLowerCase().includes(q);
+      const matchesLocation = !selectedLocation || c.location === selectedLocation;
       return matchesSearch && matchesLocation;
     });
     if (sortField) {
       result = [...result].sort((a, b) => {
         let cmp = 0;
-        if (sortField === "product") cmp = a.product.localeCompare(b.product);
+        if (sortField === "product") cmp = a.product_name.localeCompare(b.product_name);
         else if (sortField === "location") cmp = a.location.localeCompare(b.location);
-        else if (sortField === "containers") cmp = a.containers - b.containers;
+        else if (sortField === "containers") cmp = a.container_count - b.container_count;
         return sortDir === "desc" ? -cmp : cmp;
       });
     }
     return result;
-  }, [search, selectedLocation, localItems, sortField, sortDir]);
+  }, [search, selectedLocation, chemicals, sortField, sortDir]);
 
-  function handleEditSave(updated: InventoryItem) {
-    setLocalItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-    showToast(`${updated.product} updated`);
+  // Empty state
+  if (chemicals.length === 0) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center py-24">
+          <Package className="h-16 w-16 text-gray-600 mb-4" />
+          <h2 className="text-xl font-display font-bold text-white mb-2">No chemicals in inventory</h2>
+          <p className="text-gray-400 mb-6">Scan your first product to get started.</p>
+          <Link
+            href="/scan"
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold px-6 py-3 rounded-lg transition-colors"
+          >
+            <Camera className="h-5 w-5" />
+            Scan Chemical
+          </Link>
+        </div>
+      </DashboardLayout>
+    );
   }
 
-  function handleAddChemical(item: InventoryItem) {
-    setLocalItems((prev) => [...prev, item]);
-  }
+  // Suppress unused var warning for showToast since it's used by toast display
+  void showToast;
 
   return (
     <DashboardLayout>
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
-      {emailItem && <EmailModal item={emailItem} onClose={() => setEmailItem(null)} />}
-      {editItem && <EditModal item={editItem} onSave={handleEditSave} onClose={() => setEditItem(null)} />}
-      {showAddModal && (
-        <AddChemicalModal
-          onAdd={handleAddChemical}
-          onClose={() => setShowAddModal(false)}
-          showToast={showToast}
-        />
-      )}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-display font-black text-2xl text-white">Chemical Inventory</h1>
           <p className="text-sm text-gray-400 mt-1">
-            {localItems.length} chemicals · {stats.totalContainers} containers across {inventoryLocations.length} storage areas
+            {chemicals.length} chemicals &middot; {stats.totalContainers} containers across {locationCards.length} storage areas
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              const w = window.open("", "_blank");
-              if (!w) return;
-              const rows = localItems.map(function(item) {
-                return "<div style=\"display:inline-block;width:1.5in;height:1.5in;border:1px dashed #ccc;margin:0.15in;padding:0.15in;text-align:center;font-family:system-ui;font-size:9px;page-break-inside:avoid;\">" +
-                  "<div style=\"width:80px;height:80px;margin:0 auto 4px;border:2px solid #000;display:flex;align-items:center;justify-content:center;\">" +
-                  "<svg viewBox=\"0 0 100 100\" width=\"60\" height=\"60\"><rect x=\"10\" y=\"10\" width=\"80\" height=\"80\" fill=\"none\" stroke=\"#000\" stroke-width=\"3\"/><rect x=\"15\" y=\"15\" width=\"30\" height=\"30\" fill=\"#000\"/><rect x=\"55\" y=\"15\" width=\"30\" height=\"30\" fill=\"#000\"/><rect x=\"15\" y=\"55\" width=\"30\" height=\"30\" fill=\"#000\"/><rect x=\"60\" y=\"60\" width=\"10\" height=\"10\" fill=\"#000\"/><rect x=\"75\" y=\"60\" width=\"10\" height=\"10\" fill=\"#000\"/><rect x=\"60\" y=\"75\" width=\"10\" height=\"10\" fill=\"#000\"/></svg>" +
-                  "</div><strong>" + item.product.substring(0, 30) + "</strong><br/>" + item.location + "</div>";
-              }).join("");
-              w.document.write("<html><head><title>QR Labels</title><style>@media print{body{margin:0}}</style></head><body>" + rows + "</body></html>");
-              w.document.close();
-              w.print();
-            }}
-            className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white text-sm px-4 py-2 rounded-lg transition-colors"
-          >
-            <Printer className="h-4 w-4" />
-            Print QR Labels
-          </button>
           <Link
             href="/scan"
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
@@ -491,24 +213,6 @@ export default function InventoryPage() {
           </Link>
         </div>
       </div>
-
-      <HelpCard>
-        <p><strong className="text-white">Your chemical inventory is the backbone of your HazCom program.</strong> It must list every hazardous chemical present in each work area using a product identifier that matches the SDS.</p>
-        <p><strong className="text-amber-400">What inspectors look for:</strong></p>
-        <ul className="list-none space-y-1 ml-1">
-          <li>• Does the list match what&apos;s actually on the shelves? (Walk your shop monthly to verify)</li>
-          <li>• Are product identifiers consistent between the list, the SDS, and the labels?</li>
-          <li>• Is the list current? (When did you last add or remove a chemical?)</li>
-        </ul>
-        <p><strong className="text-amber-400">Common mistakes:</strong></p>
-        <ul className="list-none space-y-1 ml-1">
-          <li>❌ Listing &quot;paint thinner&quot; instead of the specific product name and manufacturer</li>
-          <li>❌ Having products on the shelf that aren&apos;t on the list (or vice versa)</li>
-          <li>❌ Not updating when new products arrive or old ones are used up</li>
-        </ul>
-        <p>ShieldSDS tracks when chemicals are added and removed, creating an audit trail that proves your inventory is actively maintained.</p>
-        <p className="text-amber-500/80 text-xs">[29 CFR 1910.1200(e)(1)(i)]</p>
-      </HelpCard>
 
       {/* Summary Stats Bar */}
       <div className="grid grid-cols-5 gap-3 mb-6">
@@ -546,7 +250,7 @@ export default function InventoryPage() {
               <MapPin className="h-3.5 w-3.5 text-amber-400" />
               <span className="text-xs font-medium text-white">All Locations</span>
             </div>
-            <p className="text-lg font-display font-bold text-white">{localItems.length}</p>
+            <p className="text-lg font-display font-bold text-white">{chemicals.length}</p>
             <p className="text-xs text-gray-500 mt-1">
               {stats.totalContainers} containers
             </p>
@@ -600,7 +304,7 @@ export default function InventoryPage() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search inventory by product, location, or container type..."
+          placeholder="Search inventory by product, manufacturer, location, or container type..."
           className="w-full bg-navy-800 border border-navy-700 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
         />
       </div>
@@ -622,86 +326,70 @@ export default function InventoryPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((item) => {
-                const sds = sdsEntries.find((s) => s.id === item.sdsId);
-                const manufacturer = sds?.manufacturer ?? "—";
-                return (
-                  <tr
-                    key={item.id}
-                    className={`border-b border-navy-700/30 hover:bg-navy-800/30 transition-colors ${
-                      !item.sds
-                        ? "border-l-2 border-l-status-red bg-status-red/5"
-                        : !item.labeled
-                        ? "border-l-2 border-l-status-amber bg-status-amber/5"
-                        : ""
-                    }`}
-                  >
-                    <td className="py-3 px-4 text-sm font-medium text-white">{item.product}</td>
-                    <td className="py-3 px-4 text-sm text-gray-300">{manufacturer}</td>
-                    <td className="py-3 px-4 text-sm text-gray-300">{item.location}</td>
-                    <td className="py-3 px-4 text-sm text-gray-300 text-center">{item.containers}</td>
-                    <td className="py-3 px-4 text-sm text-gray-300">{item.containerType}</td>
-                    <td className="py-3 px-4">
-                      {item.labeled ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-status-green">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Yes
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs text-status-red">
-                          <AlertTriangle className="h-3.5 w-3.5" /> No
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4">
-                      {item.sds ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-status-green">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Yes
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs text-status-red">
-                          <AlertTriangle className="h-3.5 w-3.5" /> Missing
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5">
-                        {!item.labeled && (
-                          <Link
-                            href={`/labels?sdsId=${item.sdsId}`}
-                            className="flex items-center gap-1 text-xs bg-navy-800 hover:bg-navy-700 border border-navy-600 text-gray-300 hover:text-white px-2 py-1.5 rounded-md transition-colors"
-                            title="Print Label"
-                          >
-                            <Printer className="h-3 w-3" />
-                          </Link>
-                        )}
-                        {!item.sds && (
-                          <button
-                            onClick={() => setEmailItem(item)}
-                            className="flex items-center gap-1 text-xs bg-navy-800 hover:bg-navy-700 border border-navy-600 text-gray-300 hover:text-white px-2 py-1.5 rounded-md transition-colors"
-                            title="Request SDS"
-                          >
-                            <Mail className="h-3 w-3" />
-                          </button>
-                        )}
+              {filtered.map((c) => (
+                <tr
+                  key={c.id}
+                  className={`border-b border-navy-700/30 hover:bg-navy-800/30 transition-colors ${
+                    c.sds_status === "missing"
+                      ? "border-l-2 border-l-status-red bg-status-red/5"
+                      : !c.labeled
+                      ? "border-l-2 border-l-status-amber bg-status-amber/5"
+                      : ""
+                  }`}
+                >
+                  <td className="py-3 px-4 text-sm font-medium text-white">{c.product_name}</td>
+                  <td className="py-3 px-4 text-sm text-gray-300">{c.manufacturer}</td>
+                  <td className="py-3 px-4 text-sm text-gray-300">{c.location}</td>
+                  <td className="py-3 px-4 text-sm text-gray-300 text-center">{c.container_count}</td>
+                  <td className="py-3 px-4 text-sm text-gray-300">{c.container_type}</td>
+                  <td className="py-3 px-4">
+                    {c.labeled ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-status-green">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Yes
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs text-status-red">
+                        <AlertTriangle className="h-3.5 w-3.5" /> No
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4">
+                    {c.sds_status === "current" ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-status-green">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Current
+                      </span>
+                    ) : c.sds_status === "expired" ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-status-amber">
+                        <AlertTriangle className="h-3.5 w-3.5" /> Expired
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs text-status-red">
+                        <AlertTriangle className="h-3.5 w-3.5" /> Missing
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-1.5">
+                      {!c.labeled && (
                         <Link
-                          href={`/sds-library?id=${item.sdsId}`}
+                          href="/labels"
                           className="flex items-center gap-1 text-xs bg-navy-800 hover:bg-navy-700 border border-navy-600 text-gray-300 hover:text-white px-2 py-1.5 rounded-md transition-colors"
-                          title="View SDS"
+                          title="Print Label"
                         >
-                          <Eye className="h-3 w-3" />
+                          <Printer className="h-3 w-3" />
                         </Link>
-                        <button
-                          onClick={() => setEditItem(item)}
-                          className="flex items-center gap-1 text-xs bg-navy-800 hover:bg-navy-700 border border-navy-600 text-gray-300 hover:text-white px-2 py-1.5 rounded-md transition-colors"
-                          title="Edit"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                      )}
+                      <Link
+                        href="/sds-library"
+                        className="flex items-center gap-1 text-xs bg-navy-800 hover:bg-navy-700 border border-navy-600 text-gray-300 hover:text-white px-2 py-1.5 rounded-md transition-colors"
+                        title="View SDS"
+                      >
+                        <Eye className="h-3 w-3" />
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-gray-500 text-sm">

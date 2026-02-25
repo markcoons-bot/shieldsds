@@ -1,53 +1,51 @@
-import type { GHSPictogram as PictogramType } from "@/lib/data";
+// Backward-compatible: accepts either `code` ("GHS02") or legacy `type` ("flame")
+type LegacyPictogramType =
+  | "flame" | "oxidizer" | "compressed-gas" | "corrosion"
+  | "skull" | "exclamation" | "health-hazard" | "environment" | "exploding-bomb";
 
 interface GHSPictogramProps {
-  type: PictogramType;
+  code?: string;
+  type?: LegacyPictogramType;
   size?: number;
   className?: string;
 }
 
-// Each pictogram is a red-bordered diamond with a black symbol inside.
-// The SVG viewBox is 100x100, the diamond is rotated 45deg via polygon points.
-export default function GHSPictogram({ type, size = 48, className = "" }: GHSPictogramProps) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 100 100"
-      className={className}
-      role="img"
-      aria-label={pictogramLabels[type]}
-    >
-      {/* Red diamond border */}
-      <polygon
-        points="50,2 98,50 50,98 2,50"
-        fill="white"
-        stroke="#DC2626"
-        strokeWidth="4"
-      />
-      {/* Symbol inside */}
-      <g transform="translate(50,50)">
-        {pictogramSymbols[type]}
-      </g>
-    </svg>
-  );
-}
-
-const pictogramLabels: Record<PictogramType, string> = {
-  flame: "Flammable",
-  oxidizer: "Oxidizer",
-  "compressed-gas": "Gas Under Pressure",
-  corrosion: "Corrosive",
-  skull: "Acute Toxicity",
-  exclamation: "Irritant / Harmful",
-  "health-hazard": "Health Hazard",
-  environment: "Environmental Hazard",
-  "exploding-bomb": "Explosive",
+const LEGACY_TO_CODE: Record<string, string> = {
+  flame: "GHS02",
+  oxidizer: "GHS03",
+  "compressed-gas": "GHS04",
+  corrosion: "GHS05",
+  skull: "GHS06",
+  exclamation: "GHS07",
+  "health-hazard": "GHS08",
+  environment: "GHS09",
+  "exploding-bomb": "GHS01",
 };
 
-const pictogramSymbols: Record<PictogramType, React.ReactNode> = {
-  // Flame — stylized fire shape
-  flame: (
+const GHS_LABELS: Record<string, string> = {
+  GHS01: "Exploding Bomb",
+  GHS02: "Flame",
+  GHS03: "Oxidizer",
+  GHS04: "Gas Cylinder",
+  GHS05: "Corrosion",
+  GHS06: "Skull & Crossbones",
+  GHS07: "Exclamation Mark",
+  GHS08: "Health Hazard",
+  GHS09: "Environment",
+};
+
+const GHS_SYMBOLS: Record<string, React.ReactNode> = {
+  // GHS01 — Exploding Bomb
+  GHS01: (
+    <g>
+      <circle cx="0" cy="4" r="16" fill="#000" />
+      <path d="M4,-12 Q12,-20 8,-28" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" />
+      <path d="M6,-26 L12,-22 L8,-20 L14,-16 L6,-18 L10,-14" fill="#000" strokeLinejoin="round" />
+    </g>
+  ),
+
+  // GHS02 — Flame
+  GHS02: (
     <path
       d="M0,-28 C8,-20 14,-10 14,0 C14,8 8,14 0,14 C-8,14 -14,8 -14,0 C-14,-4 -10,-6 -6,-2 C-6,-2 -8,-14 0,-28Z"
       fill="#000"
@@ -55,8 +53,8 @@ const pictogramSymbols: Record<PictogramType, React.ReactNode> = {
     />
   ),
 
-  // Oxidizer — flame over a circle
-  oxidizer: (
+  // GHS03 — Oxidizer (flame over circle)
+  GHS03: (
     <g>
       <circle cx="0" cy="10" r="12" fill="none" stroke="#000" strokeWidth="3.5" />
       <path
@@ -67,8 +65,8 @@ const pictogramSymbols: Record<PictogramType, React.ReactNode> = {
     </g>
   ),
 
-  // Compressed gas — gas cylinder
-  "compressed-gas": (
+  // GHS04 — Gas Cylinder
+  GHS04: (
     <g>
       <rect x="-8" y="-22" width="16" height="36" rx="4" fill="none" stroke="#000" strokeWidth="3.5" />
       <rect x="-4" y="-26" width="8" height="6" rx="2" fill="#000" />
@@ -77,8 +75,8 @@ const pictogramSymbols: Record<PictogramType, React.ReactNode> = {
     </g>
   ),
 
-  // Corrosion — liquid dripping on hand and surface
-  corrosion: (
+  // GHS05 — Corrosion
+  GHS05: (
     <g>
       <path
         d="M-6,-24 L6,-24 L4,-14 L10,-14 L10,-6 C10,2 6,6 0,6 C-6,6 -10,2 -10,-6 L-10,-14 L-4,-14Z"
@@ -90,8 +88,8 @@ const pictogramSymbols: Record<PictogramType, React.ReactNode> = {
     </g>
   ),
 
-  // Skull and crossbones
-  skull: (
+  // GHS06 — Skull & Crossbones
+  GHS06: (
     <g>
       <circle cx="0" cy="-10" r="14" fill="#000" />
       <circle cx="-5" cy="-12" r="3.5" fill="white" />
@@ -103,16 +101,16 @@ const pictogramSymbols: Record<PictogramType, React.ReactNode> = {
     </g>
   ),
 
-  // Exclamation mark
-  exclamation: (
+  // GHS07 — Exclamation Mark
+  GHS07: (
     <g>
       <rect x="-4" y="-26" width="8" height="32" rx="3" fill="#000" />
       <circle cx="0" cy="16" r="5" fill="#000" />
     </g>
   ),
 
-  // Health hazard — person silhouette with star/burst on chest
-  "health-hazard": (
+  // GHS08 — Health Hazard (person with star on chest)
+  GHS08: (
     <g>
       <circle cx="0" cy="-22" r="7" fill="#000" />
       <path d="M-12,-12 L12,-12 L8,18 L-8,18Z" fill="#000" />
@@ -124,24 +122,43 @@ const pictogramSymbols: Record<PictogramType, React.ReactNode> = {
     </g>
   ),
 
-  // Environment — dead tree and fish
-  environment: (
+  // GHS09 — Environment (tree and fish)
+  GHS09: (
     <g>
       <path d="M-4,18 L-4,-10 C-4,-20 -16,-16 -10,-24 C-4,-18 0,-22 4,-28 C8,-22 12,-18 18,-24 C12,-16 4,-20 4,-10 L4,18Z" fill="#000" transform="translate(-2,2) scale(0.75)" />
       <ellipse cx="2" cy="14" rx="16" ry="5" fill="#000" transform="scale(0.8)" />
     </g>
   ),
-
-  // Exploding bomb
-  "exploding-bomb": (
-    <g>
-      <circle cx="0" cy="4" r="16" fill="#000" />
-      <path d="M4,-12 Q12,-20 8,-28" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" />
-      <path
-        d="M6,-26 L12,-22 L8,-20 L14,-16 L6,-18 L10,-14"
-        fill="#000"
-        strokeLinejoin="round"
-      />
-    </g>
-  ),
 };
+
+export default function GHSPictogram({ code, type, size = 48, className = "" }: GHSPictogramProps) {
+  const resolvedCode = code ?? (type ? LEGACY_TO_CODE[type] : undefined);
+  if (!resolvedCode) return null;
+  const symbol = GHS_SYMBOLS[resolvedCode];
+  const label = GHS_LABELS[resolvedCode] || resolvedCode;
+
+  if (!symbol) return null;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 100 100"
+      className={className}
+      role="img"
+      aria-label={label}
+    >
+      <polygon
+        points="50,2 98,50 50,98 2,50"
+        fill="white"
+        stroke="#DC2626"
+        strokeWidth="4"
+      />
+      <g transform="translate(50,50)">
+        {symbol}
+      </g>
+    </svg>
+  );
+}
+
+export { GHS_LABELS };

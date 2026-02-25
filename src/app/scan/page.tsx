@@ -65,7 +65,7 @@ interface ScanResult {
 type Step = "capture" | "preview" | "processing" | "review" | "success";
 
 // ── Client-side image compression ─────────────────────────
-// Resizes to max 1500px longest edge and exports as JPEG 0.8
+// Resizes to max 2000px longest edge and exports as JPEG 0.85
 function compressImage(file: File): Promise<{ base64: string; dataUrl: string }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -73,7 +73,7 @@ function compressImage(file: File): Promise<{ base64: string; dataUrl: string }>
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        const MAX_EDGE = 1500;
+        const MAX_EDGE = 2000;
         let { width, height } = img;
         if (width > MAX_EDGE || height > MAX_EDGE) {
           if (width > height) {
@@ -89,7 +89,7 @@ function compressImage(file: File): Promise<{ base64: string; dataUrl: string }>
         const ctx = canvas.getContext("2d");
         if (!ctx) { reject(new Error("Canvas not supported")); return; }
         ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
         const base64 = dataUrl.split(",")[1];
         console.log("[scan] Compressed:", img.naturalWidth, "x", img.naturalHeight, "→", width, "x", height, "| Size:", Math.round(base64.length * 0.75 / 1024), "KB");
         resolve({ base64, dataUrl });
