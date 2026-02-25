@@ -390,6 +390,39 @@ export default function ShieldSDSTraining() {
   useEffect(() => {
     const loadState = () => {
       try {
+        const params = new URLSearchParams(window.location.search);
+        const empParam = params.get("employee");
+        const viewParam = params.get("view");
+
+        // ── EMPLOYEE MODE: check FIRST, before any localStorage ──
+        if (empParam) {
+          setEmployeeId(empParam);
+          const emp = getEmployee(empParam);
+          if (emp) {
+            setEmployeeName(emp.name);
+            setCompanyName("Mike's Auto Body");
+            setIndustry("auto-body");
+            // Load employee's completed modules
+            const empModules = emp.completed_modules.filter(m => m.startsWith("m"));
+            if (empModules.length > 0) setCompletedModules(empModules);
+
+            // Bulletproof all-7-complete check
+            const allDone = ["m1","m2","m3","m4","m5","m6","m7"].every(m =>
+              emp.completed_modules.includes(m)
+            );
+
+            if (allDone || viewParam === "certificate") {
+              setPhase("certificate");
+            } else {
+              setPhase("modules");
+            }
+            // Skip localStorage entirely for employee-linked sessions
+            setLoaded(true);
+            return;
+          }
+        }
+
+        // ── STANDALONE MODE: load from localStorage ──
         const raw = localStorage.getItem(STORAGE_KEY);
         if (raw) {
           const saved = JSON.parse(raw);
@@ -403,31 +436,6 @@ export default function ShieldSDSTraining() {
             setPhase("certificate");
           } else if (saved.industry && saved.employeeName) {
             setPhase("modules");
-          }
-        }
-
-        // Check for employee URL parameter — zero-friction launch
-        const params = new URLSearchParams(window.location.search);
-        const empParam = params.get("employee");
-        if (empParam) {
-          setEmployeeId(empParam);
-          const emp = getEmployee(empParam);
-          if (emp) {
-            setEmployeeName(emp.name);
-            setCompanyName("Mike's Auto Body");
-            setIndustry("auto-body");
-            // Load employee's completed modules
-            if (emp.completed_modules.length > 0) {
-              const empModules = emp.completed_modules.filter(m => m.startsWith("m"));
-              if (empModules.length > 0) setCompletedModules(empModules);
-            }
-            // Skip welcome + profile — certificate if all done, otherwise module picker
-            const completedCount = emp.completed_modules.filter(m => m.startsWith("m")).length;
-            if (completedCount >= 7) {
-              setPhase("certificate");
-            } else {
-              setPhase("modules");
-            }
           }
         }
       } catch {

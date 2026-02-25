@@ -167,6 +167,7 @@ export default function TrainingPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [expandedEmpId, setExpandedEmpId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [showCertForId, setShowCertForId] = useState<string | null>(null);
 
   useEffect(() => {
     initializeStore();
@@ -239,6 +240,82 @@ export default function TrainingPage() {
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
     });
+  };
+
+  const CERT_MODULES = [
+    { id: "m1", title: "Your Right to Know" },
+    { id: "m2", title: "The GHS System" },
+    { id: "m3", title: "Reading a Chemical Label" },
+    { id: "m4", title: "Understanding the SDS" },
+    { id: "m5", title: "Protecting Yourself — PPE" },
+    { id: "m6", title: "When Things Go Wrong" },
+    { id: "m7", title: "Your Shop's HazCom Program" },
+  ];
+
+  const handlePrintCertificate = (emp: EmployeeWithStatus) => {
+    const certDate = emp.last_training
+      ? new Date(emp.last_training).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+      : new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><title>Certificate - ${emp.name}</title>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+      <style>
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family:'DM Sans',system-ui,sans-serif; background:white; display:flex; align-items:center; justify-content:center; min-height:100vh; }
+        .cert { width:7.5in; padding:0.75in; border:3px solid #B8860B; position:relative; }
+        .corner { position:absolute; width:30px; height:30px; }
+        .corner.tl { top:12px; left:12px; border-top:2px solid #B8860B; border-left:2px solid #B8860B; }
+        .corner.tr { top:12px; right:12px; border-top:2px solid #B8860B; border-right:2px solid #B8860B; }
+        .corner.bl { bottom:12px; left:12px; border-bottom:2px solid #B8860B; border-left:2px solid #B8860B; }
+        .corner.br { bottom:12px; right:12px; border-bottom:2px solid #B8860B; border-right:2px solid #B8860B; }
+        .brand { font-size:14px; letter-spacing:0.2em; color:#B8860B; font-weight:600; margin-bottom:8px; }
+        h1 { font-size:28px; font-weight:800; color:#1a1a1a; margin-bottom:4px; }
+        .divider { width:60px; height:2px; background:#B8860B; margin:12px auto 20px; }
+        .certifies { font-size:14px; color:#666; margin-bottom:16px; }
+        .name { font-size:26px; font-weight:800; color:#1a1a1a; border-bottom:2px solid #B8860B; display:inline-block; padding:0 24px 8px; }
+        .company { font-size:13px; color:#888; margin:8px 0 20px; }
+        .desc { font-size:14px; color:#444; line-height:1.6; margin-bottom:16px; }
+        .osha { font-size:13px; color:#B8860B; font-weight:600; margin-bottom:20px; }
+        .modules { margin:16px auto; max-width:360px; text-align:left; }
+        .modules .mod { font-size:12px; color:#444; padding:3px 0; display:flex; gap:8px; }
+        .meta { display:flex; justify-content:center; gap:40px; margin:20px 0; flex-wrap:wrap; }
+        .meta > div { text-align:center; }
+        .meta .label { font-size:10px; color:#888; letter-spacing:0.05em; }
+        .meta .value { font-size:13px; font-weight:700; color:#1a1a1a; }
+        .footer { font-size:10px; color:#aaa; line-height:1.5; margin-top:20px; }
+        @media print { body { min-height:auto; } @page { size:letter; margin:0.5in; } }
+      </style>
+    </head><body>
+      <div class="cert">
+        <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+        <div style="text-align:center">
+          <div class="brand">SHIELDSDS</div>
+          <h1>Certificate of Completion</h1>
+          <div class="divider"></div>
+          <p class="certifies">This certifies that</p>
+          <p class="name">${emp.name}</p>
+          <p class="company">Mike&rsquo;s Auto Body</p>
+          <p class="desc">Has successfully completed <strong>OSHA HazCom Safety Training</strong><br/>covering all 7 required modules with passing assessments.</p>
+          <p class="osha">29 CFR 1910.1200(h) Compliant</p>
+          <div class="modules">
+            ${CERT_MODULES.map(m => `<div class="mod"><span>✅</span><span>${m.title}</span></div>`).join("")}
+          </div>
+          <div class="meta">
+            <div><div class="label">DATE</div><div class="value">${certDate}</div></div>
+            <div><div class="label">INDUSTRY</div><div class="value">Auto Body / Collision</div></div>
+            <div><div class="label">PROVIDER</div><div class="value">ShieldSDS</div></div>
+          </div>
+          <div class="footer">
+            Training documentation per OSHA 29 CFR 1910.1200(h)<br/>
+            This certificate documents completion of HazCom training content.<br/>
+            Employers retain responsibility for site-specific supplemental training.
+          </div>
+        </div>
+      </div>
+    </body></html>`);
+    w.document.close();
+    setTimeout(() => { w.print(); }, 400);
   };
 
   // Empty state
@@ -487,18 +564,18 @@ export default function TrainingPage() {
                     <div className="flex items-center gap-3 pt-2">
                       {emp.modulesCompleted >= 7 && (
                         <>
-                          <Link
-                            href={`/training/learn?employee=${emp.id}`}
+                          <button
+                            onClick={() => setShowCertForId(showCertForId === emp.id ? null : emp.id)}
                             className="flex items-center gap-1.5 text-xs font-medium text-amber-400 hover:text-amber-300 px-3 py-2 rounded-lg bg-amber-500/10 transition-colors"
                           >
-                            <Award className="h-3.5 w-3.5" /> View Certificate
-                          </Link>
-                          <Link
-                            href={`/training/learn?employee=${emp.id}`}
+                            <Award className="h-3.5 w-3.5" /> {showCertForId === emp.id ? "Hide Certificate" : "View Certificate"}
+                          </button>
+                          <button
+                            onClick={() => handlePrintCertificate(emp)}
                             className="flex items-center gap-1.5 text-xs font-medium text-gray-300 hover:text-white px-3 py-2 rounded-lg bg-navy-800 transition-colors"
                           >
                             🖨️ Print Certificate
-                          </Link>
+                          </button>
                         </>
                       )}
                       <button
@@ -508,6 +585,78 @@ export default function TrainingPage() {
                         <Link2 className="h-3.5 w-3.5" /> Send Training Link
                       </button>
                     </div>
+
+                    {/* Inline Certificate */}
+                    {showCertForId === emp.id && emp.modulesCompleted >= 7 && (
+                      <div className="mt-4 pt-4 border-t border-navy-700/50">
+                        <div className="bg-[#FFFEF8] rounded-lg border-2 border-[#B8860B] p-8 relative overflow-hidden">
+                          {/* Corner decorations */}
+                          <div className="absolute top-2 left-2 w-6 h-6 border-t-2 border-l-2 border-[#B8860B]" />
+                          <div className="absolute top-2 right-2 w-6 h-6 border-t-2 border-r-2 border-[#B8860B]" />
+                          <div className="absolute bottom-2 left-2 w-6 h-6 border-b-2 border-l-2 border-[#B8860B]" />
+                          <div className="absolute bottom-2 right-2 w-6 h-6 border-b-2 border-r-2 border-[#B8860B]" />
+
+                          <div className="text-center">
+                            <div className="text-xs tracking-[0.2em] text-[#B8860B] font-semibold mb-2">SHIELDSDS</div>
+                            <h3 className="text-2xl font-extrabold text-gray-900 mb-1">Certificate of Completion</h3>
+                            <div className="w-14 h-0.5 bg-[#B8860B] mx-auto my-3" />
+                            <p className="text-sm text-gray-500 mb-3">This certifies that</p>
+                            <p className="text-xl font-extrabold text-gray-900 border-b-2 border-[#B8860B] inline-block px-6 pb-2">
+                              {emp.name}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-2 mb-4">Mike&apos;s Auto Body</p>
+                            <p className="text-sm text-gray-600 leading-relaxed mb-3">
+                              Has successfully completed <strong>OSHA HazCom Safety Training</strong><br />
+                              covering all 7 required modules with passing assessments.
+                            </p>
+                            <p className="text-xs font-semibold text-[#B8860B] mb-4">29 CFR 1910.1200(h) Compliant</p>
+
+                            <div className="inline-block text-left mb-4">
+                              {CERT_MODULES.map((mod) => (
+                                <div key={mod.id} className="flex items-center gap-2 text-xs text-gray-600 py-0.5">
+                                  <span className="text-green-600">✅</span>
+                                  <span>{mod.title}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="flex justify-center gap-8 my-4 flex-wrap">
+                              <div className="text-center">
+                                <div className="text-[10px] text-gray-400 tracking-wide">DATE</div>
+                                <div className="text-xs font-bold text-gray-900">
+                                  {emp.last_training
+                                    ? new Date(emp.last_training).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+                                    : new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                                </div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-[10px] text-gray-400 tracking-wide">INDUSTRY</div>
+                                <div className="text-xs font-bold text-gray-900">Auto Body / Collision</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-[10px] text-gray-400 tracking-wide">PROVIDER</div>
+                                <div className="text-xs font-bold text-gray-900">ShieldSDS</div>
+                              </div>
+                            </div>
+
+                            <div className="text-[10px] text-gray-400 leading-relaxed mt-4">
+                              Training documentation per OSHA 29 CFR 1910.1200(h)<br />
+                              This certificate documents completion of HazCom training content.<br />
+                              Employers retain responsibility for site-specific supplemental training.
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-center mt-3">
+                          <button
+                            onClick={() => handlePrintCertificate(emp)}
+                            className="flex items-center gap-1.5 text-xs font-semibold text-amber-400 hover:text-amber-300 px-4 py-2 rounded-lg bg-amber-500/10 transition-colors"
+                          >
+                            🖨️ Print Certificate
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
