@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { lookupSDS } from "@/lib/supabase";
 
 // ══════════════════════════════════════════════════════════
 // KNOWN CHEMICALS DATABASE
@@ -1368,51 +1369,79 @@ Rules:
     console.log("[scan] Final result — confidence:", finalResult.confidence);
     console.log("[scan] Final result JSON (first 1000 chars):", JSON.stringify(finalResult).substring(0, 1000));
 
-    // ── Auto SDS Lookup (non-blocking, 15s timeout) ──────────
+    // ── Auto SDS Lookup (check Supabase first, then API fallback) ──────────
     const productNameForLookup = finalResult.product_name || "";
     const manufacturerForLookup = finalResult.manufacturer || "";
 
     if (productNameForLookup && manufacturerForLookup) {
+      // Step 1: Check Supabase cache (fast, free)
+      let supabaseHit = false;
       try {
-        console.log("[scan] Starting auto SDS lookup for:", productNameForLookup);
-        const origin = request.nextUrl.origin;
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15000);
-
-        const sdsRes = await fetch(`${origin}/api/chemical/sds-lookup`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            product_name: productNameForLookup,
-            manufacturer: manufacturerForLookup,
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-
-        if (sdsRes.ok) {
-          const sdsData = await sdsRes.json();
-          console.log("[scan] SDS lookup result:", JSON.stringify(sdsData).substring(0, 300));
-          finalResult.sds_lookup_result = sdsData;
-
-          if (sdsData.sds_url && (sdsData.confidence ?? 0) > 0.7) {
-            finalResult.sds_url = sdsData.sds_url;
-            finalResult.sds_status = "current";
-            finalResult.sds_uploaded = true;
-            console.log("[scan] SDS auto-linked:", sdsData.sds_url);
-          } else {
-            finalResult.sds_status = "missing";
-            if (sdsData.manufacturer_sds_portal) {
-              finalResult.manufacturer_sds_portal = sdsData.manufacturer_sds_portal;
-            }
+        const cached = await lookupSDS(productNameForLookup, manufacturerForLookup);
+        if (cached && cached.confidence > 0.5 && cached.sds_url) {
+          console.log("[scan] Supabase cache HIT for SDS:", productNameForLookup, "→", cached.sds_url);
+          finalResult.sds_lookup_result = {
+            sds_url: cached.sds_url,
+            sds_source: cached.sds_source || "ShieldSDS Database",
+            manufacturer_sds_portal: cached.manufacturer_sds_portal || null,
+            confidence: cached.confidence,
+            notes: "Found in ShieldSDS shared database (cached)",
+          };
+          finalResult.sds_url = cached.sds_url;
+          finalResult.sds_status = "current";
+          finalResult.sds_uploaded = true;
+          if (cached.manufacturer_sds_portal) {
+            finalResult.manufacturer_sds_portal = cached.manufacturer_sds_portal;
           }
-        } else {
-          console.log("[scan] SDS lookup failed with status:", sdsRes.status);
+          supabaseHit = true;
+        }
+      } catch (cacheErr) {
+        console.log("[scan] Supabase lookup failed:", cacheErr instanceof Error ? cacheErr.message : "unknown");
+      }
+
+      // Step 2: Fall back to API route if Supabase missed
+      if (!supabaseHit) {
+        try {
+          console.log("[scan] Supabase cache MISS — calling sds-lookup API for:", productNameForLookup);
+          const origin = request.nextUrl.origin;
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 15000);
+
+          const sdsRes = await fetch(`${origin}/api/chemical/sds-lookup`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              product_name: productNameForLookup,
+              manufacturer: manufacturerForLookup,
+            }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+
+          if (sdsRes.ok) {
+            const sdsData = await sdsRes.json();
+            console.log("[scan] SDS lookup result:", JSON.stringify(sdsData).substring(0, 300));
+            finalResult.sds_lookup_result = sdsData;
+
+            if (sdsData.sds_url && (sdsData.confidence ?? 0) > 0.7) {
+              finalResult.sds_url = sdsData.sds_url;
+              finalResult.sds_status = "current";
+              finalResult.sds_uploaded = true;
+              console.log("[scan] SDS auto-linked:", sdsData.sds_url);
+            } else {
+              finalResult.sds_status = "missing";
+              if (sdsData.manufacturer_sds_portal) {
+                finalResult.manufacturer_sds_portal = sdsData.manufacturer_sds_portal;
+              }
+            }
+          } else {
+            console.log("[scan] SDS lookup failed with status:", sdsRes.status);
+            finalResult.sds_lookup_result = null;
+          }
+        } catch (sdsErr) {
+          console.log("[scan] SDS lookup timed out or errored:", sdsErr instanceof Error ? sdsErr.message : "unknown");
           finalResult.sds_lookup_result = null;
         }
-      } catch (sdsErr) {
-        console.log("[scan] SDS lookup timed out or errored:", sdsErr instanceof Error ? sdsErr.message : "unknown");
-        finalResult.sds_lookup_result = null;
       }
     }
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { lookupSDS, cacheSDS } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,6 +16,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ── Check Supabase cache first (zero API cost) ──────────────────────
+    try {
+      const cached = await lookupSDS(product_name, manufacturer);
+      if (cached && cached.confidence > 0.5 && cached.sds_url) {
+        console.log("[sds-lookup] Supabase cache HIT:", product_name, "→", cached.sds_url);
+        return NextResponse.json({
+          sds_url: cached.sds_url,
+          sds_source: cached.sds_source || "ShieldSDS Database",
+          manufacturer_sds_portal: cached.manufacturer_sds_portal || null,
+          confidence: cached.confidence,
+          notes: "Found in ShieldSDS shared database (cached)",
+        });
+      }
+      if (cached) {
+        console.log("[sds-lookup] Supabase partial match (low confidence or no URL), proceeding to API");
+      }
+    } catch (cacheErr) {
+      console.log("[sds-lookup] Supabase lookup failed, proceeding to API:", cacheErr instanceof Error ? cacheErr.message : "unknown");
+    }
+
+    // ── Anthropic API lookup (fallback) ─────────────────────────────────
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
@@ -23,7 +45,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("[sds-lookup] Searching for SDS:", product_name, "by", manufacturer);
+    console.log("[sds-lookup] Supabase cache MISS — calling Anthropic API for:", product_name, "by", manufacturer);
 
     const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -106,6 +128,21 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("[sds-lookup] Result:", JSON.stringify(result).substring(0, 500));
+
+    // ── Cache result in Supabase for future lookups ─────────────────────
+    if (result.sds_url || result.manufacturer_sds_portal) {
+      cacheSDS({
+        product_name,
+        manufacturer,
+        sds_url: result.sds_url || null,
+        sds_source: result.sds_source || null,
+        manufacturer_sds_portal: result.manufacturer_sds_portal || null,
+        confidence: result.confidence ?? 0,
+      }).then((ok) => {
+        if (ok) console.log("[sds-lookup] Cached to Supabase:", product_name);
+        else console.log("[sds-lookup] Supabase cache insert failed for:", product_name);
+      }).catch(() => {});
+    }
 
     return NextResponse.json({
       sds_url: result.sds_url || null,
