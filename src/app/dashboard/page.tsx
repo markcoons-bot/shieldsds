@@ -26,6 +26,10 @@ import {
   Clock,
   Camera,
   Loader2,
+  Copy,
+  Check,
+  X,
+  Link2,
 } from "lucide-react";
 
 // ─── Action Item Type ────────────────────────────────────────────────────────
@@ -40,7 +44,8 @@ interface DashboardActionItem {
   fixHref: string;
   fixLabel: string;
   chemicalId?: string; // for SDS lookup actions
-  actionType?: "find-sds" | "link"; // "find-sds" enables inline lookup
+  employeeId?: string; // for training link actions
+  actionType?: "find-sds" | "send-link" | "link"; // action type for inline buttons
 }
 
 // ─── Dynamic action items from live data ─────────────────────────────────────
@@ -92,7 +97,9 @@ function getDynamicActionItems(chemicals: Chemical[], employees: Employee[]): Da
       timeEstimate: "~3 min",
       oshaRisk: "High",
       fixHref: "/training",
-      fixLabel: "Assign Training",
+      fixLabel: "Send Training Link",
+      employeeId: emp.id,
+      actionType: "send-link",
     });
   });
 
@@ -107,7 +114,9 @@ function getDynamicActionItems(chemicals: Chemical[], employees: Employee[]): Da
       timeEstimate: "~2 min",
       oshaRisk: "High",
       fixHref: "/training",
-      fixLabel: "Assign Training",
+      fixLabel: "Send Training Link",
+      employeeId: emp.id,
+      actionType: "send-link",
     });
   });
 
@@ -275,6 +284,8 @@ export default function DashboardPage() {
   const [showAllActivity, setShowAllActivity] = useState(false);
   const [sdsLookupLoading, setSdsLookupLoading] = useState<string | null>(null); // action item id
   const [sdsLookupResult, setSdsLookupResult] = useState<Record<string, { found: boolean; portalUrl?: string }>>({});
+  const [trainingLinkPopup, setTrainingLinkPopup] = useState<string | null>(null); // employee id
+  const [trainingLinkCopied, setTrainingLinkCopied] = useState(false);
 
   const handleFindSDS = useCallback(async (item: DashboardActionItem) => {
     if (!item.chemicalId) return;
@@ -633,6 +644,14 @@ export default function DashboardPage() {
                           <>{item.fixLabel} <ArrowRight className="h-3 w-3" /></>
                         )}
                       </button>
+                    ) : item.actionType === "send-link" && item.employeeId ? (
+                      <button
+                        onClick={() => setTrainingLinkPopup(item.employeeId!)}
+                        className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+                      >
+                        <Link2 className="h-3 w-3" />
+                        {item.fixLabel} <ArrowRight className="h-3 w-3" />
+                      </button>
                     ) : (
                       <Link
                         href={item.fixHref}
@@ -648,6 +667,48 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Training Link Popup */}
+      {trainingLinkPopup && (() => {
+        const emp = employees.find((e) => e.id === trainingLinkPopup);
+        if (!emp) return null;
+        const trainingUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/training/learn?employee=${emp.id}`;
+        return (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-navy-900 border border-navy-700 rounded-2xl w-full max-w-md p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-display font-bold text-lg text-white">Send Training Link</h3>
+                <button onClick={() => { setTrainingLinkPopup(null); setTrainingLinkCopied(false); }} className="text-gray-500 hover:text-gray-300 transition-colors">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <p className="text-sm text-gray-400 mb-4">
+                Copy this link and send it to <span className="text-white font-medium">{emp.name}</span>. When they complete training, their records update automatically.
+              </p>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="flex-1 bg-navy-800 border border-navy-700 rounded-lg px-3 py-2.5 text-xs text-gray-300 font-mono truncate">
+                  {trainingUrl}
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(trainingUrl).then(() => {
+                      setTrainingLinkCopied(true);
+                      setTimeout(() => setTrainingLinkCopied(false), 2000);
+                    });
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                    trainingLinkCopied
+                      ? "bg-status-green/20 text-status-green"
+                      : "bg-amber-500 hover:bg-amber-400 text-navy-950"
+                  }`}
+                >
+                  {trainingLinkCopied ? <><Check className="h-4 w-4" /> Copied!</> : <><Copy className="h-4 w-4" /> Copy</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <FixAllPanel
         open={fixAllOpen}

@@ -2,6 +2,7 @@
 
 // @ts-nocheck — large inline-styled training component; strict TS types deferred to integration phase
 import { useState, useEffect, useRef, useCallback } from "react";
+import { getEmployee, updateEmployee, addTrainingRecord } from "@/lib/chemicals";
 
 /* ═══════════════════════════════════════════════════════════════════
    SHIELDSDS HAZCOM TRAINING MODULE v2
@@ -380,6 +381,7 @@ export default function ShieldSDSTraining() {
   const [matchGame, setMatchGame] = useState<any>({ current:0, score:0, answered:false, selected:null });
   const [transitioning, setTransitioning] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [employeeId, setEmployeeId] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // ── PERSISTENCE: Load saved state ──
@@ -399,6 +401,36 @@ export default function ShieldSDSTraining() {
             setPhase("certificate");
           } else if (saved.industry && saved.employeeName) {
             setPhase("modules");
+          }
+        }
+
+        // Check for employee URL parameter (Part B: linked from training page)
+        const params = new URLSearchParams(window.location.search);
+        const empParam = params.get("employee");
+        if (empParam) {
+          setEmployeeId(empParam);
+          const emp = getEmployee(empParam);
+          if (emp) {
+            setEmployeeName(emp.name);
+            setCompanyName("Mike's Auto Body");
+            // Load employee's completed modules
+            if (emp.completed_modules.length > 0) {
+              const empModules = emp.completed_modules.filter(m => m.startsWith("m"));
+              if (empModules.length > 0) setCompletedModules(empModules);
+            }
+            // If all 7 complete, show certificate
+            if (emp.completed_modules.length >= 7) {
+              setPhase("certificate");
+            } else if (raw) {
+              const saved = JSON.parse(raw);
+              if (saved.industry) {
+                setPhase("modules");
+              } else {
+                setPhase("profile");
+              }
+            } else {
+              setPhase("profile");
+            }
           }
         }
       } catch {
@@ -447,6 +479,37 @@ export default function ShieldSDSTraining() {
       const updated = Array.from(new Set([...completedModules, currentModule].filter(Boolean))) as string[];
       setCompletedModules(updated);
       saveState({ completedModules: updated });
+
+      // Part B: Update employee record if linked from training page
+      if (employeeId) {
+        try {
+          const emp = getEmployee(employeeId);
+          if (emp) {
+            const newCompleted = Array.from(new Set([...emp.completed_modules, currentModule]));
+            const newPending = emp.pending_modules.filter(m => m !== currentModule);
+            const today = new Date().toISOString().split("T")[0];
+            updateEmployee(employeeId, {
+              completed_modules: newCompleted,
+              pending_modules: newPending,
+              last_training: today,
+              initial_training: emp.initial_training || today,
+              ...(newCompleted.length >= 7 ? { status: "current" as const } : {}),
+            });
+            addTrainingRecord({
+              employee_id: employeeId,
+              module_id: currentModule,
+              completed_date: today,
+              score: score,
+              certificate_data: newCompleted.length >= 7 ? {
+                employee_name: emp.name,
+                company_name: companyName || "Mike's Auto Body",
+                industry: industry || "auto-body",
+                date: today,
+              } : null,
+            });
+          }
+        } catch { /* silent fail — training still completes locally */ }
+      }
     }
   };
 
