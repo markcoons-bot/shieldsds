@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Shield,
   Search,
@@ -22,6 +23,7 @@ import {
   SprayCan,
   Wrench,
   Factory,
+  ArrowLeft as ArrowLeftIcon,
 } from "lucide-react";
 import SDSSearchCard from "@/components/SDSSearchCard";
 import type { SDSRecord } from "@/lib/supabase";
@@ -118,7 +120,9 @@ function mapToChemical(
   };
 }
 
-export default function SDSSearchPage() {
+function SDSSearchPageInner() {
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get("return");
   const [query, setQuery] = useState("");
   const [industry, setIndustry] = useState("");
   const [results, setResults] = useState<SDSRecord[]>([]);
@@ -327,6 +331,24 @@ export default function SDSSearchPage() {
         </div>
       </header>
 
+      {/* ── Back to Setup banner ── */}
+      {returnTo === "setup" && (
+        <div className="bg-amber-50 border-b border-amber-200">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+            <p className="text-sm text-amber-800 font-medium">
+              Add chemicals to your inventory, then return to finish setup.
+            </p>
+            <Link
+              href="/setup?step=3"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-700 hover:text-amber-900 transition-colors"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+              Back to Setup
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* ── Build Your Inventory Guide (show when < 5 chemicals) ── */}
       {inventorySize < 5 && !hasSearched && (
         <section className="bg-amber-50 border-b border-amber-200">
@@ -479,6 +501,11 @@ export default function SDSSearchPage() {
                   {bulkProgress.total} chemical{bulkProgress.total !== 1 ? "s" : ""} added to your inventory!
                 </div>
                 <div className="flex gap-2 sm:ml-auto">
+                  {returnTo === "setup" && (
+                    <Link href="/setup?step=3" className="text-sm text-amber-600 font-semibold underline hover:text-amber-800">
+                      Back to Setup
+                    </Link>
+                  )}
                   <Link href="/inventory" className="text-sm text-green-700 underline hover:text-green-900">
                     View Inventory
                   </Link>
@@ -724,5 +751,13 @@ export default function SDSSearchPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function SDSSearchPage() {
+  return (
+    <Suspense>
+      <SDSSearchPageInner />
+    </Suspense>
   );
 }

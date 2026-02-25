@@ -277,6 +277,8 @@ export default function DashboardPage() {
   const [sdsLookupResult, setSdsLookupResult] = useState<Record<string, { found: boolean; portalUrl?: string }>>({});
   const [trainingLinkPopup, setTrainingLinkPopup] = useState<string | null>(null); // employee id
   const [trainingLinkCopied, setTrainingLinkCopied] = useState(false);
+  const [companyName, setCompanyName] = useState("Mike\u2019s Auto Body");
+  const [showWelcome, setShowWelcome] = useState(false);
 
   const handleFindSDS = useCallback(async (item: DashboardActionItem) => {
     if (!item.chemicalId) return;
@@ -314,6 +316,25 @@ export default function DashboardPage() {
     initializeStore();
     setChemicals(getChemicals());
     setEmployees(getEmployees());
+
+    // Read company name from localStorage
+    try {
+      const saved = localStorage.getItem("shieldsds-company");
+      if (saved) {
+        const profile = JSON.parse(saved);
+        if (profile.name) setCompanyName(profile.name);
+        // Show welcome banner once after setup
+        if (profile.setupComplete) {
+          const welcomed = localStorage.getItem("shieldsds-welcome-shown");
+          if (welcomed === "false") {
+            setShowWelcome(true);
+            localStorage.setItem("shieldsds-welcome-shown", "true");
+          }
+        }
+      }
+    } catch {
+      // fallback
+    }
   }, []);
 
   const compliance = useMemo(() => calculateComplianceScore(chemicals, employees), [chemicals, employees]);
@@ -412,7 +433,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="font-display font-black text-2xl text-white">Dashboard</h1>
           <p className="text-sm text-gray-400 mt-1">
-            Mike&apos;s Auto Body — Main Location
+            {companyName} — Main Location
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -438,6 +459,20 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {showWelcome && (
+        <div className="mb-6 bg-status-green/10 border border-status-green/30 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 text-status-green flex-shrink-0" />
+            <p className="text-sm text-white font-medium">
+              Welcome to ShieldSDS, {companyName}! Your account is set up and ready to go.
+            </p>
+          </div>
+          <button onClick={() => setShowWelcome(false)} className="text-gray-400 hover:text-white transition-colors ml-3 flex-shrink-0">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <div className="mb-6">
         <HelpCard>

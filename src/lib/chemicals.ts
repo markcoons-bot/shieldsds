@@ -1392,6 +1392,12 @@ export function seedDemoData(): void {
   writeStore(KEYS.labels, labelRecords);
 }
 
+export function clearStore(): void {
+  Object.values(KEYS).forEach((key) => {
+    localStorage.removeItem(key);
+  });
+}
+
 export function initializeStore(): void {
   // Only seed if no data exists yet
   const existing = readStore<Chemical>(KEYS.chemicals);

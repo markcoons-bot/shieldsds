@@ -35,7 +35,7 @@ const navItems = [
   { label: "Browse & Add", href: "/sds-search", icon: Search, badgeKey: null },
 ];
 
-const locations = [
+const defaultLocations = [
   { name: "Mike\u2019s Auto Body", sub: "Main Location", active: true },
   { name: "Mike\u2019s Auto Body", sub: "Warehouse", active: false },
   { name: "Mike\u2019s Auto Body", sub: "Mobile Unit", active: false },
@@ -43,8 +43,9 @@ const locations = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [locations, setLocationsState] = useState(defaultLocations);
   const [locOpen, setLocOpen] = useState(false);
-  const [selectedLoc, setSelectedLoc] = useState(locations[0]);
+  const [selectedLoc, setSelectedLoc] = useState(defaultLocations[0]);
   const dropRef = useRef<HTMLDivElement>(null);
 
   // Live data for badges
@@ -55,6 +56,24 @@ export default function Sidebar() {
     initializeStore();
     setChemicals(getChemicals());
     setEmployees(getEmployees());
+
+    // Read company name from localStorage
+    try {
+      const saved = localStorage.getItem("shieldsds-company");
+      if (saved) {
+        const profile = JSON.parse(saved);
+        if (profile.name) {
+          const dynamicLocations = defaultLocations.map((loc) => ({
+            ...loc,
+            name: profile.name,
+          }));
+          setLocationsState(dynamicLocations);
+          setSelectedLoc(dynamicLocations[0]);
+        }
+      }
+    } catch {
+      // fallback to default
+    }
   }, []);
 
   // Refresh badge counts when pathname changes (user navigated after making changes)

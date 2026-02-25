@@ -253,13 +253,13 @@ export default function LandingPage() {
                 inspection-ready — so you can focus on running your shop.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                <a
-                  href="#cta"
+                <Link
+                  href="/setup"
                   className="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold px-6 py-3 rounded-lg transition-colors"
                 >
                   Free SDS Health Check
                   <ArrowRight className="h-4 w-4" />
-                </a>
+                </Link>
                 <Link
                   href="/dashboard"
                   className="inline-flex items-center justify-center gap-2 border border-navy-600 hover:border-gray-400 text-gray-200 hover:text-white font-semibold px-6 py-3 rounded-lg transition-colors"
@@ -538,8 +538,8 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <a
-                  href="#cta"
+                <Link
+                  href="/setup"
                   className={`block w-full py-3 rounded-lg font-semibold text-sm text-center transition-colors ${
                     plan.popular
                       ? "bg-amber-500 hover:bg-amber-400 text-navy-950"
@@ -547,7 +547,7 @@ export default function LandingPage() {
                   }`}
                 >
                   {plan.cta}
-                </a>
+                </Link>
               </div>
             ))}
           </div>

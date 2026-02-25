@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Camera,
   Upload,
@@ -190,7 +191,9 @@ function Section({
 // ══════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════
-export default function ScanPage() {
+function ScanPageInner() {
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get("return");
   const [step, setStep] = useState<Step>("capture");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [compressedBase64, setCompressedBase64] = useState<string | null>(null);
@@ -1312,37 +1315,56 @@ export default function ScanPage() {
             ))}
           </div>
 
-          {/* Action buttons 2x2 */}
-          <div className="w-full max-w-sm grid grid-cols-2 gap-3">
-            <button
-              onClick={resetToCapture}
-              className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
-            >
-              <Camera className="h-6 w-6 text-amber-400" />
-              <span className="text-sm font-semibold">Scan Another</span>
-            </button>
-            <Link
-              href="/labels"
-              className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
-            >
-              <Printer className="h-6 w-6 text-amber-400" />
-              <span className="text-sm font-semibold">Print Label</span>
-            </Link>
-            <Link
-              href="/inventory"
-              className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
-            >
-              <Package className="h-6 w-6 text-amber-400" />
-              <span className="text-sm font-semibold">View Inventory</span>
-            </Link>
-            <Link
-              href="/dashboard"
-              className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
-            >
-              <LayoutDashboard className="h-6 w-6 text-amber-400" />
-              <span className="text-sm font-semibold">Dashboard</span>
-            </Link>
-          </div>
+          {/* Action buttons */}
+          {returnTo === "setup" ? (
+            <div className="w-full max-w-sm space-y-3">
+              <Link
+                href="/setup?step=3"
+                className="flex items-center justify-center gap-2 w-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold py-3.5 rounded-xl transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Setup
+              </Link>
+              <button
+                onClick={resetToCapture}
+                className="flex items-center justify-center gap-2 w-full bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold py-3 rounded-xl transition-colors"
+              >
+                <Camera className="h-5 w-5 text-amber-400" />
+                Scan Another
+              </button>
+            </div>
+          ) : (
+            <div className="w-full max-w-sm grid grid-cols-2 gap-3">
+              <button
+                onClick={resetToCapture}
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+              >
+                <Camera className="h-6 w-6 text-amber-400" />
+                <span className="text-sm font-semibold">Scan Another</span>
+              </button>
+              <Link
+                href="/labels"
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+              >
+                <Printer className="h-6 w-6 text-amber-400" />
+                <span className="text-sm font-semibold">Print Label</span>
+              </Link>
+              <Link
+                href="/inventory"
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+              >
+                <Package className="h-6 w-6 text-amber-400" />
+                <span className="text-sm font-semibold">View Inventory</span>
+              </Link>
+              <Link
+                href="/dashboard"
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+              >
+                <LayoutDashboard className="h-6 w-6 text-amber-400" />
+                <span className="text-sm font-semibold">Dashboard</span>
+              </Link>
+            </div>
+          )}
         </div>
       )}
 
@@ -1704,56 +1726,100 @@ export default function ScanPage() {
             ))}
           </div>
 
-          {/* Action buttons 2x2 */}
-          <div className="w-full max-w-sm grid grid-cols-2 gap-3">
-            <button
-              onClick={() => {
-                setManualProductName("");
-                setManualManufacturer("");
-                setManualSignalWord(null);
-                setManualHazardCodes(new Set());
-                setManualDontKnowHazards(false);
-                setManualContainerType("Spray Can");
-                setManualQuantity(1);
-                setManualNotes("");
-                setVerifiedMatch(null);
-                setManualSearchError(null);
-                setManualSuccessItems([]);
-                setManualSavedData(null);
-                const locs = getLocations();
-                setLocations(locs);
-                setManualLocation(locs[0]?.name ?? "");
-                setStep("manual");
-              }}
-              className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
-            >
-              <Pencil className="h-6 w-6 text-amber-400" />
-              <span className="text-sm font-semibold">Add Another</span>
-            </button>
-            <Link
-              href="/labels"
-              className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
-            >
-              <Printer className="h-6 w-6 text-amber-400" />
-              <span className="text-sm font-semibold">Print Label</span>
-            </Link>
-            <Link
-              href="/inventory"
-              className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
-            >
-              <Package className="h-6 w-6 text-amber-400" />
-              <span className="text-sm font-semibold">View Inventory</span>
-            </Link>
-            <Link
-              href="/dashboard"
-              className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
-            >
-              <LayoutDashboard className="h-6 w-6 text-amber-400" />
-              <span className="text-sm font-semibold">Dashboard</span>
-            </Link>
-          </div>
+          {/* Action buttons */}
+          {returnTo === "setup" ? (
+            <div className="w-full max-w-sm space-y-3">
+              <Link
+                href="/setup?step=3"
+                className="flex items-center justify-center gap-2 w-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold py-3.5 rounded-xl transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Setup
+              </Link>
+              <button
+                onClick={() => {
+                  setManualProductName("");
+                  setManualManufacturer("");
+                  setManualSignalWord(null);
+                  setManualHazardCodes(new Set());
+                  setManualDontKnowHazards(false);
+                  setManualContainerType("Spray Can");
+                  setManualQuantity(1);
+                  setManualNotes("");
+                  setVerifiedMatch(null);
+                  setManualSearchError(null);
+                  setManualSuccessItems([]);
+                  setManualSavedData(null);
+                  const locs = getLocations();
+                  setLocations(locs);
+                  setManualLocation(locs[0]?.name ?? "");
+                  setStep("manual");
+                }}
+                className="flex items-center justify-center gap-2 w-full bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold py-3 rounded-xl transition-colors"
+              >
+                <Pencil className="h-5 w-5 text-amber-400" />
+                Add Another
+              </button>
+            </div>
+          ) : (
+            <div className="w-full max-w-sm grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  setManualProductName("");
+                  setManualManufacturer("");
+                  setManualSignalWord(null);
+                  setManualHazardCodes(new Set());
+                  setManualDontKnowHazards(false);
+                  setManualContainerType("Spray Can");
+                  setManualQuantity(1);
+                  setManualNotes("");
+                  setVerifiedMatch(null);
+                  setManualSearchError(null);
+                  setManualSuccessItems([]);
+                  setManualSavedData(null);
+                  const locs = getLocations();
+                  setLocations(locs);
+                  setManualLocation(locs[0]?.name ?? "");
+                  setStep("manual");
+                }}
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+              >
+                <Pencil className="h-6 w-6 text-amber-400" />
+                <span className="text-sm font-semibold">Add Another</span>
+              </button>
+              <Link
+                href="/labels"
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+              >
+                <Printer className="h-6 w-6 text-amber-400" />
+                <span className="text-sm font-semibold">Print Label</span>
+              </Link>
+              <Link
+                href="/inventory"
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+              >
+                <Package className="h-6 w-6 text-amber-400" />
+                <span className="text-sm font-semibold">View Inventory</span>
+              </Link>
+              <Link
+                href="/dashboard"
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+              >
+                <LayoutDashboard className="h-6 w-6 text-amber-400" />
+                <span className="text-sm font-semibold">Dashboard</span>
+              </Link>
+            </div>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+export default function ScanPage() {
+  return (
+    <Suspense>
+      <ScanPageInner />
+    </Suspense>
   );
 }
