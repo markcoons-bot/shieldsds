@@ -20,6 +20,7 @@ import {
   Package,
   Users,
   CheckCircle2,
+  Globe,
 } from "lucide-react";
 
 const navItems = [
@@ -31,6 +32,7 @@ const navItems = [
   { label: "Training", href: "/training", icon: GraduationCap, badgeKey: "trainingIssues" as const },
   { label: "Contractors", href: "/contractors", icon: Users, badgeKey: null },
   { label: "Inspection Mode", href: "/inspection", icon: ClipboardCheck, badgeKey: null },
+  { label: "SDS Search", href: "/sds-search", icon: Globe, badgeKey: null },
 ];
 
 const locations = [
