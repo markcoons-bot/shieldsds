@@ -1,22 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import HelpCard from "@/components/HelpCard";
-import SelfAuditWizard from "@/components/SelfAuditWizard";
-import { generateInspectionPacket } from "@/lib/pdf-generator";
-import {
-  sdsEntries,
-  inventoryItems,
-  employees,
-  trainingCourses,
-  auditLog,
-  shopInfo,
-  programVersionHistory,
-  selfAuditHistory,
-  type SelfAuditResult,
-} from "@/lib/data";
+import { getChemicals, getEmployees, initializeStore } from "@/lib/chemicals";
+import type { Chemical, Employee } from "@/lib/types";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -33,31 +22,32 @@ import {
   BookOpen,
   Link2,
   X,
-  ClipboardCheck,
   ArrowRight,
   Copy,
   MapPin,
   Send,
-  History,
 } from "lucide-react";
 
-// ─── Audit log category detection ────────────────────────────────────────────
+// ─── Shop Info (static config) ──────────────────────────────────────────────
+
+const shopInfo = {
+  name: "Mike's Auto Body",
+  owner: "Mike Rodriguez",
+  address: "1847 Pacific Coast Hwy",
+  city: "Long Beach",
+  state: "CA",
+  zip: "90806",
+  phone: "(562) 555-0147",
+};
+
+// ─── Audit category helpers ─────────────────────────────────────────────────
 
 function getAuditCategory(entry: string): { icon: typeof FileText; color: string } {
   if (entry.includes("SDS")) return { icon: FileText, color: "text-blue-400" };
   if (entry.includes("Label") || entry.includes("label")) return { icon: Tags, color: "text-purple-400" };
   if (entry.includes("Training") || entry.includes("training")) return { icon: GraduationCap, color: "text-amber-400" };
   if (entry.includes("Program") || entry.includes("program")) return { icon: BookOpen, color: "text-emerald-400" };
-  if (entry.includes("Chemical") || entry.includes("chemical") || entry.includes("Inventory") || entry.includes("inventory") || entry.includes("employee") || entry.includes("Employee")) return { icon: FlaskConical, color: "text-cyan-400" };
-  return { icon: Clock, color: "text-gray-400" };
-}
-
-function parseAuditUser(entry: string): string {
-  const match = entry.match(/\(([^)]+)\)/);
-  if (match) return match[1];
-  const nameMatch = entry.match(/:\s+([A-Z][a-z]+ [A-Z][a-z]+)/);
-  if (nameMatch) return nameMatch[1];
-  return "System";
+  return { icon: FlaskConical, color: "text-cyan-400" };
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -105,7 +95,6 @@ function ShareModal({ onClose, onToast }: { onClose: () => void; onToast: (msg: 
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-navy-800 text-gray-400 hover:text-white"><X className="h-5 w-5" /></button>
         </div>
         <div className="p-6 space-y-4">
-          {/* URL */}
           <div>
             <label className="text-xs text-gray-400 uppercase tracking-wider font-semibold block mb-2">Shareable URL</label>
             <div className="flex items-center gap-2">
@@ -120,7 +109,6 @@ function ShareModal({ onClose, onToast }: { onClose: () => void; onToast: (msg: 
             </a>
           </div>
 
-          {/* Expiration */}
           <div>
             <label className="text-xs text-gray-400 uppercase tracking-wider font-semibold block mb-2">Link Expiration</label>
             <div className="flex gap-2">
@@ -145,7 +133,6 @@ function ShareModal({ onClose, onToast }: { onClose: () => void; onToast: (msg: 
             </div>
           </div>
 
-          {/* Access Mode */}
           <div>
             <label className="text-xs text-gray-400 uppercase tracking-wider font-semibold block mb-2">Access</label>
             <div className="flex gap-2">
@@ -177,7 +164,6 @@ function ShareModal({ onClose, onToast }: { onClose: () => void; onToast: (msg: 
             )}
           </div>
 
-          {/* Send via Email */}
           <button
             onClick={handleSendEmail}
             className="w-full flex items-center justify-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 text-sm py-2.5 rounded-lg transition-colors"
@@ -194,9 +180,6 @@ function ShareModal({ onClose, onToast }: { onClose: () => void; onToast: (msg: 
     </div>
   );
 }
-
-// ─── Contractor Share Modal ───────────────────────────────────────────────────
-// (Contractor shareable links are handled inline on the contractors page)
 
 // ─── Expandable Checklist Item ────────────────────────────────────────────────
 
@@ -277,7 +260,7 @@ function ChecklistCard({ item }: { item: ChecklistItem }) {
                   )}
                 </div>
                 {sub.fixDescription && !sub.ok && (
-                  <p className="text-gray-500 ml-5.5 mt-0.5 pl-[22px]">{sub.fixDescription}</p>
+                  <p className="text-gray-500 mt-0.5 pl-[22px]">{sub.fixDescription}</p>
                 )}
               </div>
             ))}
@@ -288,31 +271,109 @@ function ChecklistCard({ item }: { item: ChecklistItem }) {
   );
 }
 
+// ─── Generate audit log entries from live data ──────────────────────────────
+
+interface AuditEntry {
+  time: string;
+  entry: string;
+}
+
+function generateAuditLog(chemicals: Chemical[], employees: Employee[]): AuditEntry[] {
+  const entries: AuditEntry[] = [];
+
+  chemicals.forEach((c) => {
+    if (c.added_date) {
+      entries.push({
+        time: c.added_date,
+        entry: `Chemical added: ${c.product_name} (${c.added_by})`,
+      });
+    }
+    if (c.label_printed_date) {
+      entries.push({
+        time: c.label_printed_date,
+        entry: `Label printed: ${c.product_name} — ${c.container_count} ${c.container_type}`,
+      });
+    }
+    if (c.sds_uploaded && c.sds_date) {
+      entries.push({
+        time: c.sds_date,
+        entry: `SDS uploaded: ${c.product_name} (${c.manufacturer})`,
+      });
+    }
+    if (c.sds_status === "missing") {
+      entries.push({
+        time: c.last_updated,
+        entry: `Missing SDS flagged: ${c.product_name} — request from ${c.manufacturer}`,
+      });
+    }
+    if (c.sds_status === "expired") {
+      entries.push({
+        time: c.last_updated,
+        entry: `SDS expired: ${c.product_name} — needs updated version`,
+      });
+    }
+  });
+
+  employees.forEach((emp) => {
+    if (emp.last_training) {
+      entries.push({
+        time: emp.last_training,
+        entry: `Training completed: ${emp.name} — ${emp.role}`,
+      });
+    }
+    if (emp.status === "overdue") {
+      entries.push({
+        time: emp.last_training || new Date().toISOString().split("T")[0],
+        entry: `Training overdue: ${emp.name} — ${emp.pending_modules.join(", ")}`,
+      });
+    }
+    if (emp.status === "pending") {
+      entries.push({
+        time: new Date().toISOString().split("T")[0],
+        entry: `New hire pending training: ${emp.name} — ${emp.pending_modules.length} modules`,
+      });
+    }
+  });
+
+  entries.sort((a, b) => b.time.localeCompare(a.time));
+  return entries;
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function InspectionPage() {
+  const [chemicals, setChemicals] = useState<Chemical[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [showShare, setShowShare] = useState(false);
-  const [showAudit, setShowAudit] = useState(false);
-  const [audits, setAudits] = useState<SelfAuditResult[]>(selfAuditHistory);
-  const [showAuditHistory, setShowAuditHistory] = useState(false);
+
+  useEffect(() => {
+    initializeStore();
+    setChemicals(getChemicals());
+    setEmployees(getEmployees());
+  }, []);
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  }, []);
 
   // ── Dynamic compliance calculations ──────────────────────────────────────
 
-  const totalSDS = sdsEntries.length;
-  const currentSDS = sdsEntries.filter((s) => s.sdsStatus === "current").length;
-  const missingSdsEntries = sdsEntries.filter((s) => s.sdsStatus === "missing");
-  const reviewSdsEntries = sdsEntries.filter((s) => s.sdsStatus === "review");
+  const totalSDS = chemicals.length;
+  const currentSDS = chemicals.filter((c) => c.sds_status === "current").length;
+  const missingSdsChems = useMemo(() => chemicals.filter((c) => c.sds_status === "missing"), [chemicals]);
+  const expiredSdsChems = useMemo(() => chemicals.filter((c) => c.sds_status === "expired"), [chemicals]);
 
-  const totalContainers = inventoryItems.reduce((sum, i) => sum + i.containers, 0);
-  const labeledContainers = inventoryItems.filter((i) => i.labeled).reduce((sum, i) => sum + i.containers, 0);
-  const unlabeledItems = inventoryItems.filter((i) => !i.labeled);
+  const totalContainers = chemicals.reduce((sum, c) => sum + c.container_count, 0);
+  const labeledContainers = chemicals.filter((c) => c.labeled).reduce((sum, c) => sum + c.container_count, 0);
+  const unlabeledChems = useMemo(() => chemicals.filter((c) => !c.labeled), [chemicals]);
   const labelPct = totalContainers > 0 ? Math.round((labeledContainers / totalContainers) * 100) : 100;
 
   const totalEmployees = employees.length;
   const fullyTrained = employees.filter((e) => e.status === "current").length;
-  const overdueEmployees = employees.filter((e) => e.status === "overdue");
-  const pendingEmployees = employees.filter((e) => e.status === "pending");
+  const overdueEmployees = useMemo(() => employees.filter((e) => e.status === "overdue"), [employees]);
+  const pendingEmployees = useMemo(() => employees.filter((e) => e.status === "pending"), [employees]);
   const trainingPct = totalEmployees > 0 ? Math.round((fullyTrained / totalEmployees) * 100) : 100;
 
   const sdsPct = totalSDS > 0 ? Math.round((currentSDS / totalSDS) * 100) : 100;
@@ -324,8 +385,8 @@ export default function InspectionPage() {
   const sdsScore = sdsPct === 100 ? 1 : sdsPct >= 90 ? 0.5 : 0;
   const labelScore = labelPct === 100 ? 1 : labelPct >= 80 ? 0.5 : 0;
   const trainingScore = trainingPct === 100 ? 1 : trainingPct >= 80 ? 0.5 : 0;
-  const programScore = 1; // Written HazCom Program exists
-  const multiScore = 1; // Contractor pack generation available
+  const programScore = 1;
+  const multiScore = 1;
 
   const score = Math.round(
     sdsScore * weights.sds +
@@ -350,7 +411,7 @@ export default function InspectionPage() {
       warn: false,
       score: weights.program,
       maxScore: weights.program,
-      detail: `Program document current \u2014 version ${programVersionHistory[0].version}. Last updated ${new Date(programVersionHistory[0].date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+      detail: "Program document current. All 10 required sections addressed.",
       subItems: [
         { label: "Written program exists and is accessible", ok: true },
         { label: "Program covers all 10 required sections", ok: true, link: "/hazcom-program" },
@@ -364,29 +425,29 @@ export default function InspectionPage() {
       warn: sdsPct >= 90 && sdsPct < 100,
       score: Math.round(sdsScore * weights.sds),
       maxScore: weights.sds,
-      detail: missingSdsEntries.length === 0
+      detail: missingSdsChems.length === 0 && expiredSdsChems.length === 0
         ? `All ${totalSDS} SDS on file and current`
-        : `${currentSDS} of ${totalSDS} SDS current \u2014 ${missingSdsEntries.length} missing${reviewSdsEntries.length > 0 ? `, ${reviewSdsEntries.length} need review` : ""}`,
+        : `${currentSDS} of ${totalSDS} SDS current \u2014 ${missingSdsChems.length} missing${expiredSdsChems.length > 0 ? `, ${expiredSdsChems.length} expired` : ""}`,
       subItems: [
-        ...missingSdsEntries.map((s) => ({
-          label: `Missing SDS: ${s.productName} (${s.storageLocation})`,
+        ...missingSdsChems.map((c) => ({
+          label: `Missing SDS: ${c.product_name} (${c.location})`,
           ok: false,
           link: "/sds-library",
-          fixDescription: `${s.productName} SDS is missing — upload or request from ${s.manufacturer}`,
+          fixDescription: `${c.product_name} SDS is missing \u2014 upload or request from ${c.manufacturer}`,
           fixAction: "Go to SDS Library",
         })),
-        ...reviewSdsEntries.map((s) => ({
-          label: `Review needed: ${s.productName}`,
+        ...expiredSdsChems.map((c) => ({
+          label: `Expired: ${c.product_name}`,
           ok: false,
           link: "/sds-library",
-          fixDescription: `SDS revision is outdated — request current version from ${s.manufacturer}`,
+          fixDescription: `SDS is outdated \u2014 request current version from ${c.manufacturer}`,
           fixAction: "Go to SDS Library",
         })),
-        ...(missingSdsEntries.length === 0 && reviewSdsEntries.length === 0
+        ...(missingSdsChems.length === 0 && expiredSdsChems.length === 0
           ? [{ label: "All SDS documents are current and accessible", ok: true }]
           : []),
-        { label: `SDS accessible on shop tablet at Station 1`, ok: true },
-        { label: `Offline backup cache functional`, ok: true },
+        { label: "SDS accessible on shop tablet at Station 1", ok: true },
+        { label: "Offline backup cache functional", ok: true },
       ],
     },
     {
@@ -396,18 +457,18 @@ export default function InspectionPage() {
       warn: labelPct >= 80 && labelPct < 100,
       score: Math.round(labelScore * weights.labels),
       maxScore: weights.labels,
-      detail: unlabeledItems.length === 0
-        ? `All ${totalContainers} containers across ${new Set(inventoryItems.map((i) => i.location)).size} locations properly labeled`
-        : `${labeledContainers} of ${totalContainers} containers labeled \u2014 ${unlabeledItems.length} item${unlabeledItems.length > 1 ? "s" : ""} need labels`,
+      detail: unlabeledChems.length === 0
+        ? `All ${totalContainers} containers across ${new Set(chemicals.map((c) => c.location)).size} locations properly labeled`
+        : `${labeledContainers} of ${totalContainers} containers labeled \u2014 ${unlabeledChems.length} chemical${unlabeledChems.length > 1 ? "s" : ""} need labels`,
       subItems: [
-        ...unlabeledItems.map((i) => ({
-          label: `${i.location}: ${i.product} (${i.containers} containers, unlabeled)`,
+        ...unlabeledChems.map((c) => ({
+          label: `${c.location}: ${c.product_name} (${c.container_count} ${c.container_type}, unlabeled)`,
           ok: false,
           link: "/labels",
-          fixDescription: `Print GHS-compliant secondary container labels for ${i.product}`,
+          fixDescription: `Print GHS-compliant secondary container labels for ${c.product_name}`,
           fixAction: "Print Labels",
         })),
-        ...(unlabeledItems.length === 0
+        ...(unlabeledChems.length === 0
           ? [{ label: "All secondary containers have GHS-compliant labels", ok: true }]
           : []),
         { label: "Shipped container labels intact and legible", ok: true },
@@ -424,19 +485,13 @@ export default function InspectionPage() {
         ? `All ${totalEmployees} employees current on required training`
         : `${fullyTrained} of ${totalEmployees} employees current${overdueEmployees.length > 0 ? ` \u2014 ${overdueEmployees.length} overdue` : ""}${pendingEmployees.length > 0 ? ` \u2014 ${pendingEmployees.length} pending` : ""}`,
       subItems: [
-        ...overdueEmployees.map((e) => {
-          const overdueCourses = e.trainings
-            .filter((t) => t.status === "overdue")
-            .map((t) => trainingCourses.find((c) => c.id === t.courseId)?.title)
-            .filter(Boolean);
-          return {
-            label: `Overdue: ${e.name} \u2014 ${overdueCourses.join(", ")}`,
-            ok: false,
-            link: "/training",
-            fixDescription: `Send training reminder or assign ${overdueCourses.length} overdue course${overdueCourses.length > 1 ? "s" : ""}`,
-            fixAction: "Assign Training",
-          };
-        }),
+        ...overdueEmployees.map((e) => ({
+          label: `Overdue: ${e.name} \u2014 ${e.pending_modules.join(", ") || "overdue modules"}`,
+          ok: false,
+          link: "/training",
+          fixDescription: `Send training reminder or assign overdue courses`,
+          fixAction: "Assign Training",
+        })),
         ...pendingEmployees.map((e) => ({
           label: `Pending (new hire): ${e.name} \u2014 needs initial orientation`,
           ok: false,
@@ -457,10 +512,10 @@ export default function InspectionPage() {
       warn: false,
       score: 0,
       maxScore: 0,
-      detail: `${inventoryItems.length} chemicals tracked across ${new Set(inventoryItems.map((i) => i.location)).size} storage locations`,
+      detail: `${chemicals.length} chemicals tracked across ${new Set(chemicals.map((c) => c.location)).size} storage locations`,
       subItems: [
         { label: "All chemicals have matching product identifiers", ok: true },
-        { label: `Inventory reconciled: ${inventoryItems.length} items verified`, ok: true },
+        { label: `Inventory reconciled: ${chemicals.length} items verified`, ok: true },
         { label: "Storage locations properly identified and signed", ok: true },
       ],
     },
@@ -478,17 +533,19 @@ export default function InspectionPage() {
         { label: "Digital acknowledgment capture available", ok: true },
       ],
     },
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [sdsPct, sdsScore, labelPct, labelScore, trainingPct, trainingScore, programScore, currentSDS, totalSDS, totalContainers, labeledContainers, totalEmployees, fullyTrained, missingSdsEntries, reviewSdsEntries, unlabeledItems, overdueEmployees, pendingEmployees, weights.sds, weights.labels, weights.training, weights.program, weights.multiEmployer]);
+  ], [sdsPct, sdsScore, labelPct, labelScore, trainingPct, trainingScore, totalSDS, currentSDS, totalContainers, labeledContainers, totalEmployees, fullyTrained, chemicals, missingSdsChems, expiredSdsChems, unlabeledChems, overdueEmployees, pendingEmployees, weights.sds, weights.labels, weights.training, weights.program, weights.multiEmployer]);
 
-  // Find highest priority incomplete item for recommendation
+  // Next action recommendation
   const nextAction = useMemo(() => {
-    if (missingSdsEntries.length > 0) return { text: `Upload missing SDS for ${missingSdsEntries[0].productName}`, link: "/sds-library" };
+    if (missingSdsChems.length > 0) return { text: `Upload missing SDS for ${missingSdsChems[0].product_name}`, link: "/sds-library" };
     if (overdueEmployees.length > 0) return { text: `Complete overdue training for ${overdueEmployees[0].name}`, link: "/training" };
     if (pendingEmployees.length > 0) return { text: `Complete new hire training for ${pendingEmployees[0].name}`, link: "/training" };
-    if (unlabeledItems.length > 0) return { text: `Print labels for ${unlabeledItems[0].product}`, link: "/labels" };
+    if (unlabeledChems.length > 0) return { text: `Print labels for ${unlabeledChems[0].product_name}`, link: "/labels" };
     return null;
-  }, [missingSdsEntries, overdueEmployees, pendingEmployees, unlabeledItems]);
+  }, [missingSdsChems, overdueEmployees, pendingEmployees, unlabeledChems]);
+
+  // Audit log from live data
+  const auditLog = useMemo(() => generateAuditLog(chemicals, employees), [chemicals, employees]);
 
   return (
     <DashboardLayout>
@@ -500,13 +557,6 @@ export default function InspectionPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowAudit(true)}
-            className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 text-sm px-4 py-2 rounded-lg transition-colors"
-          >
-            <ClipboardCheck className="h-4 w-4" />
-            Run Self-Audit
-          </button>
-          <button
             onClick={() => setShowShare(true)}
             className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 text-sm px-4 py-2 rounded-lg transition-colors"
           >
@@ -514,16 +564,7 @@ export default function InspectionPage() {
             Share Link
           </button>
           <button
-            onClick={async () => {
-              setToast("Generating PDF\u2026");
-              try {
-                await generateInspectionPacket();
-                setToast("Inspection packet PDF downloaded");
-              } catch (err) {
-                console.error("PDF generation error:", err);
-                setToast("PDF error: " + (err instanceof Error ? err.message : "Unknown error"));
-              }
-            }}
+            onClick={() => showToast("Export feature available with PDF generator module")}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
           >
             <Download className="h-4 w-4" />
@@ -542,10 +583,10 @@ export default function InspectionPage() {
           <p>Your compliance score on this page reflects exactly what the inspector evaluates. Each Warning or Fail item is a potential citation. Fix them before an inspection — not during one.</p>
           <p><strong className="text-amber-400">Citation Penalties (current):</strong></p>
           <ul className="list-none space-y-1 ml-1">
-            <li>• Other-than-serious: up to <strong>$16,131</strong> per violation</li>
-            <li>• Serious: up to <strong>$16,131</strong> per violation</li>
-            <li>• Willful or repeated: up to <strong>$161,323</strong> per violation</li>
-            <li>• Failure to abate: up to <strong>$16,131</strong> per day</li>
+            <li>&bull; Other-than-serious: up to <strong>$16,131</strong> per violation</li>
+            <li>&bull; Serious: up to <strong>$16,131</strong> per violation</li>
+            <li>&bull; Willful or repeated: up to <strong>$161,323</strong> per violation</li>
+            <li>&bull; Failure to abate: up to <strong>$16,131</strong> per day</li>
           </ul>
         </HelpCard>
       </div>
@@ -634,117 +675,50 @@ export default function InspectionPage() {
         </div>
       </div>
 
-      {/* Previous Self-Audits */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Previous Self-Audits</h2>
-          <button
-            onClick={() => setShowAuditHistory(!showAuditHistory)}
-            className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors"
-          >
-            <History className="h-3.5 w-3.5" />
-            {showAuditHistory ? "Collapse" : "Show All"}
-          </button>
-        </div>
-        <div className="space-y-2">
-          {(showAuditHistory ? audits : audits.slice(0, 2)).map((audit) => {
-            const scoreColor = audit.score >= 90 ? "text-status-green" : audit.score >= 70 ? "text-status-amber" : "text-status-red";
-            const unresolvedCount = audit.findings.filter((f) => !f.resolved).length;
-            return (
-              <div key={audit.id} className="bg-navy-900 border border-navy-700/50 rounded-xl p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <ClipboardCheck className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm text-white font-medium">
-                        {new Date(audit.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                      </span>
-                    </div>
-                    <span className={`font-display font-bold text-lg ${scoreColor}`}>{audit.score}%</span>
-                    <span className="text-xs text-gray-500">by {audit.auditor}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {unresolvedCount > 0 && (
-                      <span className="text-xs bg-status-red/15 text-status-red px-2 py-0.5 rounded-full font-medium">
-                        {unresolvedCount} unresolved
-                      </span>
-                    )}
-                    <span className="text-xs text-gray-500">{audit.findings.length} finding{audit.findings.length !== 1 ? "s" : ""}</span>
-                  </div>
-                </div>
-                {audit.findings.length > 0 && (
-                  <div className="mt-3 grid grid-cols-2 gap-1.5">
-                    {audit.findings.map((f, j) => (
-                      <div key={j} className="flex items-center gap-1.5 text-xs">
-                        {f.resolved ? (
-                          <CheckCircle2 className="h-3 w-3 text-status-green flex-shrink-0" />
-                        ) : (
-                          <XCircle className="h-3 w-3 text-status-red flex-shrink-0" />
-                        )}
-                        <span className={f.resolved ? "text-gray-500 line-through" : "text-gray-300"}>{f.issue}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Audit Log */}
       <div>
         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
           Audit Log
         </h2>
         <div className="bg-navy-900 border border-navy-700/50 rounded-xl overflow-hidden">
-          {auditLog.map((entry, i) => {
-            const cat = getAuditCategory(entry.entry);
-            const Icon = cat.icon;
-            const user = parseAuditUser(entry.entry);
-            return (
-              <div
-                key={i}
-                className={`flex items-start gap-4 px-5 py-3.5 hover:bg-navy-800/30 transition-colors ${
-                  i < auditLog.length - 1 ? "border-b border-navy-700/30" : ""
-                }`}
-              >
-                <div className="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap min-w-[180px]">
-                  <Clock className="h-3 w-3 flex-shrink-0" />
-                  {entry.time}
+          {auditLog.length > 0 ? (
+            auditLog.map((entry, i) => {
+              const cat = getAuditCategory(entry.entry);
+              const Icon = cat.icon;
+              return (
+                <div
+                  key={i}
+                  className={`flex items-start gap-4 px-5 py-3.5 hover:bg-navy-800/30 transition-colors ${
+                    i < auditLog.length - 1 ? "border-b border-navy-700/30" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap min-w-[100px]">
+                    <Clock className="h-3 w-3 flex-shrink-0" />
+                    {(() => {
+                      try {
+                        return new Date(entry.time).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                      } catch {
+                        return entry.time;
+                      }
+                    })()}
+                  </div>
+                  <div className="h-6 w-6 rounded-md bg-navy-800 flex items-center justify-center flex-shrink-0">
+                    <Icon className={`h-3.5 w-3.5 ${cat.color}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-300">{entry.entry}</p>
+                  </div>
                 </div>
-                <div className={`h-6 w-6 rounded-md bg-navy-800 flex items-center justify-center flex-shrink-0`}>
-                  <Icon className={`h-3.5 w-3.5 ${cat.color}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-300">{entry.entry}</p>
-                </div>
-                <span className="text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">{user}</span>
-              </div>
-            );
-          })}
+              );
+            })
+          ) : (
+            <div className="py-8 text-center text-gray-500 text-sm">No audit entries yet</div>
+          )}
         </div>
       </div>
 
       {/* Modals & Toast */}
-      {showShare && <ShareModal onClose={() => setShowShare(false)} onToast={(msg) => { setShowShare(false); setToast(msg); }} />}
-      <SelfAuditWizard
-        open={showAudit}
-        onClose={() => setShowAudit(false)}
-        onComplete={({ score: auditScore, findings: auditFindings }) => {
-          const newAudit: SelfAuditResult = {
-            id: `audit-${audits.length + 1}`,
-            date: new Date().toISOString().split("T")[0],
-            score: auditScore,
-            checkedCount: 0,
-            totalItems: 0,
-            findings: auditFindings.map((f) => ({ area: f.split(":")[0] || "General", issue: f, resolved: false })),
-            auditor: shopInfo.owner,
-          };
-          setAudits((prev) => [newAudit, ...prev]);
-          setToast(`Self-audit saved — score: ${auditScore}%`);
-        }}
-      />
+      {showShare && <ShareModal onClose={() => setShowShare(false)} onToast={(msg) => { setShowShare(false); showToast(msg); }} />}
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </DashboardLayout>
   );

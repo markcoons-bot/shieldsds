@@ -1,20 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatusDot from "@/components/StatusDot";
 import HelpTooltip from "@/components/HelpTooltip";
 import HelpCard from "@/components/HelpCard";
 import FixAllPanel from "@/components/FixAllPanel";
-import {
-  sdsEntries,
-  inventoryItems,
-  employees,
-  trainingCourses,
-  auditLog,
-  getComplianceData,
-} from "@/lib/data";
+import { getChemicals, getEmployees, initializeStore } from "@/lib/chemicals";
+import type { Chemical, Employee } from "@/lib/types";
 import {
   Search,
   Plus,
@@ -26,14 +20,14 @@ import {
   ArrowRight,
   Upload,
   Printer,
-  BookOpen,
   AlertTriangle,
   CheckCircle2,
   Wrench,
   Clock,
+  Camera,
 } from "lucide-react";
 
-// ─── Derive action items dynamically from data ───────────────────────────────
+// ─── Action Item Type ────────────────────────────────────────────────────────
 
 interface DashboardActionItem {
   id: string;
@@ -46,18 +40,20 @@ interface DashboardActionItem {
   fixLabel: string;
 }
 
-function getDynamicActionItems(): DashboardActionItem[] {
+// ─── Dynamic action items from live data ─────────────────────────────────────
+
+function getDynamicActionItems(chemicals: Chemical[], employees: Employee[]): DashboardActionItem[] {
   const items: DashboardActionItem[] = [];
   let counter = 1;
 
   // Missing SDS
-  const missingSds = sdsEntries.filter((s) => s.sdsStatus === "missing");
-  missingSds.forEach((s) => {
+  const missingSds = chemicals.filter((c) => c.sds_status === "missing");
+  missingSds.forEach((c) => {
     items.push({
       id: String(counter++),
       priority: "high",
-      title: `Missing SDS: ${s.productName}`,
-      detail: `Chemical is in ${s.storageLocation} inventory. Request SDS from ${s.manufacturer} or upload manually.`,
+      title: `Missing SDS: ${c.product_name}`,
+      detail: `Chemical is in ${c.location}. Request SDS from ${c.manufacturer} or upload manually.`,
       timeEstimate: "~5 min",
       oshaRisk: "Critical",
       fixHref: "/sds-library",
@@ -65,18 +61,29 @@ function getDynamicActionItems(): DashboardActionItem[] {
     });
   });
 
+  // Expired SDS
+  const expiredSds = chemicals.filter((c) => c.sds_status === "expired");
+  expiredSds.forEach((c) => {
+    items.push({
+      id: String(counter++),
+      priority: "medium",
+      title: `Expired SDS: ${c.product_name}`,
+      detail: `SDS needs to be updated. Request current version from ${c.manufacturer}.`,
+      timeEstimate: "~5 min",
+      oshaRisk: "High",
+      fixHref: "/sds-library",
+      fixLabel: "Update SDS",
+    });
+  });
+
   // Overdue training
   const overdueEmps = employees.filter((e) => e.status === "overdue");
   overdueEmps.forEach((emp) => {
-    const overdueCourses = emp.trainings
-      .filter((t) => t.status === "overdue")
-      .map((t) => trainingCourses.find((c) => c.id === t.courseId)?.title)
-      .filter(Boolean);
     items.push({
       id: String(counter++),
       priority: "medium",
       title: `Training overdue: ${emp.name}`,
-      detail: overdueCourses.join(", "),
+      detail: emp.pending_modules.join(", ") || "Overdue training modules",
       timeEstimate: "~3 min",
       oshaRisk: "High",
       fixHref: "/training",
@@ -87,12 +94,11 @@ function getDynamicActionItems(): DashboardActionItem[] {
   // Pending new hire training
   const pendingEmps = employees.filter((e) => e.status === "pending");
   pendingEmps.forEach((emp) => {
-    const remaining = emp.trainings.filter((t) => t.status !== "completed").length;
     items.push({
       id: String(counter++),
       priority: "medium",
       title: `New hire training: ${emp.name}`,
-      detail: `${remaining} course${remaining !== 1 ? "s" : ""} remaining`,
+      detail: `${emp.pending_modules.length} module${emp.pending_modules.length !== 1 ? "s" : ""} remaining`,
       timeEstimate: "~2 min",
       oshaRisk: "High",
       fixHref: "/training",
@@ -101,13 +107,13 @@ function getDynamicActionItems(): DashboardActionItem[] {
   });
 
   // Unlabeled containers
-  const unlabeled = inventoryItems.filter((i) => !i.labeled);
+  const unlabeled = chemicals.filter((c) => !c.labeled);
   if (unlabeled.length > 0) {
     items.push({
       id: String(counter++),
       priority: "low",
-      title: `Reprint labels: ${unlabeled.length} container${unlabeled.length !== 1 ? "s" : ""}`,
-      detail: unlabeled.map((i) => `${i.location}: ${i.product}`).join("; "),
+      title: `Print labels: ${unlabeled.length} chemical${unlabeled.length !== 1 ? "s" : ""}`,
+      detail: unlabeled.map((c) => `${c.location}: ${c.product_name}`).join("; "),
       timeEstimate: "~2 min",
       oshaRisk: "Medium",
       fixHref: "/labels",
@@ -118,30 +124,88 @@ function getDynamicActionItems(): DashboardActionItem[] {
   return items;
 }
 
-// ─── Derive recent activity from audit log ───────────────────────────────────
+// ─── Recent Activity from live data ──────────────────────────────────────────
 
-function getRecentActivity() {
-  return auditLog.slice(0, 8).map((entry, i) => {
-    let type: "upload" | "label" | "training" | "warning" | "chemical" = "chemical";
-    const lower = entry.entry.toLowerCase();
-    if (lower.includes("sds uploaded")) type = "upload";
-    else if (lower.includes("label")) type = "label";
-    else if (lower.includes("training") || lower.includes("new hire")) type = "training";
-    else if (lower.includes("missing") || lower.includes("overdue")) type = "warning";
+interface ActivityItem {
+  id: string;
+  action: string;
+  detail: string;
+  time: string;
+  type: "upload" | "label" | "training" | "warning" | "chemical";
+}
 
-    // Extract the action and detail
-    const parts = entry.entry.split(": ");
-    const action = parts[0] || entry.entry;
-    const detail = parts.slice(1).join(": ") || "";
+function getRecentActivity(chemicals: Chemical[], employees: Employee[]): ActivityItem[] {
+  const items: ActivityItem[] = [];
 
-    return {
-      id: String(i + 1),
-      action,
-      detail,
-      time: entry.time.split(" — ")[0] || entry.time,
-      type,
-    };
+  // Generate activity from chemical data
+  chemicals.forEach((c) => {
+    // Added event
+    if (c.added_date) {
+      items.push({
+        id: `add-${c.id}`,
+        action: c.added_method === "scan" ? "Chemical scanned" : "Chemical added",
+        detail: `${c.product_name} — ${c.manufacturer}`,
+        time: c.added_date,
+        type: "chemical",
+      });
+    }
+    // Label printed event
+    if (c.label_printed_date) {
+      items.push({
+        id: `label-${c.id}`,
+        action: "Label printed",
+        detail: `${c.product_name} — ${c.container_count} ${c.container_type}`,
+        time: c.label_printed_date,
+        type: "label",
+      });
+    }
+    // SDS uploaded event
+    if (c.sds_uploaded && c.sds_date) {
+      items.push({
+        id: `sds-${c.id}`,
+        action: "SDS uploaded",
+        detail: `${c.product_name} — ${c.manufacturer}`,
+        time: c.sds_date,
+        type: "upload",
+      });
+    }
+    // Missing SDS warning
+    if (c.sds_status === "missing") {
+      items.push({
+        id: `warn-sds-${c.id}`,
+        action: "Missing SDS",
+        detail: `${c.product_name} has no SDS on file`,
+        time: c.last_updated,
+        type: "warning",
+      });
+    }
   });
+
+  // Employee events
+  employees.forEach((emp) => {
+    if (emp.last_training) {
+      items.push({
+        id: `train-${emp.id}`,
+        action: "Training completed",
+        detail: `${emp.name} — ${emp.role}`,
+        time: emp.last_training,
+        type: "training",
+      });
+    }
+    if (emp.status === "overdue") {
+      items.push({
+        id: `warn-train-${emp.id}`,
+        action: "Training overdue",
+        detail: `${emp.name} has overdue modules`,
+        time: emp.last_training || new Date().toISOString().split("T")[0],
+        type: "warning",
+      });
+    }
+  });
+
+  // Sort by date descending
+  items.sort((a, b) => b.time.localeCompare(a.time));
+  return items.slice(0, 10);
 }
 
 const activityIcons: Record<string, typeof Upload> = {
@@ -158,32 +222,75 @@ const riskColors: Record<string, { bg: string; text: string }> = {
   Medium: { bg: "bg-yellow-400/15", text: "text-yellow-400" },
 };
 
+// ─── Compliance Score ────────────────────────────────────────────────────────
+
+function calculateComplianceScore(chemicals: Chemical[], employees: Employee[]) {
+  const totalChems = chemicals.length;
+  const totalEmps = employees.length;
+
+  // SDS Coverage (25 points)
+  const currentSDS = chemicals.filter((c) => c.sds_status === "current").length;
+  const sdsPct = totalChems > 0 ? currentSDS / totalChems : 1;
+  const sdsScore = sdsPct === 1 ? 25 : sdsPct >= 0.9 ? 13 : 0;
+
+  // Labels (25 points)
+  const totalContainers = chemicals.reduce((sum, c) => sum + c.container_count, 0);
+  const labeledContainers = chemicals.filter((c) => c.labeled).reduce((sum, c) => sum + c.container_count, 0);
+  const labelPct = totalContainers > 0 ? labeledContainers / totalContainers : 1;
+  const labelScore = labelPct === 1 ? 25 : labelPct >= 0.8 ? 13 : 0;
+
+  // Training (25 points)
+  const fullyTrained = employees.filter((e) => e.status === "current").length;
+  const trainingPct = totalEmps > 0 ? fullyTrained / totalEmps : 1;
+  const trainingScore = trainingPct === 1 ? 25 : trainingPct >= 0.8 ? 13 : 0;
+
+  // Written Program (15 points) — always exists
+  const programScore = 15;
+
+  // Multi-employer (10 points) — contractor pack available
+  const multiScore = 10;
+
+  return {
+    total: sdsScore + labelScore + trainingScore + programScore + multiScore,
+    sds: { score: sdsScore, pct: Math.round(sdsPct * 100), count: currentSDS, total: totalChems },
+    labels: { score: labelScore, pct: Math.round(labelPct * 100), labeled: labeledContainers, total: totalContainers },
+    training: { score: trainingScore, pct: Math.round(trainingPct * 100), current: fullyTrained, total: totalEmps },
+    program: { score: programScore },
+    multi: { score: multiScore },
+  };
+}
+
+// ─── Main Page ───────────────────────────────────────────────────────────────
+
 export default function DashboardPage() {
+  const [chemicals, setChemicals] = useState<Chemical[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [fixAllOpen, setFixAllOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showAllActivity, setShowAllActivity] = useState(false);
-  const compliance = getComplianceData();
-  const actionItems = getDynamicActionItems();
-  const recentActivity = getRecentActivity();
 
-  const totalSDS = sdsEntries.length;
-  const currentSDS = sdsEntries.filter((s) => s.sdsStatus === "current").length;
-  const missingSDS = sdsEntries.filter((s) => s.sdsStatus === "missing").length;
-  const totalChemicals = inventoryItems.length;
-  const totalContainers = inventoryItems.reduce((sum, i) => sum + i.containers, 0);
-  const labeledItems = inventoryItems.filter((i) => i.labeled);
-  const labeledContainers = labeledItems.reduce((sum, i) => sum + i.containers, 0);
-  const unlabeledCount = inventoryItems.length - labeledItems.length;
-  const labelPct = totalContainers > 0 ? Math.round((labeledContainers / totalContainers) * 100) : 100;
-  const fullyTrained = employees.filter((e) => e.status === "current").length;
+  useEffect(() => {
+    initializeStore();
+    setChemicals(getChemicals());
+    setEmployees(getEmployees());
+  }, []);
+
+  const compliance = useMemo(() => calculateComplianceScore(chemicals, employees), [chemicals, employees]);
+  const actionItems = useMemo(() => getDynamicActionItems(chemicals, employees), [chemicals, employees]);
+  const recentActivity = useMemo(() => getRecentActivity(chemicals, employees), [chemicals, employees]);
+
+  const totalChemicals = chemicals.length;
+  const totalContainers = chemicals.reduce((sum, c) => sum + c.container_count, 0);
+  const missingSDS = chemicals.filter((c) => c.sds_status === "missing").length;
+  const unlabeledCount = chemicals.filter((c) => !c.labeled).length;
   const overdueCount = employees.filter((e) => e.status === "overdue").length;
-  const trainingPct = Math.round((fullyTrained / employees.length) * 100);
+  const uniqueLocations = new Set(chemicals.map((c) => c.location)).size;
 
   const statusCards = [
     {
       label: "SDS Library",
-      value: `${totalSDS}`,
-      sub: `${currentSDS} current · ${missingSDS} missing`,
+      value: `${totalChemicals}`,
+      sub: `${compliance.sds.count} current \u00b7 ${missingSDS} missing`,
       icon: FileText,
       color: "text-blue-400",
       bgColor: "bg-blue-400/10",
@@ -192,7 +299,7 @@ export default function DashboardPage() {
     {
       label: "Chemical Inventory",
       value: `${totalChemicals}`,
-      sub: `${totalContainers} containers · ${inventoryItems.filter((i) => i.location).length ? "9 locations" : ""}`,
+      sub: `${totalContainers} containers \u00b7 ${uniqueLocations} locations`,
       icon: FlaskConical,
       color: "text-emerald-400",
       bgColor: "bg-emerald-400/10",
@@ -200,23 +307,43 @@ export default function DashboardPage() {
     },
     {
       label: "Label Compliance",
-      value: `${labelPct}%`,
+      value: `${compliance.labels.pct}%`,
       sub: unlabeledCount > 0 ? `${unlabeledCount} need labeling` : "All containers labeled",
       icon: Tags,
-      color: labelPct === 100 ? "text-status-green" : "text-purple-400",
+      color: compliance.labels.pct === 100 ? "text-status-green" : "text-purple-400",
       bgColor: "bg-purple-400/10",
       href: "/labels",
     },
     {
       label: "Training Compliance",
-      value: `${trainingPct}%`,
-      sub: overdueCount > 0 ? `${overdueCount} overdue · ${fullyTrained}/${employees.length} current` : `${fullyTrained}/${employees.length} fully trained`,
+      value: `${compliance.training.pct}%`,
+      sub: overdueCount > 0 ? `${overdueCount} overdue \u00b7 ${compliance.training.current}/${compliance.training.total} current` : `${compliance.training.current}/${compliance.training.total} fully trained`,
       icon: GraduationCap,
-      color: trainingPct === 100 ? "text-status-green" : "text-amber-400",
+      color: compliance.training.pct === 100 ? "text-status-green" : "text-amber-400",
       bgColor: "bg-amber-400/10",
       href: "/training",
     },
   ];
+
+  // Empty state
+  if (chemicals.length === 0) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center py-24">
+          <FlaskConical className="h-16 w-16 text-gray-600 mb-4" />
+          <h2 className="text-xl font-display font-bold text-white mb-2">No chemicals added yet</h2>
+          <p className="text-gray-400 mb-6">Scan your first chemical to get started.</p>
+          <Link
+            href="/scan"
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold px-6 py-3 rounded-lg transition-colors"
+          >
+            <Camera className="h-5 w-5" />
+            Scan Chemical
+          </Link>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -243,7 +370,7 @@ export default function DashboardPage() {
             />
           </form>
           <Link
-            href="/inventory"
+            href="/scan"
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
           >
             <Plus className="h-4 w-4" />
@@ -257,26 +384,26 @@ export default function DashboardPage() {
           <p>Your dashboard shows real-time compliance status across all 6 OSHA HazCom obligations. Here&apos;s what the numbers mean:</p>
           <p><strong className="text-amber-400">SDS Library</strong> — OSHA requires a Safety Data Sheet for every hazardous chemical, accessible to employees with NO barriers during every work shift. If this number doesn&apos;t match your chemical count, you have a gap. <span className="text-amber-500/80 text-xs">[29 CFR 1910.1200(g)(8)]</span></p>
           <p><strong className="text-amber-400">Chemical Inventory</strong> — Your written HazCom program must include a list of all hazardous chemicals using product identifiers that match the SDS and labels. This number should match what&apos;s physically on your shelves. <span className="text-amber-500/80 text-xs">[29 CFR 1910.1200(e)(1)(i)]</span></p>
-          <p><strong className="text-amber-400">Label Compliance</strong> — Every secondary container (spray bottles, mix cups, squeeze bottles that aren&apos;t the original packaging) must have a GHS-compliant label with the product identifier, signal word, hazard statements, and pictograms. The ONLY exception is portable containers for immediate use by the person who transferred the chemical during the same work shift. <span className="text-amber-500/80 text-xs">[29 CFR 1910.1200(f)(6)]</span></p>
+          <p><strong className="text-amber-400">Label Compliance</strong> — Every secondary container must have a GHS-compliant label with the product identifier, signal word, hazard statements, and pictograms. <span className="text-amber-500/80 text-xs">[29 CFR 1910.1200(f)(6)]</span></p>
           <p><strong className="text-amber-400">Training Compliance</strong> — Employees must be trained on chemical hazards at initial assignment and whenever a new hazard is introduced. Without documented records, you cannot prove training happened. <span className="text-amber-500/80 text-xs">[29 CFR 1910.1200(h)]</span></p>
-          <p><strong className="text-amber-400">Inspection Readiness Score</strong> — This weighted score reflects your overall compliance. An OSHA inspector evaluates all 6 obligations. Deficiency in any area can result in a citation. Serious violations carry penalties up to <strong>$16,131</strong> per violation. Willful violations can reach <strong>$161,323</strong>.</p>
+          <p><strong className="text-amber-400">Inspection Readiness Score</strong> — This weighted score reflects your overall compliance. Serious violations carry penalties up to <strong>$16,131</strong> per violation. Willful violations can reach <strong>$161,323</strong>.</p>
         </HelpCard>
       </div>
 
       {/* Inspection Readiness Banner */}
-      <div className="mb-8 rounded-xl bg-gradient-to-r from-status-green/20 via-status-green/10 to-navy-800 border border-status-green/30 p-6">
+      <div className={`mb-8 rounded-xl bg-gradient-to-r ${compliance.total >= 90 ? "from-status-green/20 via-status-green/10" : compliance.total >= 70 ? "from-status-amber/20 via-status-amber/10" : "from-status-red/20 via-status-red/10"} to-navy-800 border ${compliance.total >= 90 ? "border-status-green/30" : compliance.total >= 70 ? "border-status-amber/30" : "border-status-red/30"} p-6`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-full bg-status-green/20 border-2 border-status-green flex items-center justify-center">
-              <ShieldCheck className="h-7 w-7 text-status-green" />
+            <div className={`h-14 w-14 rounded-full ${compliance.total >= 90 ? "bg-status-green/20 border-status-green" : compliance.total >= 70 ? "bg-status-amber/20 border-status-amber" : "bg-status-red/20 border-status-red"} border-2 flex items-center justify-center`}>
+              <ShieldCheck className={`h-7 w-7 ${compliance.total >= 90 ? "text-status-green" : compliance.total >= 70 ? "text-status-amber" : "text-status-red"}`} />
             </div>
             <div>
               <div className="flex items-center gap-3">
                 <h2 className="font-display font-bold text-xl text-white">
                   Inspection Readiness
                 </h2>
-                <span className={`text-3xl font-display font-black ${compliance.score >= 90 ? "text-status-green" : compliance.score >= 70 ? "text-status-amber" : "text-status-red"}`}>
-                  {compliance.score}%
+                <span className={`text-3xl font-display font-black ${compliance.total >= 90 ? "text-status-green" : compliance.total >= 70 ? "text-status-amber" : "text-status-red"}`}>
+                  {compliance.total}%
                 </span>
               </div>
               <p className="text-sm text-gray-300 mt-1">
@@ -288,7 +415,7 @@ export default function DashboardPage() {
           </div>
           <Link
             href="/inspection"
-            className="flex items-center gap-2 text-status-green hover:text-white text-sm font-medium transition-colors"
+            className={`flex items-center gap-2 ${compliance.total >= 90 ? "text-status-green" : compliance.total >= 70 ? "text-status-amber" : "text-status-red"} hover:text-white text-sm font-medium transition-colors`}
           >
             View Details
             <ArrowRight className="h-4 w-4" />
@@ -333,16 +460,18 @@ export default function DashboardPage() {
         <div className="col-span-2 bg-navy-900 border border-navy-700/50 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display font-bold text-lg text-white">Recent Activity</h3>
-            <button
-              onClick={() => setShowAllActivity(!showAllActivity)}
-              className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
-            >
-              {showAllActivity ? "Show Less" : "View All"}
-            </button>
+            {recentActivity.length > 6 && (
+              <button
+                onClick={() => setShowAllActivity(!showAllActivity)}
+                className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+              >
+                {showAllActivity ? "Show Less" : "View All"}
+              </button>
+            )}
           </div>
           <div className="space-y-1">
             {(showAllActivity ? recentActivity : recentActivity.slice(0, 6)).map((item) => {
-              const Icon = activityIcons[item.type] || BookOpen;
+              const Icon = activityIcons[item.type] || FlaskConical;
               return (
                 <div
                   key={item.id}
@@ -359,10 +488,21 @@ export default function DashboardPage() {
                     <p className="text-sm text-white font-medium">{item.action}</p>
                     <p className="text-xs text-gray-400 truncate">{item.detail}</p>
                   </div>
-                  <span className="text-xs text-gray-500 flex-shrink-0">{item.time}</span>
+                  <span className="text-xs text-gray-500 flex-shrink-0">
+                    {(() => {
+                      try {
+                        return new Date(item.time).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                      } catch {
+                        return item.time;
+                      }
+                    })()}
+                  </span>
                 </div>
               );
             })}
+            {recentActivity.length === 0 && (
+              <p className="py-6 text-center text-gray-500 text-sm">No activity yet</p>
+            )}
           </div>
         </div>
 
@@ -430,7 +570,7 @@ export default function DashboardPage() {
         open={fixAllOpen}
         onClose={() => setFixAllOpen(false)}
         actionItems={actionItems}
-        complianceScore={compliance.score}
+        complianceScore={compliance.total}
       />
     </DashboardLayout>
   );

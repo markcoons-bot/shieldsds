@@ -2,16 +2,11 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import GHSPictogram from "@/components/GHSPictogram";
+import GHSPictogram, { GHS_LABELS } from "@/components/GHSPictogram";
 import SDSFetchHelper from "@/components/SDSFetchHelper";
 import HelpCard from "@/components/HelpCard";
-import { generateSDSBinder } from "@/lib/pdf-generator";
-import {
-  sdsEntries,
-  ghsPictogramLabels,
-  type SDSEntry,
-  type GHSPictogram as GHSPictogramType,
-} from "@/lib/data";
+import { getChemicals, initializeStore, updateChemical } from "@/lib/chemicals";
+import type { Chemical } from "@/lib/types";
 import {
   Search,
   AlertTriangle,
@@ -30,7 +25,6 @@ import {
   Upload,
   Eye,
   RefreshCw,
-  BookOpen,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -54,10 +48,10 @@ const statusBadge = (status: string) => {
           Current
         </span>
       );
-    case "review":
+    case "expired":
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-status-amber/15 text-status-amber">
-          Review
+          Expired
         </span>
       );
     case "missing":
@@ -71,15 +65,15 @@ const statusBadge = (status: string) => {
   }
 };
 
-const signalBadge = (word: string) => {
-  if (word === "Danger") {
+const signalBadge = (word: string | null) => {
+  if (word === "DANGER") {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-status-red/15 text-status-red border border-status-red/30">
         DANGER
       </span>
     );
   }
-  if (word === "Warning") {
+  if (word === "WARNING") {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-status-amber/15 text-status-amber border border-status-amber/30">
         WARNING
@@ -99,16 +93,13 @@ const formatFileSize = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-// Unique location list from data
-const allLocations = Array.from(new Set(sdsEntries.map((s) => s.storageLocation)));
-
 // Hazard type filter mapping
 const hazardTypes = [
-  { label: "Flammable", pictograms: ["flame"] as GHSPictogramType[] },
-  { label: "Health Hazard", pictograms: ["health-hazard"] as GHSPictogramType[] },
-  { label: "Corrosive", pictograms: ["corrosion"] as GHSPictogramType[] },
-  { label: "Toxic", pictograms: ["skull"] as GHSPictogramType[] },
-  { label: "Irritant", pictograms: ["exclamation"] as GHSPictogramType[] },
+  { label: "Flammable", codes: ["GHS02"] },
+  { label: "Health Hazard", codes: ["GHS08"] },
+  { label: "Corrosive", codes: ["GHS05"] },
+  { label: "Toxic", codes: ["GHS06"] },
+  { label: "Irritant", codes: ["GHS07"] },
 ];
 
 // ─── SDS Detail Section Component ────────────────────────────────────────────
@@ -144,15 +135,14 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 
 // ─── Email Template Modal ────────────────────────────────────────────────────
 
-function EmailModal({ sds, onClose }: { sds: SDSEntry; onClose: () => void }) {
+function EmailModal({ chem, onClose }: { chem: Chemical; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
-  const subject = `SDS Request: ${sds.productName} (${sds.productCode})`;
-  const body = `Dear ${sds.manufacturer} Safety Department,
+  const subject = `SDS Request: ${chem.product_name}`;
+  const body = `Dear ${chem.manufacturer} Safety Department,
 
 We are writing to request the current Safety Data Sheet (SDS) for:
 
-Product: ${sds.productName}
-Product Code: ${sds.productCode}
+Product: ${chem.product_name}
 Our Company: Mike's Auto Body
 Address: 1847 Pacific Coast Hwy, Long Beach, CA 90806
 Contact: Mike Rodriguez — (562) 555-0147
@@ -169,6 +159,8 @@ Mike's Auto Body`;
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const emailDomain = chem.manufacturer.toLowerCase().replace(/[^a-z]/g, "");
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-navy-900 border border-navy-700 rounded-2xl w-full max-w-xl mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -179,7 +171,7 @@ Mike's Auto Body`;
         <div className="p-6 space-y-4">
           <div>
             <label className="text-xs text-gray-400 uppercase tracking-wider font-semibold">To</label>
-            <p className="text-sm text-white mt-1">safety@{sds.manufacturer.toLowerCase().replace(/[^a-z]/g, "")}.com</p>
+            <p className="text-sm text-white mt-1">safety@{emailDomain}.com</p>
           </div>
           <div>
             <label className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Subject</label>
@@ -196,7 +188,7 @@ Mike's Auto Body`;
             {copied ? "Copied!" : "Copy to Clipboard"}
           </button>
           <a
-            href={`mailto:safety@${sds.manufacturer.toLowerCase().replace(/[^a-z]/g, "")}.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
+            href={`mailto:safety@${emailDomain}.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
           >
             <Mail className="h-4 w-4" />
@@ -211,18 +203,20 @@ Mike's Auto Body`;
 // ─── Upload Modal ────────────────────────────────────────────────────────────
 
 function UploadModal({
-  sds,
+  chem,
+  allChemicals,
   onClose,
   onUploaded,
 }: {
-  sds: SDSEntry | null;
+  chem: Chemical | null;
+  allChemicals: Chemical[];
   onClose: () => void;
   onUploaded: (record: UploadRecord) => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSdsId, setSelectedSdsId] = useState(sds?.id || "");
+  const [selectedId, setSelectedId] = useState(chem?.id || "");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
@@ -234,7 +228,7 @@ function UploadModal({
       setError("File size must be under 25MB.");
       return;
     }
-    if (!selectedSdsId) {
+    if (!selectedId) {
       setError("Please select a chemical.");
       return;
     }
@@ -244,13 +238,15 @@ function UploadModal({
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("sdsId", selectedSdsId);
+    formData.append("sdsId", selectedId);
     formData.append("uploadedBy", "Sarah Chen");
 
     try {
       const res = await fetch("/api/upload-sds", { method: "POST", body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
+      // Mark chemical as having SDS uploaded
+      updateChemical(selectedId, { sds_uploaded: true, sds_status: "current", sds_date: new Date().toISOString().split("T")[0] });
       onUploaded(data.record);
       onClose();
     } catch (err) {
@@ -280,30 +276,28 @@ function UploadModal({
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-navy-800 text-gray-400 hover:text-white"><X className="h-5 w-5" /></button>
         </div>
         <div className="p-6 space-y-4">
-          {/* Chemical selector (if not pre-selected) */}
-          {!sds && (
+          {!chem && (
             <div>
               <label className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1 block">Chemical</label>
               <select
-                value={selectedSdsId}
-                onChange={(e) => setSelectedSdsId(e.target.value)}
+                value={selectedId}
+                onChange={(e) => setSelectedId(e.target.value)}
                 className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
               >
                 <option value="">Select a chemical...</option>
-                {sdsEntries.map((s) => (
-                  <option key={s.id} value={s.id}>{s.productName} ({s.manufacturer})</option>
+                {allChemicals.map((c) => (
+                  <option key={c.id} value={c.id}>{c.product_name} ({c.manufacturer})</option>
                 ))}
               </select>
             </div>
           )}
-          {sds && (
+          {chem && (
             <div className="text-sm">
               <span className="text-gray-400">Uploading for:</span>{" "}
-              <span className="text-white font-medium">{sds.productName}</span>
+              <span className="text-white font-medium">{chem.product_name}</span>
             </div>
           )}
 
-          {/* Drag-drop area */}
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
@@ -372,19 +366,19 @@ function PDFViewerModal({ url, productName, onClose }: { url: string; productNam
 // ─── SDS Detail Panel ────────────────────────────────────────────────────────
 
 function SDSDetailPanel({
-  sds,
+  chem,
   onClose,
   uploadedPDFs,
   onUpload,
   onViewPDF,
 }: {
-  sds: SDSEntry;
+  chem: Chemical;
   onClose: () => void;
   uploadedPDFs: Record<string, UploadRecord>;
-  onUpload: (sds: SDSEntry) => void;
+  onUpload: (chem: Chemical) => void;
   onViewPDF: (url: string, name: string) => void;
 }) {
-  const uploadRecord = uploadedPDFs[sds.id];
+  const uploadRecord = uploadedPDFs[chem.id];
   const pdfUrl = uploadRecord ? `/sds-uploads/${uploadRecord.fileName}` : null;
 
   return (
@@ -399,17 +393,16 @@ function SDSDetailPanel({
           <div className="flex items-center justify-between">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                {signalBadge(sds.signalWord)}
-                {statusBadge(sds.sdsStatus)}
+                {signalBadge(chem.signal_word)}
+                {statusBadge(chem.sds_status)}
               </div>
-              <h2 className="font-display font-bold text-lg text-white truncate">{sds.productName}</h2>
-              <p className="text-xs text-gray-400">{sds.manufacturer} &middot; Code: {sds.productCode}</p>
+              <h2 className="font-display font-bold text-lg text-white truncate">{chem.product_name}</h2>
+              <p className="text-xs text-gray-400">{chem.manufacturer} &middot; {chem.location}</p>
             </div>
             <button onClick={onClose} className="p-2 rounded-lg hover:bg-navy-800 text-gray-400 hover:text-white ml-4 flex-shrink-0">
               <X className="h-5 w-5" />
             </button>
           </div>
-          {/* Quick Actions */}
           <div className="flex items-center gap-2 mt-3 flex-wrap">
             <a href="/labels" className="flex items-center gap-1.5 bg-navy-800 border border-navy-700 hover:border-amber-500/30 text-gray-300 hover:text-white text-xs px-3 py-1.5 rounded-lg transition-colors">
               <Printer className="h-3 w-3" /> Print Label
@@ -423,7 +416,7 @@ function SDSDetailPanel({
             {pdfUrl ? (
               <>
                 <button
-                  onClick={() => onViewPDF(pdfUrl, sds.productName)}
+                  onClick={() => onViewPDF(pdfUrl, chem.product_name)}
                   className="flex items-center gap-1.5 bg-status-green/10 border border-status-green/30 hover:bg-status-green/20 text-status-green text-xs px-3 py-1.5 rounded-lg transition-colors"
                 >
                   <Eye className="h-3 w-3" /> View PDF
@@ -436,7 +429,7 @@ function SDSDetailPanel({
                   <Download className="h-3 w-3" /> Download PDF
                 </a>
                 <button
-                  onClick={() => onUpload(sds)}
+                  onClick={() => onUpload(chem)}
                   className="flex items-center gap-1.5 bg-navy-800 border border-navy-700 hover:border-amber-500/30 text-gray-300 hover:text-white text-xs px-3 py-1.5 rounded-lg transition-colors"
                 >
                   <RefreshCw className="h-3 w-3" /> Replace PDF
@@ -444,7 +437,7 @@ function SDSDetailPanel({
               </>
             ) : (
               <button
-                onClick={() => onUpload(sds)}
+                onClick={() => onUpload(chem)}
                 className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-400 text-xs px-3 py-1.5 rounded-lg transition-colors"
               >
                 <Upload className="h-3 w-3" /> Upload PDF
@@ -464,175 +457,194 @@ function SDSDetailPanel({
               </span>
             </div>
           ) : (
-            <SDSFetchHelper manufacturer={sds.manufacturer} productName={sds.productName} productCode={sds.productCode} />
+            <SDSFetchHelper manufacturer={chem.manufacturer} productName={chem.product_name} productCode="" />
           )}
         </div>
 
         {/* 16-Section Body */}
         <div className="px-6 py-4">
-          {/* Section 1 */}
+          {/* Section 1 — Identification */}
           <SDSSection num={1} title="Identification">
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
-              <div><span className="text-gray-500">Product Name:</span> <span className="text-white font-medium">{sds.productName}</span></div>
-              <div><span className="text-gray-500">Product Code:</span> <span className="text-white">{sds.productCode}</span></div>
-              <div><span className="text-gray-500">Manufacturer:</span> <span className="text-white">{sds.manufacturer}</span></div>
-              <div><span className="text-gray-500">Phone:</span> <span className="text-white">{sds.supplierPhone}</span></div>
-              <div className="col-span-2"><span className="text-gray-500">Address:</span> <span className="text-white">{sds.supplierAddress}</span></div>
-              <div><span className="text-gray-500">Recommended Use:</span> <span className="text-white">{sds.category}</span></div>
-              <div><span className="text-gray-500">Storage Location:</span> <span className="text-white">{sds.storageLocation}</span></div>
+              <div><span className="text-gray-500">Product Name:</span> <span className="text-white font-medium">{chem.product_name}</span></div>
+              <div><span className="text-gray-500">Manufacturer:</span> <span className="text-white">{chem.manufacturer}</span></div>
+              <div><span className="text-gray-500">Storage Location:</span> <span className="text-white">{chem.location}</span></div>
+              <div><span className="text-gray-500">Container Type:</span> <span className="text-white">{chem.container_type}</span></div>
+              {chem.un_number && <div><span className="text-gray-500">UN Number:</span> <span className="text-white">{chem.un_number}</span></div>}
+              <div><span className="text-gray-500">Added By:</span> <span className="text-white">{chem.added_by}</span></div>
             </div>
           </SDSSection>
 
-          {/* Section 2 */}
+          {/* Section 2 — Hazard Identification */}
           <SDSSection num={2} title="Hazard Identification">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-xs text-gray-500">Signal Word:</span>
-              {signalBadge(sds.signalWord)}
+              {signalBadge(chem.signal_word)}
             </div>
-            {sds.pictograms.length > 0 && (
+            {chem.pictogram_codes.length > 0 && (
               <div className="flex gap-2 mb-3 flex-wrap">
-                {sds.pictograms.map((p) => (
-                  <div key={p} className="flex flex-col items-center gap-1">
-                    <GHSPictogram type={p} size={44} />
-                    <span className="text-[10px] text-gray-500">{ghsPictogramLabels[p]}</span>
+                {chem.pictogram_codes.map((code) => (
+                  <div key={code} className="flex flex-col items-center gap-1">
+                    <GHSPictogram code={code} size={44} />
+                    <span className="text-[10px] text-gray-500">{GHS_LABELS[code] || code}</span>
                   </div>
                 ))}
               </div>
             )}
-            {sds.hazardStatements.length > 0 && (
+            {chem.hazard_statements.length > 0 && (
               <div className="mb-2">
                 <p className="text-xs font-semibold text-gray-400 mb-1">Hazard Statements</p>
-                <ul className="text-xs space-y-0.5">{sds.hazardStatements.map((h) => <li key={h}>{h}</li>)}</ul>
+                <ul className="text-xs space-y-0.5">
+                  {chem.hazard_statements.map((h) => <li key={h.code}><span className="font-semibold">{h.code}</span> {h.text}</li>)}
+                </ul>
               </div>
             )}
-            {sds.precautionaryStatements.length > 0 && (
+            {(chem.precautionary_statements.prevention.length > 0 || chem.precautionary_statements.response.length > 0) && (
               <div>
                 <p className="text-xs font-semibold text-gray-400 mb-1">Precautionary Statements</p>
-                <ul className="text-xs space-y-0.5">{sds.precautionaryStatements.map((p) => <li key={p}>{p}</li>)}</ul>
+                <ul className="text-xs space-y-0.5">
+                  {chem.precautionary_statements.prevention.map((p) => <li key={p.code}><span className="font-semibold">{p.code}</span> {p.text}</li>)}
+                  {chem.precautionary_statements.response.map((p) => <li key={p.code}><span className="font-semibold">{p.code}</span> {p.text}</li>)}
+                </ul>
               </div>
             )}
           </SDSSection>
 
-          {/* Section 3 — Real per-chemical composition */}
+          {/* Section 3 — Composition */}
           <SDSSection num={3} title="Composition / Information on Ingredients">
-            <table className="w-full text-xs">
-              <thead><tr className="border-b border-navy-700"><th className="text-left py-1 text-gray-400 font-semibold">Ingredient</th><th className="text-left py-1 text-gray-400 font-semibold">CAS #</th><th className="text-left py-1 text-gray-400 font-semibold">Concentration</th></tr></thead>
-              <tbody>
-                {sds.composition.map((c) => (
-                  <tr key={c.ingredient} className="border-b border-navy-700/20"><td className="py-1">{c.ingredient}</td><td className="py-1 text-gray-400">{c.casNumber}</td><td className="py-1">{c.concentration}</td></tr>
-                ))}
-              </tbody>
-            </table>
+            {chem.cas_numbers.length > 0 ? (
+              <div className="text-xs">
+                <p className="text-gray-400 font-semibold mb-1">CAS Numbers</p>
+                <ul className="space-y-0.5">
+                  {chem.cas_numbers.map((cas) => <li key={cas} className="text-white">{cas}</li>)}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500 italic">No composition data available. See manufacturer SDS.</p>
+            )}
           </SDSSection>
 
-          {/* Section 4 */}
+          {/* Section 4 — First Aid */}
           <SDSSection num={4} title="First Aid Measures">
             <div className="space-y-2 text-xs">
-              <div><span className="font-semibold text-gray-400">Eyes:</span> {sds.firstAid.eyes}</div>
-              <div><span className="font-semibold text-gray-400">Skin:</span> {sds.firstAid.skin}</div>
-              <div><span className="font-semibold text-gray-400">Inhalation:</span> {sds.firstAid.inhalation}</div>
-              <div><span className="font-semibold text-gray-400">Ingestion:</span> {sds.firstAid.ingestion}</div>
+              {chem.first_aid.eyes && <div><span className="font-semibold text-gray-400">Eyes:</span> {chem.first_aid.eyes}</div>}
+              {chem.first_aid.skin && <div><span className="font-semibold text-gray-400">Skin:</span> {chem.first_aid.skin}</div>}
+              {chem.first_aid.inhalation && <div><span className="font-semibold text-gray-400">Inhalation:</span> {chem.first_aid.inhalation}</div>}
+              {chem.first_aid.ingestion && <div><span className="font-semibold text-gray-400">Ingestion:</span> {chem.first_aid.ingestion}</div>}
             </div>
           </SDSSection>
 
-          {/* Section 5 — Real per-chemical fire fighting */}
+          {/* Section 5 — Fire Fighting */}
           <SDSSection num={5} title="Fire-Fighting Measures">
             <div className="space-y-2 text-xs">
-              <div><span className="font-semibold text-gray-400">Suitable Extinguishing Media:</span> {sds.fireFighting.extinguishingMedia}</div>
-              <div><span className="font-semibold text-gray-400">Special Hazards:</span> {sds.fireFighting.specialHazards}</div>
+              <div><span className="font-semibold text-gray-400">Extinguishing Media:</span> {chem.pictogram_codes.includes("GHS02") ? "CO2, dry chemical, foam. Do NOT use water jet." : "Use extinguishing media appropriate for surrounding materials."}</div>
+              <div><span className="font-semibold text-gray-400">Special Hazards:</span> {chem.pictogram_codes.includes("GHS02") ? "Flammable vapors may travel to ignition source and flash back. Containers may rupture or explode when exposed to heat." : "None known."}</div>
               <div><span className="font-semibold text-gray-400">Protective Equipment:</span> Self-contained breathing apparatus (SCBA) and full protective gear required for fire fighters.</div>
             </div>
           </SDSSection>
 
-          {/* Section 6 — Real per-chemical spill procedures */}
+          {/* Section 6 — Accidental Release */}
           <SDSSection num={6} title="Accidental Release Measures">
             <div className="space-y-2 text-xs">
-              <div><span className="font-semibold text-gray-400">Personal Precautions:</span> Don appropriate PPE (see Section 8). Ensure adequate ventilation. Remove ignition sources.</div>
-              <div><span className="font-semibold text-gray-400">Spill Cleanup:</span> {sds.spillProcedures}</div>
+              <div><span className="font-semibold text-gray-400">Personal Precautions:</span> Don appropriate PPE (see Section 8). Ensure adequate ventilation. {chem.pictogram_codes.includes("GHS02") ? "Remove ignition sources." : ""}</div>
               <div><span className="font-semibold text-gray-400">Environmental:</span> Prevent entry into drains, sewers, or waterways. Notify authorities if release cannot be contained.</div>
             </div>
           </SDSSection>
 
-          {/* Section 7 — Real per-chemical storage */}
+          {/* Section 7 — Handling and Storage */}
           <SDSSection num={7} title="Handling and Storage">
             <div className="space-y-2 text-xs">
-              <div><span className="font-semibold text-gray-400">Safe Handling:</span> {sds.precautionaryStatements.find((p) => p.includes("P261"))?.split(": ")[1] || "Avoid breathing vapors/mist/spray. Use only with adequate ventilation."} Wash hands thoroughly after handling.</div>
-              <div><span className="font-semibold text-gray-400">Storage:</span> {sds.storageRequirements}</div>
-              <div><span className="font-semibold text-gray-400">Incompatibilities:</span> {sds.pictograms.includes("flame") ? "Keep away from oxidizers, strong acids, and ignition sources." : "No specific incompatibilities noted."}</div>
+              <div><span className="font-semibold text-gray-400">Storage:</span> {chem.storage_requirements}</div>
+              {chem.incompatible_materials.length > 0 && (
+                <div><span className="font-semibold text-gray-400">Incompatibilities:</span> {chem.incompatible_materials.join(", ")}</div>
+              )}
             </div>
           </SDSSection>
 
-          {/* Section 8 */}
+          {/* Section 8 — PPE */}
           <SDSSection num={8} title="Exposure Controls / Personal Protection">
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="bg-navy-800/50 rounded-lg p-3">
                 <p className="font-semibold text-amber-400 mb-1">Eye Protection</p>
-                <p>{sds.ppe.eyes}</p>
+                <p>{chem.ppe_required.eyes || "Not specified"}</p>
               </div>
               <div className="bg-navy-800/50 rounded-lg p-3">
                 <p className="font-semibold text-amber-400 mb-1">Hand Protection</p>
-                <p>{sds.ppe.hands}</p>
-              </div>
-              <div className="bg-navy-800/50 rounded-lg p-3">
-                <p className="font-semibold text-amber-400 mb-1">Skin Protection</p>
-                <p>{sds.ppe.skin}</p>
+                <p>{chem.ppe_required.hands || "Not specified"}</p>
               </div>
               <div className="bg-navy-800/50 rounded-lg p-3">
                 <p className="font-semibold text-amber-400 mb-1">Respiratory</p>
-                <p>{sds.ppe.respiratory}</p>
+                <p>{chem.ppe_required.respiratory || "Not specified"}</p>
+              </div>
+              <div className="bg-navy-800/50 rounded-lg p-3">
+                <p className="font-semibold text-amber-400 mb-1">Body Protection</p>
+                <p>{chem.ppe_required.body || "Not specified"}</p>
               </div>
             </div>
           </SDSSection>
 
-          {/* Section 9 — Real per-chemical physical properties */}
+          {/* Section 9 — Physical Properties */}
           <SDSSection num={9} title="Physical and Chemical Properties">
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
-              <div><span className="text-gray-500">Appearance:</span> <span className="text-white">{sds.appearance}</span></div>
-              <div><span className="text-gray-500">Odor:</span> <span className="text-white">{sds.odor}</span></div>
-              <div><span className="text-gray-500">Flash Point:</span> <span className="text-white font-medium">{sds.flashPoint}</span></div>
-              <div><span className="text-gray-500">Storage Location:</span> <span className="text-white">{sds.storageLocation}</span></div>
+              {chem.physical_properties.appearance && <div><span className="text-gray-500">Appearance:</span> <span className="text-white">{chem.physical_properties.appearance}</span></div>}
+              {chem.physical_properties.odor && <div><span className="text-gray-500">Odor:</span> <span className="text-white">{chem.physical_properties.odor}</span></div>}
+              {chem.physical_properties.flash_point && <div><span className="text-gray-500">Flash Point:</span> <span className="text-white font-medium">{chem.physical_properties.flash_point}</span></div>}
+              {chem.physical_properties.ph && <div><span className="text-gray-500">pH:</span> <span className="text-white">{chem.physical_properties.ph}</span></div>}
+              {chem.physical_properties.boiling_point && <div><span className="text-gray-500">Boiling Point:</span> <span className="text-white">{chem.physical_properties.boiling_point}</span></div>}
+              {chem.physical_properties.vapor_pressure && <div><span className="text-gray-500">Vapor Pressure:</span> <span className="text-white">{chem.physical_properties.vapor_pressure}</span></div>}
             </div>
           </SDSSection>
 
-          {/* Section 10 */}
+          {/* Section 10 — Stability */}
           <SDSSection num={10} title="Stability and Reactivity">
             <div className="space-y-2 text-xs">
               <div><span className="font-semibold text-gray-400">Stability:</span> Stable under recommended storage conditions.</div>
-              <div><span className="font-semibold text-gray-400">Conditions to Avoid:</span> {sds.pictograms.includes("flame") ? "Heat, sparks, open flames, hot surfaces, and direct sunlight." : "Extreme temperatures."}</div>
-              <div><span className="font-semibold text-gray-400">Hazardous Decomposition:</span> CO, CO₂{sds.hazardStatements.some((h) => h.includes("H334")) ? ", isocyanate vapors" : ""}{sds.hazardStatements.some((h) => h.includes("H314")) ? ", corrosive fumes" : ""}.</div>
+              <div><span className="font-semibold text-gray-400">Conditions to Avoid:</span> {chem.pictogram_codes.includes("GHS02") ? "Heat, sparks, open flames, hot surfaces, and direct sunlight." : "Extreme temperatures."}</div>
+              {chem.incompatible_materials.length > 0 && (
+                <div><span className="font-semibold text-gray-400">Incompatible Materials:</span> {chem.incompatible_materials.join(", ")}</div>
+              )}
             </div>
           </SDSSection>
 
-          {/* Section 11 */}
+          {/* Section 11 — Toxicological */}
           <SDSSection num={11} title="Toxicological Information">
             <div className="space-y-2 text-xs">
-              <div><span className="font-semibold text-gray-400">Acute Toxicity:</span> {sds.hazardStatements.some((h) => h.includes("H301") || h.includes("H302") || h.includes("H304")) ? "Harmful or fatal if swallowed. Aspiration hazard." : sds.hazardStatements.some((h) => h.includes("H332")) ? "Harmful if inhaled." : "Low acute toxicity by all routes of exposure."}</div>
-              <div><span className="font-semibold text-gray-400">Chronic Effects:</span> {sds.hazardStatements.some((h) => h.includes("H351") || h.includes("H350")) ? "Suspected of causing cancer with prolonged exposure." : sds.hazardStatements.some((h) => h.includes("H372") || h.includes("H373")) ? "May cause damage to organs through prolonged or repeated exposure." : "No chronic effects known at recommended exposure levels."}</div>
-              <div><span className="font-semibold text-gray-400">Sensitization:</span> {sds.hazardStatements.some((h) => h.includes("H317") || h.includes("H334")) ? "May cause sensitization by skin contact or inhalation. Isocyanate-containing products require medical surveillance." : "Not known to be a sensitizer."}</div>
+              <div><span className="font-semibold text-gray-400">Acute Toxicity:</span> {chem.hazard_statements.some((h) => ["H301", "H302", "H304"].includes(h.code)) ? "Harmful or fatal if swallowed. Aspiration hazard." : chem.hazard_statements.some((h) => h.code === "H332") ? "Harmful if inhaled." : "Low acute toxicity by all routes of exposure."}</div>
+              <div><span className="font-semibold text-gray-400">Chronic Effects:</span> {chem.hazard_statements.some((h) => ["H351", "H350"].includes(h.code)) ? "Suspected of causing cancer with prolonged exposure." : chem.hazard_statements.some((h) => ["H372", "H373"].includes(h.code)) ? "May cause damage to organs through prolonged or repeated exposure." : "No chronic effects known at recommended exposure levels."}</div>
+              <div><span className="font-semibold text-gray-400">Sensitization:</span> {chem.hazard_statements.some((h) => ["H317", "H334"].includes(h.code)) ? "May cause sensitization by skin contact or inhalation." : "Not known to be a sensitizer."}</div>
             </div>
           </SDSSection>
 
           {/* Sections 12-15 */}
           <SDSSection num={12} title="Ecological Information">
-            <p className="text-xs text-gray-500 italic">Sections 12–15 (Ecological, Disposal, Transport, Regulatory) are not enforced by OSHA per 29 CFR 1910.1200(g)(2). Consult manufacturer SDS for complete information.</p>
+            <p className="text-xs text-gray-500 italic">Sections 12-15 (Ecological, Disposal, Transport, Regulatory) are not enforced by OSHA per 29 CFR 1910.1200(g)(2). Consult manufacturer SDS for complete information.</p>
           </SDSSection>
           <SDSSection num={13} title="Disposal Considerations">
             <p className="text-xs text-gray-500 italic">Dispose of contents and container in accordance with all local, state, and federal regulations. See manufacturer SDS for details.</p>
           </SDSSection>
           <SDSSection num={14} title="Transport Information">
-            <p className="text-xs text-gray-500 italic">Consult manufacturer SDS and DOT regulations for transport classification.</p>
+            <div className="text-xs">
+              {chem.un_number && <p><span className="text-gray-500">UN Number:</span> <span className="text-white">{chem.un_number}</span></p>}
+              <p className="text-gray-500 italic mt-1">Consult manufacturer SDS and DOT regulations for transport classification.</p>
+            </div>
           </SDSSection>
           <SDSSection num={15} title="Regulatory Information">
             <p className="text-xs text-gray-500 italic">Consult manufacturer SDS for applicable federal, state, and local regulations.</p>
           </SDSSection>
 
-          {/* Section 16 */}
+          {/* Section 16 — Other */}
           <SDSSection num={16} title="Other Information">
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
-              <div><span className="text-gray-500">SDS Date:</span> <span className="text-white">{sds.sdsDate}</span></div>
-              <div><span className="text-gray-500">Revision:</span> <span className="text-white">{sds.sdsRevision}</span></div>
-              <div><span className="text-gray-500">Date Added to Inventory:</span> <span className="text-white">{sds.dateAdded}</span></div>
-              <div><span className="text-gray-500">Secondary Containers:</span> <span className="text-white">{sds.secondaryContainers} ({sds.secondaryLabeled ? "labeled" : "needs label"})</span></div>
+              <div><span className="text-gray-500">SDS Date:</span> <span className="text-white">{chem.sds_date || "—"}</span></div>
+              <div><span className="text-gray-500">SDS Status:</span> <span className="text-white">{chem.sds_status}</span></div>
+              <div><span className="text-gray-500">Date Added:</span> <span className="text-white">{chem.added_date}</span></div>
+              <div><span className="text-gray-500">Containers:</span> <span className="text-white">{chem.container_count} {chem.container_type} ({chem.labeled ? "labeled" : "needs label"})</span></div>
+              {chem.nfpa_diamond && (
+                <div className="col-span-2">
+                  <span className="text-gray-500">NFPA Diamond:</span>{" "}
+                  <span className="text-white">Health {chem.nfpa_diamond.health} / Fire {chem.nfpa_diamond.fire} / Reactivity {chem.nfpa_diamond.reactivity}{chem.nfpa_diamond.special ? ` / ${chem.nfpa_diamond.special}` : ""}</span>
+                </div>
+              )}
             </div>
           </SDSSection>
         </div>
@@ -644,6 +656,7 @@ function SDSDetailPanel({
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function SDSLibraryPage() {
+  const [chemicals, setChemicals] = useState<Chemical[]>([]);
   const [search, setSearch] = useState(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -655,12 +668,18 @@ export default function SDSLibraryPage() {
   const [signalFilter, setSignalFilter] = useState<string>("All");
   const [locationFilter, setLocationFilter] = useState<string>("All");
   const [hazardFilter, setHazardFilter] = useState<string>("All");
-  const [selectedSds, setSelectedSds] = useState<SDSEntry | null>(null);
+  const [selectedChem, setSelectedChem] = useState<Chemical | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [emailSds, setEmailSds] = useState<SDSEntry | null>(null);
-  const [uploadModal, setUploadModal] = useState<SDSEntry | null | "open">(null);
+  const [emailChem, setEmailChem] = useState<Chemical | null>(null);
+  const [uploadModal, setUploadModal] = useState<Chemical | null | "open">(null);
   const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string } | null>(null);
   const [uploadedPDFs, setUploadedPDFs] = useState<Record<string, UploadRecord>>({});
+
+  // Load chemicals from store on mount
+  useEffect(() => {
+    initializeStore();
+    setChemicals(getChemicals());
+  }, []);
 
   // Load upload index on mount
   useEffect(() => {
@@ -674,19 +693,24 @@ export default function SDSLibraryPage() {
       .catch(() => {});
   }, []);
 
-  const missingSDS = sdsEntries.filter((s) => s.sdsStatus === "missing");
-  const currentCount = sdsEntries.filter((s) => s.sdsStatus === "current").length;
-  const reviewCount = sdsEntries.filter((s) => s.sdsStatus === "review").length;
+  const allLocations = useMemo(
+    () => Array.from(new Set(chemicals.map((c) => c.location))).sort(),
+    [chemicals]
+  );
+
+  const missingSDS = useMemo(() => chemicals.filter((c) => c.sds_status === "missing"), [chemicals]);
+  const currentCount = useMemo(() => chemicals.filter((c) => c.sds_status === "current").length, [chemicals]);
+  const expiredCount = useMemo(() => chemicals.filter((c) => c.sds_status === "expired").length, [chemicals]);
   const pdfsUploaded = Object.keys(uploadedPDFs).length;
 
   const lastUpdated = useMemo(() => {
-    const dates = sdsEntries
-      .filter((s) => s.sdsDate !== "\u2014")
-      .map((s) => new Date(s.sdsDate).getTime());
+    const dates = chemicals
+      .filter((c) => c.sds_date)
+      .map((c) => new Date(c.sds_date!).getTime());
     if (dates.length === 0) return "N/A";
     const max = new Date(Math.max(...dates));
     return max.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  }, []);
+  }, [chemicals]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -695,44 +719,44 @@ export default function SDSLibraryPage() {
 
   const handleUploaded = useCallback((record: UploadRecord) => {
     setUploadedPDFs((prev) => ({ ...prev, [record.sdsId]: record }));
-    const sds = sdsEntries.find((s) => s.id === record.sdsId);
-    showToast(`PDF uploaded: ${sds?.productName || record.originalName}`);
-  }, [showToast]);
+    const c = chemicals.find((ch) => ch.id === record.sdsId);
+    showToast(`PDF uploaded: ${c?.product_name || record.originalName}`);
+    setChemicals(getChemicals());
+  }, [showToast, chemicals]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return sdsEntries.filter((sds) => {
+    return chemicals.filter((c) => {
       const matchesSearch =
         !q ||
-        sds.productName.toLowerCase().includes(q) ||
-        sds.manufacturer.toLowerCase().includes(q) ||
-        sds.signalWord.toLowerCase().includes(q) ||
-        sds.storageLocation.toLowerCase().includes(q) ||
-        sds.category.toLowerCase().includes(q) ||
-        sds.hazardStatements.some((h) => h.toLowerCase().includes(q)) ||
-        sds.composition.some((c) => c.ingredient.toLowerCase().includes(q) || c.casNumber.toLowerCase().includes(q));
+        c.product_name.toLowerCase().includes(q) ||
+        c.manufacturer.toLowerCase().includes(q) ||
+        (c.signal_word || "").toLowerCase().includes(q) ||
+        c.location.toLowerCase().includes(q) ||
+        c.hazard_statements.some((h) => h.text.toLowerCase().includes(q) || h.code.toLowerCase().includes(q)) ||
+        c.cas_numbers.some((cas) => cas.toLowerCase().includes(q));
 
       const matchesStatus =
         statusFilter === "All" ||
-        (statusFilter === "Current" && sds.sdsStatus === "current") ||
-        (statusFilter === "Needs Review" && sds.sdsStatus === "review") ||
-        (statusFilter === "Missing" && sds.sdsStatus === "missing");
+        (statusFilter === "Current" && c.sds_status === "current") ||
+        (statusFilter === "Expired" && c.sds_status === "expired") ||
+        (statusFilter === "Missing" && c.sds_status === "missing");
 
       const matchesSignal =
         signalFilter === "All" ||
-        (signalFilter === "Danger" && sds.signalWord === "Danger") ||
-        (signalFilter === "Warning" && sds.signalWord === "Warning") ||
-        (signalFilter === "Not Classified" && sds.signalWord === "None");
+        (signalFilter === "Danger" && c.signal_word === "DANGER") ||
+        (signalFilter === "Warning" && c.signal_word === "WARNING") ||
+        (signalFilter === "Not Classified" && c.signal_word === null);
 
-      const matchesLocation = locationFilter === "All" || sds.storageLocation === locationFilter;
+      const matchesLocation = locationFilter === "All" || c.location === locationFilter;
 
       const matchesHazard =
         hazardFilter === "All" ||
-        hazardTypes.find((ht) => ht.label === hazardFilter)?.pictograms.some((p) => sds.pictograms.includes(p));
+        hazardTypes.find((ht) => ht.label === hazardFilter)?.codes.some((code) => c.pictogram_codes.includes(code));
 
       return matchesSearch && matchesStatus && matchesSignal && matchesLocation && matchesHazard;
     });
-  }, [search, statusFilter, signalFilter, locationFilter, hazardFilter]);
+  }, [search, statusFilter, signalFilter, locationFilter, hazardFilter, chemicals]);
 
   const activeFilterCount = [statusFilter, signalFilter, locationFilter, hazardFilter].filter((f) => f !== "All").length;
 
@@ -743,7 +767,7 @@ export default function SDSLibraryPage() {
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-blue-400" />
           <span className="text-gray-400">Total:</span>
-          <span className="font-bold text-white">{sdsEntries.length}</span>
+          <span className="font-bold text-white">{chemicals.length}</span>
         </div>
         <div className="flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-status-green" />
@@ -752,8 +776,8 @@ export default function SDSLibraryPage() {
         </div>
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-status-amber" />
-          <span className="text-gray-400">Review:</span>
-          <span className="font-bold text-status-amber">{reviewCount}</span>
+          <span className="text-gray-400">Expired:</span>
+          <span className="font-bold text-status-amber">{expiredCount}</span>
         </div>
         <div className="flex items-center gap-2">
           <X className="h-4 w-4 text-status-red" />
@@ -763,7 +787,7 @@ export default function SDSLibraryPage() {
         <div className="flex items-center gap-2">
           <Upload className="h-4 w-4 text-blue-400" />
           <span className="text-gray-400">PDFs:</span>
-          <span className="font-bold text-white">{pdfsUploaded}/{sdsEntries.length}</span>
+          <span className="font-bold text-white">{pdfsUploaded}/{chemicals.length}</span>
         </div>
         <div className="ml-auto text-xs text-gray-500">
           Last updated: {lastUpdated}
@@ -775,24 +799,10 @@ export default function SDSLibraryPage() {
         <div>
           <h1 className="font-display font-black text-2xl text-white">SDS Library</h1>
           <p className="text-sm text-gray-400 mt-1">
-            {sdsEntries.length} safety data sheets &middot; click any row to view full 16-section SDS
+            {chemicals.length} safety data sheets &middot; click any row to view full 16-section SDS
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={async () => {
-              try {
-                await generateSDSBinder();
-              } catch (err) {
-                console.error("PDF generation error:", err);
-                alert("PDF error: " + (err instanceof Error ? err.message : "Unknown error"));
-              }
-            }}
-            className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white text-sm px-4 py-2 rounded-lg transition-colors"
-          >
-            <BookOpen className="h-4 w-4" />
-            Export SDS Binder
-          </button>
           <button
             onClick={() => setUploadModal("open")}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
@@ -809,10 +819,10 @@ export default function SDSLibraryPage() {
           <p>Your SDS must be &quot;readily accessible during each work shift to employees when they are in their work areas.&quot; OSHA explicitly says employees should NOT have to ask anyone for permission — that&apos;s considered a barrier to access.</p>
           <p><strong className="text-amber-400">Electronic systems like ShieldSDS are permitted, but you must meet these requirements:</strong></p>
           <ul className="list-none space-y-1 ml-1">
-            <li>✅ Reliable devices accessible at all times (shop tablet, employee phones)</li>
-            <li>✅ Employees trained on how to use the system</li>
-            <li>✅ A backup system for emergencies (offline mode + printed binder)</li>
-            <li>✅ No passwords or logins required for workers to view SDS</li>
+            <li>&#x2705; Reliable devices accessible at all times (shop tablet, employee phones)</li>
+            <li>&#x2705; Employees trained on how to use the system</li>
+            <li>&#x2705; A backup system for emergencies (offline mode + printed binder)</li>
+            <li>&#x2705; No passwords or logins required for workers to view SDS</li>
           </ul>
           <p><strong className="text-amber-400">What to do if an SDS is missing:</strong> Contact the manufacturer — they are legally required to provide it. If they don&apos;t respond, you can file a complaint with OSHA, but you still need to obtain the SDS. Do not use a chemical without its SDS on file.</p>
           <p className="text-amber-500/80 text-xs">[29 CFR 1910.1200(g)(8)]</p>
@@ -826,7 +836,7 @@ export default function SDSLibraryPage() {
             <AlertTriangle className="h-5 w-5 text-status-red flex-shrink-0" />
             <div>
               <p className="text-sm font-medium text-white">
-                {missingSDS.length} Missing SDS: {missingSDS.map((s) => s.productName).join(", ")}
+                {missingSDS.length} Missing SDS: {missingSDS.map((c) => c.product_name).join(", ")}
               </p>
               <p className="text-xs text-gray-400">
                 OSHA requires an accessible SDS for every hazardous chemical in your inventory.
@@ -834,7 +844,7 @@ export default function SDSLibraryPage() {
             </div>
           </div>
           <button
-            onClick={() => setEmailSds(missingSDS[0])}
+            onClick={() => setEmailChem(missingSDS[0])}
             className="flex items-center gap-1 text-status-red hover:text-white text-sm font-medium transition-colors whitespace-nowrap"
           >
             Request from Vendor <ArrowRight className="h-4 w-4" />
@@ -849,7 +859,7 @@ export default function SDSLibraryPage() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by product name, manufacturer, hazard, CAS number, or ingredient..."
+          placeholder="Search by product name, manufacturer, hazard, CAS number..."
           className="w-full bg-navy-800 border border-navy-700 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
         />
       </div>
@@ -858,7 +868,7 @@ export default function SDSLibraryPage() {
       <div className="space-y-2 mb-6">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-500 w-20 flex-shrink-0">Status</span>
-          {["All", "Current", "Needs Review", "Missing"].map((f) => (
+          {["All", "Current", "Expired", "Missing"].map((f) => (
             <button
               key={f}
               onClick={() => setStatusFilter(f)}
@@ -952,7 +962,7 @@ export default function SDSLibraryPage() {
 
       {/* Results count */}
       <p className="text-xs text-gray-500 mb-3">
-        Showing {filtered.length} of {sdsEntries.length} entries
+        Showing {filtered.length} of {chemicals.length} entries
       </p>
 
       {/* SDS Table */}
@@ -969,32 +979,32 @@ export default function SDSLibraryPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((sds) => (
+            {filtered.map((c) => (
               <tr
-                key={sds.id}
-                onClick={() => setSelectedSds(sds)}
+                key={c.id}
+                onClick={() => setSelectedChem(c)}
                 className={`border-b border-navy-700/30 hover:bg-navy-800/30 transition-colors cursor-pointer ${
-                  sds.sdsStatus === "missing" ? "bg-status-red/5" : ""
+                  c.sds_status === "missing" ? "bg-status-red/5" : ""
                 }`}
               >
                 <td className="py-3.5 px-4">
-                  <p className="text-sm font-medium text-white">{sds.productName}</p>
-                  <p className="text-xs text-gray-500">{sds.manufacturer} &middot; {sds.storageLocation}</p>
+                  <p className="text-sm font-medium text-white">{c.product_name}</p>
+                  <p className="text-xs text-gray-500">{c.manufacturer} &middot; {c.location}</p>
                 </td>
-                <td className="py-3.5 px-4">{signalBadge(sds.signalWord)}</td>
+                <td className="py-3.5 px-4">{signalBadge(c.signal_word)}</td>
                 <td className="py-3.5 px-4">
                   <div className="flex gap-1">
-                    {sds.pictograms.slice(0, 3).map((p) => (
-                      <GHSPictogram key={p} type={p} size={24} />
+                    {c.pictogram_codes.slice(0, 3).map((code) => (
+                      <GHSPictogram key={code} code={code} size={24} />
                     ))}
-                    {sds.pictograms.length > 3 && (
-                      <span className="text-xs text-gray-500 self-center ml-1">+{sds.pictograms.length - 3}</span>
+                    {c.pictogram_codes.length > 3 && (
+                      <span className="text-xs text-gray-500 self-center ml-1">+{c.pictogram_codes.length - 3}</span>
                     )}
                   </div>
                 </td>
-                <td className="py-3.5 px-4 text-xs text-gray-300">{sds.flashPoint}</td>
+                <td className="py-3.5 px-4 text-xs text-gray-300">{c.physical_properties.flash_point || "—"}</td>
                 <td className="py-3.5 px-4">
-                  {uploadedPDFs[sds.id] ? (
+                  {uploadedPDFs[c.id] ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-status-green/15 text-status-green">
                       <FileText className="h-3 w-3" /> On file
                     </span>
@@ -1002,7 +1012,7 @@ export default function SDSLibraryPage() {
                     <span className="text-xs text-gray-500">—</span>
                   )}
                 </td>
-                <td className="py-3.5 px-4">{statusBadge(sds.sdsStatus)}</td>
+                <td className="py-3.5 px-4">{statusBadge(c.sds_status)}</td>
               </tr>
             ))}
             {filtered.length === 0 && (
@@ -1017,12 +1027,12 @@ export default function SDSLibraryPage() {
       </div>
 
       {/* Detail Panel */}
-      {selectedSds && (
+      {selectedChem && (
         <SDSDetailPanel
-          sds={selectedSds}
-          onClose={() => setSelectedSds(null)}
+          chem={selectedChem}
+          onClose={() => setSelectedChem(null)}
           uploadedPDFs={uploadedPDFs}
-          onUpload={(s) => { setSelectedSds(null); setUploadModal(s); }}
+          onUpload={(c) => { setSelectedChem(null); setUploadModal(c); }}
           onViewPDF={(url, name) => setPdfViewer({ url, name })}
         />
       )}
@@ -1030,7 +1040,8 @@ export default function SDSLibraryPage() {
       {/* Upload Modal */}
       {uploadModal && (
         <UploadModal
-          sds={uploadModal === "open" ? null : uploadModal}
+          chem={uploadModal === "open" ? null : uploadModal}
+          allChemicals={chemicals}
           onClose={() => setUploadModal(null)}
           onUploaded={handleUploaded}
         />
@@ -1042,7 +1053,7 @@ export default function SDSLibraryPage() {
       )}
 
       {/* Email Modal */}
-      {emailSds && <EmailModal sds={emailSds} onClose={() => setEmailSds(null)} />}
+      {emailChem && <EmailModal chem={emailChem} onClose={() => setEmailChem(null)} />}
 
       {/* Toast */}
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
