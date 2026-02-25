@@ -1368,6 +1368,54 @@ Rules:
     console.log("[scan] Final result — confidence:", finalResult.confidence);
     console.log("[scan] Final result JSON (first 1000 chars):", JSON.stringify(finalResult).substring(0, 1000));
 
+    // ── Auto SDS Lookup (non-blocking, 15s timeout) ──────────
+    const productNameForLookup = finalResult.product_name || "";
+    const manufacturerForLookup = finalResult.manufacturer || "";
+
+    if (productNameForLookup && manufacturerForLookup) {
+      try {
+        console.log("[scan] Starting auto SDS lookup for:", productNameForLookup);
+        const origin = request.nextUrl.origin;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+
+        const sdsRes = await fetch(`${origin}/api/chemical/sds-lookup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            product_name: productNameForLookup,
+            manufacturer: manufacturerForLookup,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        if (sdsRes.ok) {
+          const sdsData = await sdsRes.json();
+          console.log("[scan] SDS lookup result:", JSON.stringify(sdsData).substring(0, 300));
+          finalResult.sds_lookup_result = sdsData;
+
+          if (sdsData.sds_url && (sdsData.confidence ?? 0) > 0.7) {
+            finalResult.sds_url = sdsData.sds_url;
+            finalResult.sds_status = "current";
+            finalResult.sds_uploaded = true;
+            console.log("[scan] SDS auto-linked:", sdsData.sds_url);
+          } else {
+            finalResult.sds_status = "missing";
+            if (sdsData.manufacturer_sds_portal) {
+              finalResult.manufacturer_sds_portal = sdsData.manufacturer_sds_portal;
+            }
+          }
+        } else {
+          console.log("[scan] SDS lookup failed with status:", sdsRes.status);
+          finalResult.sds_lookup_result = null;
+        }
+      } catch (sdsErr) {
+        console.log("[scan] SDS lookup timed out or errored:", sdsErr instanceof Error ? sdsErr.message : "unknown");
+        finalResult.sds_lookup_result = null;
+      }
+    }
+
     return NextResponse.json(finalResult);
   } catch (err) {
     console.error("[scan] Unexpected error:", err);

@@ -674,6 +674,8 @@ export default function SDSLibraryPage() {
   const [uploadModal, setUploadModal] = useState<Chemical | null | "open">(null);
   const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string } | null>(null);
   const [uploadedPDFs, setUploadedPDFs] = useState<Record<string, UploadRecord>>({});
+  const [lookupLoading, setLookupLoading] = useState<string | null>(null); // chemical id being looked up
+  const [findAllProgress, setFindAllProgress] = useState<{ current: number; total: number } | null>(null);
 
   // Load chemicals from store on mount
   useEffect(() => {
@@ -723,6 +725,67 @@ export default function SDSLibraryPage() {
     showToast(`PDF uploaded: ${c?.product_name || record.originalName}`);
     setChemicals(getChemicals());
   }, [showToast, chemicals]);
+
+  // SDS Lookup for a single chemical
+  const handleFindSDS = useCallback(async (chem: Chemical) => {
+    setLookupLoading(chem.id);
+    try {
+      const res = await fetch("/api/chemical/sds-lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_name: chem.product_name, manufacturer: chem.manufacturer }),
+      });
+      if (!res.ok) throw new Error("Lookup failed");
+      const data = await res.json();
+      if (data.sds_url && (data.confidence ?? 0) > 0.7) {
+        updateChemical(chem.id, { sds_url: data.sds_url, sds_status: "current", sds_date: new Date().toISOString().split("T")[0] });
+        setChemicals(getChemicals());
+        showToast(`SDS found and linked: ${chem.product_name}`);
+      } else if (data.manufacturer_sds_portal) {
+        window.open(data.manufacturer_sds_portal, "_blank");
+        showToast(`SDS not found automatically. Opened manufacturer portal.`);
+      } else {
+        showToast(`SDS not found for ${chem.product_name}. Try uploading manually.`);
+      }
+    } catch {
+      showToast(`Failed to search for SDS: ${chem.product_name}`);
+    } finally {
+      setLookupLoading(null);
+    }
+  }, [showToast]);
+
+  // Find All Missing SDS
+  const handleFindAllMissing = useCallback(async () => {
+    const missing = chemicals.filter((c) => c.sds_status === "missing");
+    if (missing.length === 0) { showToast("No missing SDS to find."); return; }
+
+    setFindAllProgress({ current: 0, total: missing.length });
+    let found = 0;
+
+    for (let i = 0; i < missing.length; i++) {
+      setFindAllProgress({ current: i + 1, total: missing.length });
+      try {
+        const res = await fetch("/api/chemical/sds-lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ product_name: missing[i].product_name, manufacturer: missing[i].manufacturer }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.sds_url && (data.confidence ?? 0) > 0.7) {
+            updateChemical(missing[i].id, { sds_url: data.sds_url, sds_status: "current", sds_date: new Date().toISOString().split("T")[0] });
+            found++;
+          }
+        }
+      } catch {
+        // Continue to next
+      }
+    }
+
+    setChemicals(getChemicals());
+    setFindAllProgress(null);
+    showToast(`Found and linked ${found} of ${missing.length} missing SDS.`);
+  }, [chemicals, showToast]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -803,6 +866,18 @@ export default function SDSLibraryPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {missingSDS.length > 0 && (
+            <button
+              onClick={handleFindAllMissing}
+              disabled={findAllProgress !== null}
+              className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white font-medium text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <Search className="h-4 w-4" />
+              {findAllProgress
+                ? `Finding SDS ${findAllProgress.current} of ${findAllProgress.total}...`
+                : `Find All Missing (${missingSDS.length})`}
+            </button>
+          )}
           <button
             onClick={() => setUploadModal("open")}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
@@ -994,6 +1069,7 @@ export default function SDSLibraryPage() {
               <th className="py-3 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Flash Point</th>
               <th className="py-3 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">PDF</th>
               <th className="py-3 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+              <th className="py-3 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">SDS</th>
             </tr>
           </thead>
           <tbody>
@@ -1031,11 +1107,36 @@ export default function SDSLibraryPage() {
                   )}
                 </td>
                 <td className="py-3.5 px-4">{statusBadge(c.sds_status)}</td>
+                <td className="py-3.5 px-4">
+                  {c.sds_url ? (
+                    <a
+                      href={c.sds_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-status-green/15 text-status-green hover:bg-status-green/25 transition-colors"
+                    >
+                      <Eye className="h-3 w-3" /> View SDS
+                    </a>
+                  ) : (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleFindSDS(c); }}
+                      disabled={lookupLoading === c.id}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 transition-colors disabled:opacity-50"
+                    >
+                      {lookupLoading === c.id ? (
+                        <><RefreshCw className="h-3 w-3 animate-spin" /> Searching...</>
+                      ) : (
+                        <><Search className="h-3 w-3" /> Find SDS</>
+                      )}
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-12 text-center text-gray-500 text-sm">
+                <td colSpan={7} className="py-12 text-center text-gray-500 text-sm">
                   No SDS entries match your filters.
                 </td>
               </tr>

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatusDot from "@/components/StatusDot";
 import HelpTooltip from "@/components/HelpTooltip";
 import HelpCard from "@/components/HelpCard";
 import FixAllPanel from "@/components/FixAllPanel";
-import { getChemicals, getEmployees, initializeStore } from "@/lib/chemicals";
+import { getChemicals, getEmployees, initializeStore, updateChemical } from "@/lib/chemicals";
 import type { Chemical, Employee } from "@/lib/types";
 import {
   Search,
@@ -25,6 +25,7 @@ import {
   Wrench,
   Clock,
   Camera,
+  Loader2,
 } from "lucide-react";
 
 // ─── Action Item Type ────────────────────────────────────────────────────────
@@ -38,6 +39,8 @@ interface DashboardActionItem {
   oshaRisk: "Critical" | "High" | "Medium";
   fixHref: string;
   fixLabel: string;
+  chemicalId?: string; // for SDS lookup actions
+  actionType?: "find-sds" | "link"; // "find-sds" enables inline lookup
 }
 
 // ─── Dynamic action items from live data ─────────────────────────────────────
@@ -57,7 +60,9 @@ function getDynamicActionItems(chemicals: Chemical[], employees: Employee[]): Da
       timeEstimate: "~5 min",
       oshaRisk: "Critical",
       fixHref: "/sds-library",
-      fixLabel: "Upload SDS",
+      fixLabel: "Find SDS",
+      chemicalId: c.id,
+      actionType: "find-sds",
     });
   });
 
@@ -268,6 +273,40 @@ export default function DashboardPage() {
   const [fixAllOpen, setFixAllOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showAllActivity, setShowAllActivity] = useState(false);
+  const [sdsLookupLoading, setSdsLookupLoading] = useState<string | null>(null); // action item id
+  const [sdsLookupResult, setSdsLookupResult] = useState<Record<string, { found: boolean; portalUrl?: string }>>({});
+
+  const handleFindSDS = useCallback(async (item: DashboardActionItem) => {
+    if (!item.chemicalId) return;
+    const chem = chemicals.find((c) => c.id === item.chemicalId);
+    if (!chem) return;
+
+    setSdsLookupLoading(item.id);
+    try {
+      const res = await fetch("/api/chemical/sds-lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_name: chem.product_name, manufacturer: chem.manufacturer }),
+      });
+      if (!res.ok) throw new Error("Lookup failed");
+      const data = await res.json();
+      if (data.sds_url && (data.confidence ?? 0) > 0.7) {
+        updateChemical(chem.id, { sds_url: data.sds_url, sds_status: "current", sds_date: new Date().toISOString().split("T")[0] });
+        setChemicals(getChemicals());
+        setEmployees(getEmployees());
+        setSdsLookupResult((prev) => ({ ...prev, [item.id]: { found: true } }));
+      } else {
+        setSdsLookupResult((prev) => ({
+          ...prev,
+          [item.id]: { found: false, portalUrl: data.manufacturer_sds_portal || undefined },
+        }));
+      }
+    } catch {
+      setSdsLookupResult((prev) => ({ ...prev, [item.id]: { found: false } }));
+    } finally {
+      setSdsLookupLoading(null);
+    }
+  }, [chemicals]);
 
   useEffect(() => {
     initializeStore();
@@ -550,14 +589,58 @@ export default function DashboardPage() {
                         {item.timeEstimate}
                       </span>
                     </div>
-                    <p className="text-sm font-medium text-white">{item.title}</p>
+                    <p className="text-sm font-medium text-white">
+                      {sdsLookupResult[item.id]?.found ? (
+                        <span className="text-status-green">SDS found and linked!</span>
+                      ) : (
+                        item.title
+                      )}
+                    </p>
                     <p className="text-xs text-gray-400 mt-1">{item.detail}</p>
-                    <Link
-                      href={item.fixHref}
-                      className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
-                    >
-                      {item.fixLabel} <ArrowRight className="h-3 w-3" />
-                    </Link>
+                    {sdsLookupResult[item.id]?.found ? (
+                      <span className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-status-green">
+                        <CheckCircle2 className="h-3 w-3" /> Resolved
+                      </span>
+                    ) : sdsLookupResult[item.id] && !sdsLookupResult[item.id].found ? (
+                      <div className="flex items-center gap-2 mt-2">
+                        {sdsLookupResult[item.id].portalUrl ? (
+                          <a
+                            href={sdsLookupResult[item.id].portalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+                          >
+                            Search manufacturer portal <ArrowRight className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          <Link
+                            href={item.fixHref}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+                          >
+                            Upload manually <ArrowRight className="h-3 w-3" />
+                          </Link>
+                        )}
+                      </div>
+                    ) : item.actionType === "find-sds" ? (
+                      <button
+                        onClick={() => handleFindSDS(item)}
+                        disabled={sdsLookupLoading === item.id}
+                        className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors disabled:opacity-50"
+                      >
+                        {sdsLookupLoading === item.id ? (
+                          <><Loader2 className="h-3 w-3 animate-spin" /> Searching...</>
+                        ) : (
+                          <>{item.fixLabel} <ArrowRight className="h-3 w-3" /></>
+                        )}
+                      </button>
+                    ) : (
+                      <Link
+                        href={item.fixHref}
+                        className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+                      >
+                        {item.fixLabel} <ArrowRight className="h-3 w-3" />
+                      </Link>
+                    )}
                   </div>
                 );
               })}

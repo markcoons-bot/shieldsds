@@ -16,6 +16,7 @@ import {
   Printer,
   LayoutDashboard,
   X,
+  FileText,
 } from "lucide-react";
 import { addChemical, getLocations, initializeStore } from "@/lib/chemicals";
 import type {
@@ -43,6 +44,14 @@ const GHS_NAMES: Record<string, string> = {
 };
 
 // ── Types for scan result ─────────────────────────────────
+interface SDSLookupResult {
+  sds_url: string | null;
+  sds_source: string | null;
+  manufacturer_sds_portal: string | null;
+  confidence: number;
+  notes: string | null;
+}
+
 interface ScanResult {
   product_name: string;
   manufacturer: string;
@@ -60,6 +69,12 @@ interface ScanResult {
   nfpa_diamond: NFPADiamond | null;
   confidence: number;
   fields_uncertain: string[];
+  // SDS lookup fields (populated by auto-lookup)
+  sds_url?: string | null;
+  sds_status?: string;
+  sds_uploaded?: boolean;
+  sds_lookup_result?: SDSLookupResult | null;
+  manufacturer_sds_portal?: string | null;
 }
 
 type Step = "capture" | "preview" | "processing" | "review" | "success";
@@ -317,10 +332,10 @@ export default function ScanPage() {
       container_count: editContainerCount,
       labeled: false,
       label_printed_date: null,
-      sds_url: null,
-      sds_uploaded: false,
-      sds_date: null,
-      sds_status: "missing",
+      sds_url: scanResult.sds_url || null,
+      sds_uploaded: !!scanResult.sds_url,
+      sds_date: scanResult.sds_url ? new Date().toISOString().split("T")[0] : null,
+      sds_status: scanResult.sds_url ? "current" : "missing",
       added_date: new Date().toISOString(),
       added_by: "Mike Rodriguez",
       added_method: "scan",
@@ -741,6 +756,66 @@ export default function ScanPage() {
               </div>
             )}
 
+            {/* SDS Status */}
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
+                Safety Data Sheet
+              </label>
+              {scanResult.sds_url ? (
+                <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Check className="h-5 w-5 text-green-400" />
+                    <span className="text-sm font-semibold text-green-400">Official SDS found and linked</span>
+                  </div>
+                  {scanResult.sds_lookup_result?.sds_source && (
+                    <p className="text-xs text-gray-400 mb-3 ml-7">
+                      From {scanResult.sds_lookup_result.sds_source}
+                    </p>
+                  )}
+                  <a
+                    href={scanResult.sds_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 ml-7 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    View SDS
+                  </a>
+                </div>
+              ) : scanResult.manufacturer_sds_portal || scanResult.sds_lookup_result?.manufacturer_sds_portal ? (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="h-5 w-5 text-amber-400" />
+                    <span className="text-sm font-semibold text-amber-400">SDS not found automatically</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mb-3 ml-7">
+                    You can search the manufacturer&apos;s SDS portal or upload manually after saving.
+                  </p>
+                  <div className="flex items-center gap-2 ml-7">
+                    <a
+                      href={scanResult.manufacturer_sds_portal || scanResult.sds_lookup_result?.manufacturer_sds_portal || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Search manufacturer&apos;s SDS portal
+                      <ArrowLeft className="h-3 w-3 rotate-180" />
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <X className="h-5 w-5 text-red-400" />
+                    <span className="text-sm font-semibold text-red-400">SDS not found — upload required</span>
+                  </div>
+                  <p className="text-xs text-gray-400 ml-7">
+                    Request the SDS from the manufacturer or search online. You can upload it from the SDS Library after saving.
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Collapsible sections */}
             <Section title="Hazard Statements" icon="\u26a0\ufe0f" defaultOpen>
               <ul className="space-y-2">
@@ -1017,10 +1092,13 @@ export default function ScanPage() {
               { text: "Chemical added to inventory", type: "success" },
               { text: "Hazard classification complete", type: "success" },
               { text: "Secondary label ready to print", type: "success" },
-              {
-                text: "SDS not yet linked \u2014 upload recommended",
-                type: "warning",
-              },
+              scanResult?.sds_url
+                ? { text: "Safety Data Sheet linked automatically", type: "success" }
+                : {
+                    text: "SDS not found — upload or search manufacturer portal",
+                    type: "warning",
+                    link: scanResult?.manufacturer_sds_portal || scanResult?.sds_lookup_result?.manufacturer_sds_portal || null,
+                  },
               {
                 text: "Training notification queued for 3 employees",
                 type: "success",
@@ -1043,13 +1121,25 @@ export default function ScanPage() {
                     <AlertTriangle className="h-4 w-4 text-amber-400" />
                   </div>
                 )}
-                <span
-                  className={`text-sm font-medium ${
-                    item.type === "success" ? "text-white" : "text-amber-400"
-                  }`}
-                >
-                  {item.text}
-                </span>
+                <div>
+                  <span
+                    className={`text-sm font-medium ${
+                      item.type === "success" ? "text-white" : "text-amber-400"
+                    }`}
+                  >
+                    {item.text}
+                  </span>
+                  {"link" in item && item.link && (
+                    <a
+                      href={item.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-xs text-amber-400/70 hover:text-amber-300 mt-0.5 transition-colors"
+                    >
+                      Open manufacturer portal &rarr;
+                    </a>
+                  )}
+                </div>
               </div>
             ))}
           </div>
