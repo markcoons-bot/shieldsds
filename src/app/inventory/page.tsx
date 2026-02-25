@@ -337,7 +337,12 @@ export default function InventoryPage() {
                       : ""
                   }`}
                 >
-                  <td className="py-3 px-4 text-sm font-medium text-white">{c.product_name}</td>
+                  <td className="py-3 px-4">
+                    <span className="text-sm font-medium text-white">{c.product_name}</span>
+                    {c.added_method === "manual" && c.sds_status === "missing" && (
+                      <span className="block text-[10px] text-amber-400 mt-0.5">Manually entered — SDS not verified</span>
+                    )}
+                  </td>
                   <td className="py-3 px-4 text-sm text-gray-300">{c.manufacturer}</td>
                   <td className="py-3 px-4 text-sm text-gray-300">{c.location}</td>
                   <td className="py-3 px-4 text-sm text-gray-300 text-center">{c.container_count}</td>

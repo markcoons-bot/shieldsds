@@ -1084,6 +1084,9 @@ export default function SDSLibraryPage() {
                 <td className="py-3.5 px-4">
                   <p className="text-sm font-medium text-white">{c.product_name}</p>
                   <p className="text-xs text-gray-500">{c.manufacturer} &middot; {c.location}</p>
+                  {c.added_method === "manual" && c.sds_status === "missing" && (
+                    <p className="text-[10px] text-amber-400 mt-0.5">Manually entered — SDS not verified</p>
+                  )}
                 </td>
                 <td className="py-3.5 px-4">{signalBadge(c.signal_word)}</td>
                 <td className="py-3.5 px-4">

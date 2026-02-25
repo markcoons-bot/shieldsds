@@ -17,8 +17,13 @@ import {
   LayoutDashboard,
   X,
   FileText,
+  MapPin,
+  Loader2,
+  Merge,
+  StickyNote,
 } from "lucide-react";
-import { addChemical, getLocations, initializeStore } from "@/lib/chemicals";
+import { addChemical, addLocation, getLocations, initializeStore } from "@/lib/chemicals";
+import GHSPictogram from "@/components/GHSPictogram";
 import type {
   Chemical,
   HazardStatement,
@@ -77,7 +82,39 @@ interface ScanResult {
   manufacturer_sds_portal?: string | null;
 }
 
-type Step = "capture" | "preview" | "processing" | "review" | "success";
+type Step = "capture" | "preview" | "processing" | "review" | "success" | "manual" | "manual-searching" | "manual-merge" | "manual-success";
+
+// ── Hazard type checkboxes for manual entry ─────────────
+const HAZARD_TYPES = [
+  { code: "GHS02", label: "Flammable", emoji: "🔥" },
+  { code: "GHS05", label: "Corrosive", emoji: "⚗️" },
+  { code: "GHS06", label: "Toxic / Poisonous", emoji: "☠️" },
+  { code: "GHS07", label: "Irritant / Harmful", emoji: "⚠️" },
+  { code: "GHS08", label: "Health Hazard", emoji: "🫁" },
+  { code: "GHS03", label: "Oxidizer", emoji: "🔥" },
+  { code: "GHS04", label: "Compressed Gas", emoji: "🫙" },
+  { code: "GHS01", label: "Explosive", emoji: "💥" },
+  { code: "GHS09", label: "Environmental Hazard", emoji: "🌿" },
+] as const;
+
+const CONTAINER_TYPES = [
+  "Spray Can", "Bottle", "Jug", "Drum", "Tube",
+  "Bucket", "Bag", "Box", "Aerosol Can", "Other",
+];
+
+// ── Supabase match type for merge prompt ────────────────
+interface VerifiedMatch {
+  product_name: string;
+  manufacturer: string | null;
+  signal_word: string | null;
+  pictogram_codes: string[];
+  hazard_statements: string[];
+  sds_url: string | null;
+  cas_numbers: string[];
+  un_number: string | null;
+  confidence: number;
+  source: "supabase" | "api";
+}
 
 // ── Client-side image compression ─────────────────────────
 // Resizes to max 2000px longest edge and exports as JPEG 0.85
@@ -161,7 +198,23 @@ export default function ScanPage() {
   const [processingStage, setProcessingStage] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [apiKeyError, setApiKeyError] = useState(false);
-  const [manualToast, setManualToast] = useState(false);
+  // Manual entry state
+  const [manualProductName, setManualProductName] = useState("");
+  const [manualManufacturer, setManualManufacturer] = useState("");
+  const [manualSignalWord, setManualSignalWord] = useState<"DANGER" | "WARNING" | null>(null);
+  const [manualHazardCodes, setManualHazardCodes] = useState<Set<string>>(new Set());
+  const [manualDontKnowHazards, setManualDontKnowHazards] = useState(false);
+  const [manualLocation, setManualLocation] = useState("");
+  const [manualShowNewLoc, setManualShowNewLoc] = useState(false);
+  const [manualNewLocName, setManualNewLocName] = useState("");
+  const [manualContainerType, setManualContainerType] = useState("Spray Can");
+  const [manualQuantity, setManualQuantity] = useState(1);
+  const [manualNotes, setManualNotes] = useState("");
+  const [verifiedMatch, setVerifiedMatch] = useState<VerifiedMatch | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [manualSearchError, setManualSearchError] = useState<string | null>(null);
+  const [manualSuccessItems, setManualSuccessItems] = useState<number[]>([]);
+  const [manualSavedData, setManualSavedData] = useState<{ sdsFound: boolean; verified: boolean } | null>(null);
 
   // Review step editable state
   const [editName, setEditName] = useState("");
@@ -358,6 +411,114 @@ export default function ScanPage() {
     imageUrl,
   ]);
 
+  // ── Manual entry: search Supabase + API, then show merge ──
+  const handleManualSearch = useCallback(async () => {
+    if (!manualProductName.trim()) return;
+    setStep("manual-searching");
+    setVerifiedMatch(null);
+    setManualSearchError(null);
+
+    // Step 1: Check Supabase via the search endpoint directly
+    try {
+      const res = await fetch(
+        `/api/chemical/sds-lookup`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            product_name: manualProductName.trim(),
+            manufacturer: manualManufacturer.trim() || "Unknown",
+          }),
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.sds_url && (data.confidence ?? 0) > 0.5) {
+          setVerifiedMatch({
+            product_name: manualProductName.trim(),
+            manufacturer: manualManufacturer.trim() || null,
+            signal_word: null,
+            pictogram_codes: [],
+            hazard_statements: [],
+            sds_url: data.sds_url,
+            cas_numbers: [],
+            un_number: null,
+            confidence: data.confidence ?? 0,
+            source: data.notes?.includes("cached") ? "supabase" : "api",
+          });
+          setStep("manual-merge");
+          return;
+        }
+      }
+    } catch {
+      // Continue without match
+    }
+
+    // No match found — save as-is
+    saveManualEntry(false, null);
+  }, [manualProductName, manualManufacturer]);
+
+  const saveManualEntry = useCallback((useVerified: boolean, match: VerifiedMatch | null) => {
+    const locationName = manualShowNewLoc && manualNewLocName.trim()
+      ? (() => { addLocation({ name: manualNewLocName.trim(), chemical_ids: [] }); return manualNewLocName.trim(); })()
+      : manualLocation;
+
+    const pictogramCodes = manualDontKnowHazards ? [] : Array.from(manualHazardCodes);
+    const sdsUrl = useVerified && match?.sds_url ? match.sds_url : null;
+
+    const chemData: Omit<Chemical, "id"> = {
+      product_name: manualProductName.trim(),
+      manufacturer: manualManufacturer.trim() || "Unknown",
+      cas_numbers: useVerified && match?.cas_numbers ? match.cas_numbers : [],
+      un_number: useVerified && match?.un_number ? match.un_number : null,
+      signal_word: manualSignalWord,
+      pictogram_codes: useVerified && match?.pictogram_codes?.length ? match.pictogram_codes : pictogramCodes,
+      hazard_statements: useVerified && match?.hazard_statements?.length
+        ? match.hazard_statements.map((h) => {
+            const m = h.match(/^(H\d+)\s*[-–—:]\s*(.+)$/);
+            return m ? { code: m[1], text: m[2] } : { code: "", text: h };
+          })
+        : [],
+      precautionary_statements: { prevention: [], response: [], storage: [], disposal: [] },
+      first_aid: { eyes: null, skin: null, inhalation: null, ingestion: null },
+      ppe_required: { eyes: null, hands: null, respiratory: null, body: null },
+      storage_requirements: "",
+      incompatible_materials: [],
+      physical_properties: { appearance: null, odor: null, flash_point: null, ph: null, boiling_point: null, vapor_pressure: null },
+      nfpa_diamond: null,
+      location: locationName,
+      container_type: manualContainerType,
+      container_count: manualQuantity,
+      labeled: false,
+      label_printed_date: null,
+      sds_url: sdsUrl,
+      sds_uploaded: !!sdsUrl,
+      sds_date: sdsUrl ? new Date().toISOString().split("T")[0] : null,
+      sds_status: sdsUrl ? "current" : "missing",
+      added_date: new Date().toISOString(),
+      added_by: "Mike Rodriguez",
+      added_method: "manual",
+      scan_image_url: null,
+      scan_confidence: null,
+      last_updated: new Date().toISOString(),
+    };
+
+    addChemical(chemData);
+    setManualSavedData({ sdsFound: !!sdsUrl, verified: useVerified });
+    setStep("manual-success");
+  }, [manualProductName, manualManufacturer, manualSignalWord, manualHazardCodes, manualDontKnowHazards, manualLocation, manualShowNewLoc, manualNewLocName, manualContainerType, manualQuantity]);
+
+  // Manual success cascade animation
+  useEffect(() => {
+    if (step !== "manual-success") return;
+    const items = [0, 1, 2, 3];
+    items.forEach((i) => {
+      setTimeout(() => {
+        setManualSuccessItems((prev) => [...prev, i]);
+      }, 400 * (i + 1));
+    });
+  }, [step]);
+
   // ══════════════════════════════════════════════════════
   // RENDER
   // ══════════════════════════════════════════════════════
@@ -443,8 +604,24 @@ export default function ScanPage() {
             {/* Manual */}
             <button
               onClick={() => {
-                setManualToast(true);
-                setTimeout(() => setManualToast(false), 3000);
+                setManualProductName("");
+                setManualManufacturer("");
+                setManualSignalWord(null);
+                setManualHazardCodes(new Set());
+                setManualDontKnowHazards(false);
+                setManualContainerType("Spray Can");
+                setManualQuantity(1);
+                setManualNotes("");
+                setVerifiedMatch(null);
+                setManualSearchError(null);
+                setManualSuccessItems([]);
+                setManualSavedData(null);
+                const locs = getLocations();
+                setLocations(locs);
+                setManualLocation(locs[0]?.name ?? "");
+                setManualShowNewLoc(false);
+                setManualNewLocName("");
+                setStep("manual");
               }}
               className="w-full flex items-center gap-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold text-base py-4 px-6 rounded-2xl transition-all active:scale-[0.98]"
             >
@@ -462,16 +639,7 @@ export default function ScanPage() {
             Back to Dashboard
           </Link>
 
-          {/* Manual toast */}
-          {manualToast && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-navy-800 border border-white/10 px-5 py-3 rounded-xl shadow-xl scan-fade-in">
-              <Pencil className="h-4 w-4 text-amber-400" />
-              <span className="text-sm text-gray-300">Manual entry coming soon</span>
-              <button onClick={() => setManualToast(false)} className="text-gray-500 hover:text-white">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          )}
+{/* Manual toast removed — manual entry is now a full step */}
         </div>
       )}
 
@@ -1152,6 +1320,415 @@ export default function ScanPage() {
             >
               <Camera className="h-6 w-6 text-amber-400" />
               <span className="text-sm font-semibold">Scan Another</span>
+            </button>
+            <Link
+              href="/labels"
+              className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+            >
+              <Printer className="h-6 w-6 text-amber-400" />
+              <span className="text-sm font-semibold">Print Label</span>
+            </Link>
+            <Link
+              href="/inventory"
+              className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+            >
+              <Package className="h-6 w-6 text-amber-400" />
+              <span className="text-sm font-semibold">View Inventory</span>
+            </Link>
+            <Link
+              href="/dashboard"
+              className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+            >
+              <LayoutDashboard className="h-6 w-6 text-amber-400" />
+              <span className="text-sm font-semibold">Dashboard</span>
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* ── STEP: MANUAL ENTRY FORM ───────────────────────── */}
+      {step === "manual" && (
+        <div className="min-h-screen pb-32 scan-fade-in">
+          {/* Header */}
+          <div className="sticky top-0 z-20 bg-navy-950/90 backdrop-blur-xl border-b border-white/5 px-4 py-3">
+            <div className="max-w-2xl mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Pencil className="h-5 w-5 text-amber-400" />
+                <span className="font-display font-bold text-sm">Enter Chemical Manually</span>
+              </div>
+              <button
+                onClick={resetToCapture}
+                className="text-xs text-gray-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+
+          <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+            {/* Product Name */}
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">
+                Product Name <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={manualProductName}
+                onChange={(e) => setManualProductName(e.target.value)}
+                placeholder="e.g. CRC Brakleen Brake Parts Cleaner"
+                className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-lg font-display font-bold text-white placeholder-gray-600 focus:outline-none focus:border-amber-500/50 transition-colors"
+                autoFocus
+              />
+            </div>
+
+            {/* Manufacturer */}
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">
+                Manufacturer
+              </label>
+              <input
+                type="text"
+                value={manualManufacturer}
+                onChange={(e) => setManualManufacturer(e.target.value)}
+                placeholder="e.g. CRC Industries"
+                className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-500/50 transition-colors"
+              />
+            </div>
+
+            {/* Signal Word */}
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
+                Signal Word
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                {([
+                  { value: "DANGER" as const, color: "bg-red-500/20 border-red-500/40 text-red-400", activeColor: "bg-red-500 border-red-500 text-white" },
+                  { value: "WARNING" as const, color: "bg-amber-500/20 border-amber-500/40 text-amber-400", activeColor: "bg-amber-500 border-amber-500 text-navy-950" },
+                  { value: null, label: "I Don't Know", color: "bg-white/[0.04] border-white/10 text-gray-400", activeColor: "bg-white/10 border-white/30 text-white" },
+                ] as const).map((opt) => {
+                  const isActive = manualSignalWord === opt.value;
+                  return (
+                    <button
+                      key={opt.value ?? "unknown"}
+                      onClick={() => setManualSignalWord(opt.value)}
+                      className={`py-3 rounded-xl border-2 text-sm font-bold uppercase tracking-wider transition-all ${
+                        isActive ? ("activeColor" in opt ? opt.activeColor : "") : ("color" in opt ? opt.color : "")
+                      }`}
+                    >
+                      {"label" in opt ? opt.label : opt.value}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Hazard Types with GHS pictograms */}
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
+                Hazard Types (check what applies)
+              </label>
+              <div className="space-y-2">
+                {HAZARD_TYPES.map((ht) => {
+                  const isChecked = manualHazardCodes.has(ht.code);
+                  return (
+                    <button
+                      key={ht.code}
+                      onClick={() => {
+                        setManualDontKnowHazards(false);
+                        const next = new Set(manualHazardCodes);
+                        if (isChecked) next.delete(ht.code);
+                        else next.add(ht.code);
+                        setManualHazardCodes(next);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${
+                        isChecked
+                          ? "border-amber-500/60 bg-amber-500/10"
+                          : "border-white/10 bg-white/[0.02] hover:bg-white/[0.04]"
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                        isChecked ? "bg-amber-500 border-amber-500" : "border-gray-500"
+                      }`}>
+                        {isChecked && <Check className="h-3 w-3 text-white" />}
+                      </div>
+                      <GHSPictogram code={ht.code} size={32} />
+                      <span className={`text-sm font-medium ${isChecked ? "text-white" : "text-gray-300"}`}>
+                        {ht.label}
+                      </span>
+                    </button>
+                  );
+                })}
+                {/* I Don't Know option */}
+                <button
+                  onClick={() => {
+                    setManualDontKnowHazards(!manualDontKnowHazards);
+                    if (!manualDontKnowHazards) setManualHazardCodes(new Set());
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${
+                    manualDontKnowHazards
+                      ? "border-gray-400/60 bg-gray-500/10"
+                      : "border-white/10 bg-white/[0.02] hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                    manualDontKnowHazards ? "bg-gray-500 border-gray-500" : "border-gray-500"
+                  }`}>
+                    {manualDontKnowHazards && <Check className="h-3 w-3 text-white" />}
+                  </div>
+                  <AlertTriangle className="h-6 w-6 text-gray-500 flex-shrink-0" />
+                  <span className={`text-sm font-medium ${manualDontKnowHazards ? "text-white" : "text-gray-400"}`}>
+                    I Don&apos;t Know / Not Sure
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Location */}
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">
+                Storage Location
+              </label>
+              {!manualShowNewLoc ? (
+                <select
+                  value={manualLocation}
+                  onChange={(e) => {
+                    if (e.target.value === "__new__") setManualShowNewLoc(true);
+                    else setManualLocation(e.target.value);
+                  }}
+                  className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500/50"
+                >
+                  {locations.map((loc) => (
+                    <option key={loc.id} value={loc.name}>{loc.name}</option>
+                  ))}
+                  <option value="__new__">+ Add New Location</option>
+                </select>
+              ) : (
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={manualNewLocName}
+                      onChange={(e) => setManualNewLocName(e.target.value)}
+                      placeholder="New location name..."
+                      className="w-full pl-8 pr-3 py-2.5 bg-white/[0.04] border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
+                      autoFocus
+                    />
+                  </div>
+                  <button
+                    onClick={() => { setManualShowNewLoc(false); setManualNewLocName(""); }}
+                    className="px-3 py-2 text-xs text-gray-400 hover:text-white border border-white/10 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Container Type + Quantity */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">
+                  Container Type
+                </label>
+                <select
+                  value={manualContainerType}
+                  onChange={(e) => setManualContainerType(e.target.value)}
+                  className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500/50"
+                >
+                  {CONTAINER_TYPES.map((ct) => (
+                    <option key={ct} value={ct}>{ct}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">
+                  Quantity
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={manualQuantity}
+                  onChange={(e) => setManualQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white text-center focus:outline-none focus:border-amber-500/50"
+                />
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">
+                Notes
+              </label>
+              <textarea
+                value={manualNotes}
+                onChange={(e) => setManualNotes(e.target.value)}
+                placeholder="Any other info about this chemical (where you bought it, what you use it for, etc.)"
+                rows={3}
+                className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-500/50 transition-colors resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Fixed bottom bar */}
+          <div className="fixed bottom-0 left-0 right-0 z-20 bg-navy-950/90 backdrop-blur-xl border-t border-white/5 px-4 py-4">
+            <div className="max-w-2xl mx-auto flex gap-3">
+              <button
+                onClick={resetToCapture}
+                className="flex-1 flex items-center justify-center gap-2 bg-white/[0.06] border border-white/10 text-white font-semibold py-3 rounded-xl transition-colors hover:bg-white/[0.1]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleManualSearch}
+                disabled={!manualProductName.trim()}
+                className="flex-[2] flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-navy-950 font-bold py-3 rounded-xl transition-colors"
+              >
+                Save Chemical
+                <ArrowLeft className="h-4 w-4 rotate-180" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── STEP: MANUAL SEARCHING ────────────────────────── */}
+      {step === "manual-searching" && (
+        <div className="min-h-screen flex flex-col items-center justify-center px-6 scan-fade-in">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 text-amber-400 mx-auto mb-6 animate-spin" />
+            <h2 className="text-lg font-display font-bold mb-2">Searching for SDS...</h2>
+            <p className="text-sm text-gray-400 max-w-xs mx-auto">
+              Checking our database for verified safety data for &ldquo;{manualProductName}&rdquo;
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── STEP: MANUAL MERGE PROMPT ─────────────────────── */}
+      {step === "manual-merge" && verifiedMatch && (
+        <div className="min-h-screen flex flex-col items-center justify-center px-6 scan-fade-in">
+          <div className="w-full max-w-md">
+            <div className="flex items-center gap-2 mb-6 justify-center">
+              <Merge className="h-6 w-6 text-green-400" />
+              <h2 className="text-lg font-display font-bold">We Found Verified Data!</h2>
+            </div>
+
+            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-5 mb-6">
+              <p className="text-xs font-semibold text-green-400 uppercase tracking-wider mb-3">
+                Verified Match
+              </p>
+              <p className="text-base font-bold text-white mb-1">{manualProductName}</p>
+              {manualManufacturer && (
+                <p className="text-sm text-gray-400 mb-3">{manualManufacturer}</p>
+              )}
+              {verifiedMatch.sds_url && (
+                <div className="flex items-center gap-2 mb-2">
+                  <Check className="h-4 w-4 text-green-400" />
+                  <span className="text-sm text-green-400 font-medium">SDS found and will be linked</span>
+                </div>
+              )}
+              <p className="text-xs text-gray-400">
+                Confidence: {Math.round(verifiedMatch.confidence * 100)}% | Source: {verifiedMatch.source === "supabase" ? "ShieldSDS Database" : "Web Search"}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => saveManualEntry(true, verifiedMatch)}
+                className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-navy-950 font-bold py-3.5 rounded-xl transition-colors"
+              >
+                <Check className="h-5 w-5" />
+                Use Verified Data
+              </button>
+              <button
+                onClick={() => saveManualEntry(false, null)}
+                className="w-full flex items-center justify-center gap-2 bg-white/[0.06] border border-white/10 text-white font-semibold py-3 rounded-xl transition-colors hover:bg-white/[0.1]"
+              >
+                <StickyNote className="h-4 w-4" />
+                Keep My Entry As-Is
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── STEP: MANUAL SUCCESS CASCADE ──────────────────── */}
+      {step === "manual-success" && (
+        <div className="min-h-screen flex flex-col items-center justify-center px-6 scan-fade-in">
+          {/* Logo */}
+          <div className="flex items-center gap-2 mb-8">
+            <Shield className="h-8 w-8 text-amber-400" />
+            <span className="font-display font-bold text-lg">
+              Shield<span className="text-amber-400">SDS</span>
+            </span>
+          </div>
+
+          <h2 className="text-xl font-display font-bold mb-8">Chemical Added!</h2>
+
+          {/* Cascade checklist */}
+          <div className="w-full max-w-sm space-y-3 mb-10">
+            {[
+              { text: "Chemical added to inventory", type: "success" },
+              manualSavedData?.verified
+                ? { text: "Hazard classification verified", type: "success" }
+                : manualHazardCodes.size > 0
+                  ? { text: "Hazard classification (manual — review recommended)", type: "warning" }
+                  : { text: "Hazard classification unknown — update when SDS is found", type: "warning" },
+              manualSavedData?.sdsFound
+                ? { text: "Safety Data Sheet linked automatically", type: "success" }
+                : { text: "SDS not found — upload or search manufacturer portal", type: "warning" },
+              { text: "Label ready to print", type: "success" },
+            ].map((item, i) => (
+              <div
+                key={i}
+                className={`flex items-center gap-3 transition-all duration-300 ${
+                  manualSuccessItems.includes(i)
+                    ? "opacity-100 scan-check-in"
+                    : "opacity-0"
+                }`}
+              >
+                {item.type === "success" ? (
+                  <div className="w-7 h-7 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <Check className="h-4 w-4 text-green-400" />
+                  </div>
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                    <AlertTriangle className="h-4 w-4 text-amber-400" />
+                  </div>
+                )}
+                <span className={`text-sm font-medium ${item.type === "success" ? "text-white" : "text-amber-400"}`}>
+                  {item.text}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Action buttons 2x2 */}
+          <div className="w-full max-w-sm grid grid-cols-2 gap-3">
+            <button
+              onClick={() => {
+                setManualProductName("");
+                setManualManufacturer("");
+                setManualSignalWord(null);
+                setManualHazardCodes(new Set());
+                setManualDontKnowHazards(false);
+                setManualContainerType("Spray Can");
+                setManualQuantity(1);
+                setManualNotes("");
+                setVerifiedMatch(null);
+                setManualSearchError(null);
+                setManualSuccessItems([]);
+                setManualSavedData(null);
+                const locs = getLocations();
+                setLocations(locs);
+                setManualLocation(locs[0]?.name ?? "");
+                setStep("manual");
+              }}
+              className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+            >
+              <Pencil className="h-6 w-6 text-amber-400" />
+              <span className="text-sm font-semibold">Add Another</span>
             </button>
             <Link
               href="/labels"
