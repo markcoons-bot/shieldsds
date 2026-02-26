@@ -7,6 +7,7 @@ import SDSFetchHelper from "@/components/SDSFetchHelper";
 import HelpCard from "@/components/HelpCard";
 import { getChemicals, initializeStore, updateChemical, getCompanyProfile } from "@/lib/chemicals";
 import type { Chemical } from "@/lib/types";
+import Link from "next/link";
 import {
   Search,
   AlertTriangle,
@@ -183,14 +184,14 @@ ${profile.name}`;
             <pre className="text-xs text-gray-300 mt-1 whitespace-pre-wrap bg-navy-800 rounded-lg p-4 border border-navy-700 max-h-52 overflow-y-auto">{body}</pre>
           </div>
         </div>
-        <div className="px-6 py-4 border-t border-navy-700 flex items-center gap-3 justify-end">
-          <button onClick={handleCopy} className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 text-sm px-4 py-2 rounded-lg transition-colors">
+        <div className="px-6 py-4 border-t border-navy-700 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:justify-end">
+          <button onClick={handleCopy} className="flex items-center justify-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 text-sm px-4 py-2 rounded-lg transition-colors">
             {copied ? <CheckCircle2 className="h-4 w-4 text-status-green" /> : <Copy className="h-4 w-4" />}
             {copied ? "Copied!" : "Copy to Clipboard"}
           </button>
           <a
             href={`mailto:safety@${emailDomain}.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+            className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
           >
             <Mail className="h-4 w-4" />
             Open in Email Client
@@ -340,7 +341,7 @@ function UploadModal({
 function PDFViewerModal({ url, productName, onClose }: { url: string; productName: string; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-navy-900 border border-navy-700 rounded-2xl w-full max-w-4xl h-[85vh] mx-4 shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-navy-900 border border-navy-700 rounded-2xl w-full max-w-4xl h-[95vh] md:h-[85vh] mx-2 md:mx-4 shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-3 border-b border-navy-700">
           <h2 className="font-display font-bold text-sm text-white truncate">{productName} — SDS PDF</h2>
           <div className="flex items-center gap-2">
@@ -386,7 +387,7 @@ function SDSDetailPanel({
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-2xl bg-navy-950 border-l border-navy-700 overflow-y-auto shadow-2xl"
+        className="relative w-full md:max-w-2xl bg-navy-950 border-l border-navy-700 overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -450,10 +451,10 @@ function SDSDetailPanel({
         {/* PDF Status Bar */}
         <div className="px-6 py-3 border-b border-navy-700/50">
           {pdfUrl ? (
-            <div className="flex items-center gap-2 text-xs">
-              <CheckCircle2 className="h-4 w-4 text-status-green" />
+            <div className="flex items-start sm:items-center gap-2 text-xs flex-wrap">
+              <CheckCircle2 className="h-4 w-4 text-status-green flex-shrink-0 mt-0.5 sm:mt-0" />
               <span className="text-status-green font-medium">PDF on file</span>
-              <span className="text-gray-500">
+              <span className="text-gray-500 break-all sm:break-normal">
                 {uploadRecord.originalName} ({formatFileSize(uploadRecord.fileSize)}) — uploaded {new Date(uploadRecord.uploadedAt).toLocaleDateString()} by {uploadRecord.uploadedBy}
               </span>
             </div>
@@ -466,7 +467,7 @@ function SDSDetailPanel({
         <div className="px-6 py-4">
           {/* Section 1 — Identification */}
           <SDSSection num={1} title="Identification">
-            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs">
               <div><span className="text-gray-500">Product Name:</span> <span className="text-white font-medium">{chem.product_name}</span></div>
               <div><span className="text-gray-500">Manufacturer:</span> <span className="text-white">{chem.manufacturer}</span></div>
               <div><span className="text-gray-500">Storage Location:</span> <span className="text-white">{chem.location}</span></div>
@@ -564,7 +565,7 @@ function SDSDetailPanel({
 
           {/* Section 8 — PPE */}
           <SDSSection num={8} title="Exposure Controls / Personal Protection">
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="bg-navy-800/50 rounded-lg p-3">
                 <p className="font-semibold text-amber-400 mb-1">Eye Protection</p>
                 <p>{chem.ppe_required.eyes || "Not specified"}</p>
@@ -586,7 +587,7 @@ function SDSDetailPanel({
 
           {/* Section 9 — Physical Properties */}
           <SDSSection num={9} title="Physical and Chemical Properties">
-            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs">
               {chem.physical_properties.appearance && <div><span className="text-gray-500">Appearance:</span> <span className="text-white">{chem.physical_properties.appearance}</span></div>}
               {chem.physical_properties.odor && <div><span className="text-gray-500">Odor:</span> <span className="text-white">{chem.physical_properties.odor}</span></div>}
               {chem.physical_properties.flash_point && <div><span className="text-gray-500">Flash Point:</span> <span className="text-white font-medium">{chem.physical_properties.flash_point}</span></div>}
@@ -635,13 +636,13 @@ function SDSDetailPanel({
 
           {/* Section 16 — Other */}
           <SDSSection num={16} title="Other Information">
-            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs">
               <div><span className="text-gray-500">SDS Date:</span> <span className="text-white">{chem.sds_date || "—"}</span></div>
               <div><span className="text-gray-500">SDS Status:</span> <span className="text-white">{chem.sds_status}</span></div>
               <div><span className="text-gray-500">Date Added:</span> <span className="text-white">{chem.added_date}</span></div>
               <div><span className="text-gray-500">Containers:</span> <span className="text-white">{chem.container_count} {chem.container_type} ({chem.labeled ? "labeled" : "needs label"})</span></div>
               {chem.nfpa_diamond && (
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <span className="text-gray-500">NFPA Diamond:</span>{" "}
                   <span className="text-white">Health {chem.nfpa_diamond.health} / Fire {chem.nfpa_diamond.fire} / Reactivity {chem.nfpa_diamond.reactivity}{chem.nfpa_diamond.special ? ` / ${chem.nfpa_diamond.special}` : ""}</span>
                 </div>
@@ -827,7 +828,7 @@ export default function SDSLibraryPage() {
   return (
     <DashboardLayout>
       {/* Stats Bar */}
-      <div className="flex items-center gap-6 mb-6 text-sm flex-wrap">
+      <div className="grid grid-cols-2 gap-3 md:flex md:items-center md:gap-6 mb-6 text-sm">
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-blue-400" />
           <span className="text-gray-400">Total:</span>
@@ -853,25 +854,31 @@ export default function SDSLibraryPage() {
           <span className="text-gray-400">PDFs:</span>
           <span className="font-bold text-white">{pdfsUploaded}/{chemicals.length}</span>
         </div>
-        <div className="ml-auto text-xs text-gray-500">
+        <div className="col-span-2 md:ml-auto text-xs text-gray-500">
           Last updated: {lastUpdated}
         </div>
       </div>
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="font-display font-black text-2xl text-white">SDS Library</h1>
           <p className="text-sm text-gray-400 mt-1">
             {chemicals.length} safety data sheets &middot; click any row to view full 16-section SDS
           </p>
+          <Link
+            href="/sds-search"
+            className="text-sm text-amber-400 md:text-gray-400 hover:text-amber-400 transition-colors mt-1 inline-flex items-center gap-1 font-medium md:font-normal"
+          >
+            Looking for a new chemical? Browse our database &rarr;
+          </Link>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           {missingSDS.length > 0 && (
             <button
               onClick={handleFindAllMissing}
               disabled={findAllProgress !== null}
-              className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white font-medium text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center justify-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white font-medium text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 w-full sm:w-auto"
             >
               <Search className="h-4 w-4" />
               {findAllProgress
@@ -881,7 +888,7 @@ export default function SDSLibraryPage() {
           )}
           <button
             onClick={() => setUploadModal("open")}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+            className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors w-full sm:w-auto"
           >
             <Upload className="h-4 w-4" />
             Upload SDS PDF
@@ -922,9 +929,9 @@ export default function SDSLibraryPage() {
 
       {/* Missing SDS Banner */}
       {chemicals.length > 0 && missingSDS.length > 0 && (
-        <div className="mb-6 rounded-xl bg-status-red/10 border border-status-red/30 p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-status-red flex-shrink-0" />
+        <div className="mb-6 rounded-xl bg-status-red/10 border border-status-red/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-status-red flex-shrink-0 mt-0.5 sm:mt-0" />
             <div>
               <p className="text-sm font-medium text-white">
                 {missingSDS.length} Missing SDS: {missingSDS.map((c) => c.product_name).join(", ")}
@@ -936,7 +943,7 @@ export default function SDSLibraryPage() {
           </div>
           <button
             onClick={() => setEmailChem(missingSDS[0])}
-            className="flex items-center gap-1 text-status-red hover:text-white text-sm font-medium transition-colors whitespace-nowrap"
+            className="flex items-center gap-1 text-status-red hover:text-white text-sm font-medium transition-colors whitespace-nowrap self-start sm:self-center"
           >
             Request from Vendor <ArrowRight className="h-4 w-4" />
           </button>
@@ -960,13 +967,13 @@ export default function SDSLibraryPage() {
 
       {/* Filter Rows */}
       <div className="space-y-2 mb-6">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:pb-0 md:flex-wrap">
           <span className="text-xs text-gray-500 w-20 flex-shrink-0">Status</span>
           {["All", "Current", "Expired", "Missing"].map((f) => (
             <button
               key={f}
               onClick={() => setStatusFilter(f)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
                 statusFilter === f
                   ? "bg-amber-500 text-navy-950"
                   : "bg-navy-800 text-gray-400 hover:text-white border border-navy-700"
@@ -976,13 +983,13 @@ export default function SDSLibraryPage() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:pb-0 md:flex-wrap">
           <span className="text-xs text-gray-500 w-20 flex-shrink-0">Signal</span>
           {["All", "Danger", "Warning", "Not Classified"].map((f) => (
             <button
               key={f}
               onClick={() => setSignalFilter(f)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
                 signalFilter === f
                   ? "bg-amber-500 text-navy-950"
                   : "bg-navy-800 text-gray-400 hover:text-white border border-navy-700"
@@ -992,11 +999,11 @@ export default function SDSLibraryPage() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:pb-0 md:flex-wrap">
           <span className="text-xs text-gray-500 w-20 flex-shrink-0">Location</span>
           <button
             onClick={() => setLocationFilter("All")}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
               locationFilter === "All"
                 ? "bg-amber-500 text-navy-950"
                 : "bg-navy-800 text-gray-400 hover:text-white border border-navy-700"
@@ -1008,7 +1015,7 @@ export default function SDSLibraryPage() {
             <button
               key={loc}
               onClick={() => setLocationFilter(loc)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
                 locationFilter === loc
                   ? "bg-amber-500 text-navy-950"
                   : "bg-navy-800 text-gray-400 hover:text-white border border-navy-700"
@@ -1018,11 +1025,11 @@ export default function SDSLibraryPage() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:pb-0 md:flex-wrap">
           <span className="text-xs text-gray-500 w-20 flex-shrink-0">Hazard</span>
           <button
             onClick={() => setHazardFilter("All")}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
               hazardFilter === "All"
                 ? "bg-amber-500 text-navy-950"
                 : "bg-navy-800 text-gray-400 hover:text-white border border-navy-700"
@@ -1034,7 +1041,7 @@ export default function SDSLibraryPage() {
             <button
               key={ht.label}
               onClick={() => setHazardFilter(ht.label)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
                 hazardFilter === ht.label
                   ? "bg-amber-500 text-navy-950"
                   : "bg-navy-800 text-gray-400 hover:text-white border border-navy-700"
@@ -1059,8 +1066,8 @@ export default function SDSLibraryPage() {
         Showing {filtered.length} of {chemicals.length} entries
       </p>
 
-      {/* SDS Table */}
-      <div className="bg-navy-900 border border-navy-700/50 rounded-xl overflow-hidden">
+      {/* SDS Table — Desktop */}
+      <div className="hidden md:block bg-navy-900 border border-navy-700/50 rounded-xl overflow-hidden">
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-navy-700">
@@ -1147,6 +1154,85 @@ export default function SDSLibraryPage() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* SDS Cards — Mobile */}
+      <div className="md:hidden space-y-3">
+        {filtered.map((c) => (
+          <div
+            key={c.id}
+            onClick={() => setSelectedChem(c)}
+            className={`bg-navy-800/60 border border-navy-700/30 rounded-xl p-4 cursor-pointer active:bg-navy-800/80 transition-colors ${
+              c.sds_status === "missing" ? "border-status-red/30 bg-status-red/5" : ""
+            }`}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">{c.product_name}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{c.manufacturer} &middot; {c.location}</p>
+                {c.added_method === "manual" && c.sds_status === "missing" && (
+                  <p className="text-[10px] text-amber-400 mt-0.5">Manually entered — SDS not verified</p>
+                )}
+              </div>
+              <div className="ml-2 flex-shrink-0">
+                {statusBadge(c.sds_status)}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mb-3">
+              {signalBadge(c.signal_word)}
+              {c.pictogram_codes.slice(0, 3).map((code) => (
+                <GHSPictogram key={code} code={code} size={20} />
+              ))}
+              {c.pictogram_codes.length > 3 && (
+                <span className="text-xs text-gray-500">+{c.pictogram_codes.length - 3}</span>
+              )}
+              {c.physical_properties.flash_point && (
+                <span className="text-xs text-gray-400 ml-auto">FP: {c.physical_properties.flash_point}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {uploadedPDFs[c.id] && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-status-green/15 text-status-green">
+                  <FileText className="h-3 w-3" /> PDF on file
+                </span>
+              )}
+              {c.sds_url ? (
+                <a
+                  href={c.sds_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-status-green/15 text-status-green hover:bg-status-green/25 transition-colors"
+                >
+                  <Eye className="h-3 w-3" /> View SDS
+                </a>
+              ) : (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleFindSDS(c); }}
+                  disabled={lookupLoading === c.id}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 transition-colors disabled:opacity-50"
+                >
+                  {lookupLoading === c.id ? (
+                    <><RefreshCw className="h-3 w-3 animate-spin" /> Searching...</>
+                  ) : (
+                    <><Search className="h-3 w-3" /> Find SDS</>
+                  )}
+                </button>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); setUploadModal(c); }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-navy-700/50 text-gray-300 hover:bg-navy-700/80 transition-colors ml-auto"
+              >
+                <Upload className="h-3 w-3" /> Upload
+              </button>
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && (
+          <div className="py-12 text-center text-gray-500 text-sm">
+            No SDS entries match your filters.
+          </div>
+        )}
       </div>
 
       </>}

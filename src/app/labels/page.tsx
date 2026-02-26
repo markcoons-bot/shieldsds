@@ -31,7 +31,7 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
     <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-status-green/15 border border-status-green/30 text-status-green px-5 py-3 rounded-xl shadow-lg animate-in">
       <CheckCircle2 className="h-5 w-5 flex-shrink-0" />
       <span className="text-sm font-medium">{message}</span>
-      <button onClick={onClose} className="ml-2 hover:text-white transition-colors">
+      <button onClick={onClose} className="ml-2 hover:text-white transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
         <X className="h-4 w-4" />
       </button>
     </div>
@@ -145,7 +145,7 @@ export default function LabelsPage() {
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="font-display font-black text-2xl text-white">Labels</h1>
           <p className="text-sm text-gray-400 mt-1">
@@ -155,7 +155,7 @@ export default function LabelsPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={handlePrintAllPending}
-            className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white text-sm px-4 py-2 rounded-lg transition-colors"
+            className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white text-sm px-4 py-2.5 min-h-[44px] rounded-lg transition-colors w-full md:w-auto justify-center"
           >
             <Layers className="h-4 w-4" />
             Print All Pending ({needsLabels.length})
@@ -165,7 +165,7 @@ export default function LabelsPage() {
 
       {/* Alert banner for unlabeled */}
       {needsLabels.length > 0 && (
-        <div className="mb-6 rounded-xl bg-status-amber/10 border border-status-amber/30 p-4 flex items-center justify-between">
+        <div className="mb-6 rounded-xl bg-status-amber/10 border border-status-amber/30 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <AlertTriangle className="h-5 w-5 text-status-amber flex-shrink-0" />
             <p className="text-sm text-white">
@@ -176,14 +176,14 @@ export default function LabelsPage() {
             onClick={() => {
               if (needsLabels[0]) selectChemical(needsLabels[0].id);
             }}
-            className="text-status-amber hover:text-white text-sm font-medium transition-colors"
+            className="text-status-amber hover:text-white text-sm font-medium transition-colors min-h-[44px] min-w-[44px] flex items-center"
           >
             Create Labels
           </button>
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* ─── Left Column: Label Creator ─── */}
         <div className="space-y-5">
           {/* Product Selector */}
@@ -194,7 +194,7 @@ export default function LabelsPage() {
             <div className="relative">
               <button
                 onClick={() => setProductDropdownOpen(!productDropdownOpen)}
-                className="w-full flex items-center justify-between bg-navy-800 border border-navy-700 rounded-lg px-4 py-2.5 text-left hover:border-navy-600 transition-colors"
+                className="w-full flex items-center justify-between bg-navy-800 border border-navy-700 rounded-lg px-4 py-2.5 min-h-[44px] text-left hover:border-navy-600 transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">
@@ -226,7 +226,7 @@ export default function LabelsPage() {
                       <button
                         key={c.id}
                         onClick={() => selectChemical(c.id)}
-                        className={`w-full flex items-center justify-between px-4 py-2.5 text-left transition-colors border-b border-navy-700/30 last:border-b-0 ${
+                        className={`w-full flex items-center justify-between px-4 py-2.5 min-h-[44px] text-left transition-colors border-b border-navy-700/30 last:border-b-0 ${
                           c.id === selectedId ? "bg-amber-500/10" : "hover:bg-navy-800/50"
                         }`}
                       >
@@ -261,7 +261,7 @@ export default function LabelsPage() {
             <label className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
               Label Size
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {([
                 { key: "full" as const, label: "Full (4\u00d76)" },
                 { key: "small" as const, label: "Small (2\u00d73)" },
@@ -270,7 +270,7 @@ export default function LabelsPage() {
                 <button
                   key={opt.key}
                   onClick={() => setLabelSize(opt.key)}
-                  className={`flex-1 text-center py-2 px-3 rounded-lg text-sm font-medium transition-colors border ${
+                  className={`flex-1 text-center py-2 px-3 min-h-[44px] rounded-lg text-sm font-medium transition-colors border ${
                     labelSize === opt.key
                       ? "bg-amber-500/15 border-amber-500/50 text-amber-400"
                       : "bg-navy-800 border-navy-700 text-gray-300 hover:border-navy-600"
@@ -288,11 +288,13 @@ export default function LabelsPage() {
               <label className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
                 Label Preview
               </label>
-              <LabelPreview
-                chemical={selectedChemical}
-                size={labelSize}
-                onPrint={() => handlePrintLabel()}
-              />
+              <div className="max-w-full overflow-x-auto">
+                <LabelPreview
+                  chemical={selectedChemical}
+                  size={labelSize}
+                  onPrint={() => handlePrintLabel()}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -339,7 +341,7 @@ export default function LabelsPage() {
                         selectChemical(c.id);
                         handlePrintLabel(c.id);
                       }}
-                      className="flex items-center gap-1 text-xs bg-status-amber/15 hover:bg-status-amber/25 text-status-amber px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                      className="flex items-center gap-1 text-xs bg-status-amber/15 hover:bg-status-amber/25 text-status-amber px-3 py-1.5 min-h-[44px] min-w-[44px] rounded-lg transition-colors whitespace-nowrap"
                     >
                       <Printer className="h-3 w-3" />
                       Print Label
@@ -382,7 +384,7 @@ export default function LabelsPage() {
                       </div>
                       <button
                         onClick={() => selectChemical(c.id)}
-                        className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                        className="text-xs text-amber-400 hover:text-amber-300 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
                       >
                         Reprint
                       </button>

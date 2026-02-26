@@ -80,7 +80,8 @@ function mapToChemical(
   chem: SDSRecord,
   location: string,
   containerType: string,
-  quantity: number
+  quantity: number,
+  labeled: boolean = false
 ): Omit<Chemical, "id"> {
   const hazardStatements = (chem.hazard_statements || []).map((h) => {
     const match = h.match(/^(H\d+)\s*[-–—:]\s*(.+)$/);
@@ -105,7 +106,7 @@ function mapToChemical(
     location,
     container_type: containerType,
     container_count: quantity,
-    labeled: false,
+    labeled,
     label_printed_date: null,
     sds_url: chem.sds_url || null,
     sds_uploaded: !!chem.sds_url,
@@ -148,6 +149,7 @@ function SDSSearchPageInner() {
   const [bulkDone, setBulkDone] = useState(false);
   const [showNewBulkLoc, setShowNewBulkLoc] = useState(false);
   const [newBulkLocName, setNewBulkLocName] = useState("");
+  const [addedFlash, setAddedFlash] = useState(false);
 
   // Initialize
   useEffect(() => {
@@ -249,9 +251,12 @@ function SDSSearchPageInner() {
     setQuery(term.replace(/ SDS$/i, ""));
   }
 
-  function handleAddSingle(chem: SDSRecord, location: string, containerType: string, quantity: number) {
-    addChemical(mapToChemical(chem, location, containerType, quantity));
+  function handleAddSingle(chem: SDSRecord, location: string, containerType: string, quantity: number, originalContainer: boolean = true) {
+    addChemical(mapToChemical(chem, location, containerType, quantity, originalContainer));
     refreshInventory();
+    // Flash the setup bar green briefly
+    setAddedFlash(true);
+    setTimeout(() => setAddedFlash(false), 1200);
   }
 
   function handleAddLocation(name: string) {
@@ -282,7 +287,7 @@ function SDSSearchPageInner() {
     setBulkProgress({ current: 0, total: toAdd.length });
 
     for (let i = 0; i < toAdd.length; i++) {
-      addChemical(mapToChemical(toAdd[i], loc, bulkContainer, 1));
+      addChemical(mapToChemical(toAdd[i], loc, bulkContainer, 1, true));
       setBulkProgress({ current: i + 1, total: toAdd.length });
       // Brief pause for UI update
       await new Promise((r) => setTimeout(r, 50));
@@ -301,14 +306,14 @@ function SDSSearchPageInner() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* ── Header ────────────────────────────────────────────────── */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 min-h-[3.5rem] flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 md:gap-4">
             <Link
-              href="/dashboard"
-              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+              href={returnTo === "setup" ? "/setup?step=3" : "/inventory"}
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors min-h-[44px] min-w-[44px]"
             >
               <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Back to Dashboard</span>
+              <span className="hidden sm:inline">{returnTo === "setup" ? "Back to Setup" : "Back to Inventory"}</span>
             </Link>
             <div className="h-5 w-px bg-gray-200 hidden sm:block" />
             <Link href="/" className="flex items-center gap-2 group">
@@ -334,13 +339,13 @@ function SDSSearchPageInner() {
       {/* ── Back to Setup banner ── */}
       {returnTo === "setup" && (
         <div className="bg-amber-50 border-b border-amber-200">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <p className="text-sm text-amber-800 font-medium">
               Add chemicals to your inventory, then return to finish setup.
             </p>
             <Link
               href="/setup?step=3"
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-700 hover:text-amber-900 transition-colors"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-700 hover:text-amber-900 transition-colors min-h-[44px]"
             >
               <ArrowLeftIcon className="h-4 w-4" />
               Back to Setup
@@ -363,14 +368,14 @@ function SDSSearchPageInner() {
                 hazard data, and labels.
               </p>
             </div>
-            <div className="flex flex-wrap justify-center gap-2">
+            <div className="flex overflow-x-auto md:flex-wrap md:justify-center gap-2 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
               {QUICK_START.map((qs) => {
                 const Icon = qs.icon;
                 return (
                   <button
                     key={qs.value}
                     onClick={() => { setIndustry(qs.value); setQuery(""); }}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-amber-300 hover:border-amber-500 rounded-lg text-sm font-medium text-gray-800 hover:text-amber-800 transition-colors shadow-sm"
+                    className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-white border border-amber-300 hover:border-amber-500 rounded-lg text-sm font-medium text-gray-800 hover:text-amber-800 transition-colors shadow-sm"
                   >
                     <Icon className="h-4 w-4 text-amber-600" />
                     {qs.label}
@@ -383,42 +388,44 @@ function SDSSearchPageInner() {
       )}
 
       {/* ── Hero Section ──────────────────────────────────────────── */}
-      <section className="bg-gradient-to-b from-navy-900 to-navy-800 text-white py-10 sm:py-14">
+      <section className="bg-gradient-to-b from-navy-900 to-navy-800 text-white py-6 sm:py-14">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          <h1 className="text-3xl sm:text-4xl font-black mb-3 leading-tight">
+          <h1 className="text-2xl sm:text-4xl font-black mb-2 sm:mb-3 leading-tight">
             Browse &amp; Add Chemicals
           </h1>
-          <p className="text-gray-300 text-base sm:text-lg mb-8 max-w-2xl mx-auto">
+          <p className="text-gray-300 text-sm sm:text-lg mb-5 sm:mb-8 max-w-2xl mx-auto">
             Search our SDS database and add chemicals to your inventory with one click.
           </p>
 
-          {/* Search Bar */}
-          <div className="relative max-w-2xl mx-auto">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by product name or manufacturer..."
-              className="w-full pl-12 pr-10 py-4 rounded-xl text-gray-900 text-base sm:text-lg bg-white border-2 border-transparent focus:border-amber-400 focus:outline-none shadow-lg placeholder:text-gray-400"
-            />
-            {query && (
-              <button
-                onClick={() => { setQuery(""); setResults([]); setHasSearched(false); }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            )}
+          {/* Search Bar — sticky on mobile when scrolling past hero */}
+          <div className="sticky top-[3.5rem] z-20 bg-gradient-to-b from-navy-900 to-navy-900/95 pb-3 -mx-4 px-4 sm:mx-0 sm:px-0 sm:static sm:bg-transparent sm:pb-0">
+            <div className="relative max-w-2xl mx-auto">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by product name or manufacturer..."
+                className="w-full pl-12 pr-10 py-3.5 sm:py-4 rounded-xl text-gray-900 text-base sm:text-lg bg-white border-2 border-transparent focus:border-amber-400 focus:outline-none shadow-lg placeholder:text-gray-400"
+              />
+              {query && (
+                <button
+                  onClick={() => { setQuery(""); setResults([]); setHasSearched(false); }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Industry Filter Pills */}
-          <div className="flex flex-wrap justify-center gap-2 mt-6">
+          {/* Industry Filter Pills — horizontal scroll on mobile, wrap on desktop */}
+          <div className="flex overflow-x-auto md:flex-wrap md:justify-center gap-2 mt-4 sm:mt-6 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
             {INDUSTRIES.map((ind) => (
               <button
                 key={ind.value}
                 onClick={() => setIndustry(industry === ind.value ? "" : ind.value)}
-                className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                className={`flex-shrink-0 px-3.5 py-2 min-h-[44px] rounded-full text-sm font-medium transition-colors ${
                   industry === ind.value
                     ? "bg-amber-500 text-navy-950"
                     : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
@@ -458,7 +465,7 @@ function SDSSearchPageInner() {
       </div>
 
       {/* ── Results ───────────────────────────────────────────────── */}
-      <main className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 py-8 w-full">
+      <main className={`flex-1 max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 w-full ${returnTo === "setup" ? "pb-32 md:pb-24" : ""} ${bulkMode ? "pb-32 md:pb-24" : ""}`}>
         {loading && (
           <div className="text-center py-12">
             <div className="inline-block h-8 w-8 border-4 border-amber-400 border-t-transparent rounded-full animate-spin" />
@@ -469,7 +476,7 @@ function SDSSearchPageInner() {
         {!loading && hasSearched && results.length > 0 && (
           <>
             {/* Results header + bulk toggle */}
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
               <p className="text-sm text-gray-500">
                 Found <strong className="text-gray-900">{results.length}</strong>{" "}
                 chemical{results.length !== 1 ? "s" : ""}{" "}
@@ -482,7 +489,7 @@ function SDSSearchPageInner() {
                   setSelected(new Set());
                   setBulkDone(false);
                 }}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`inline-flex items-center justify-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-colors w-full md:w-auto ${
                   bulkMode
                     ? "bg-amber-100 text-amber-800 border border-amber-300"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -552,7 +559,7 @@ function SDSSearchPageInner() {
               </p>
               <Link
                 href="/scan"
-                className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 text-sm font-bold px-5 py-2.5 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 text-sm font-bold px-5 py-2.5 min-h-[44px] rounded-lg transition-colors"
               >
                 <Camera className="h-4 w-4" />
                 Snap to Compliance
@@ -571,12 +578,12 @@ function SDSSearchPageInner() {
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
                 Popular Searches
               </p>
-              <div className="flex flex-wrap justify-center gap-2">
+              <div className="flex overflow-x-auto md:flex-wrap md:justify-center gap-2 pb-2 scrollbar-hide">
                 {POPULAR_SEARCHES.map((term) => (
                   <button
                     key={term}
                     onClick={() => handlePopularSearch(term)}
-                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-amber-400 hover:text-amber-700 transition-colors"
+                    className="flex-shrink-0 px-3 py-2 min-h-[44px] bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-amber-400 hover:text-amber-700 transition-colors"
                   >
                     {term}
                   </button>
@@ -587,18 +594,37 @@ function SDSSearchPageInner() {
         )}
       </main>
 
+      {/* ── Setup Mode Sticky Bottom Bar ──────────────────────────── */}
+      {returnTo === "setup" && (
+        <div className={`fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 shadow-lg transition-colors duration-300 ${addedFlash ? "bg-green-50" : "bg-white"}`}>
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-2">
+            <p className="text-sm font-medium text-gray-700 text-center md:text-left">
+              <span className={`transition-colors duration-300 ${addedFlash ? "text-green-600" : "text-gray-700"}`}>
+                {inventorySize} chemical{inventorySize !== 1 ? "s" : ""} added
+              </span>
+            </p>
+            <Link
+              href="/setup?step=3"
+              className="inline-flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-navy-950 text-sm font-bold px-5 py-2.5 min-h-[44px] rounded-lg transition-colors w-full md:w-auto"
+            >
+              Done Adding &rarr; Back to Setup
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* ── Bulk Select Bottom Bar ────────────────────────────────── */}
       {bulkMode && selectedCount > 0 && !showBulkForm && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-700">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-2">
+            <p className="text-sm font-medium text-gray-700 text-center md:text-left">
               <strong className="text-amber-600">{selectedCount}</strong> chemical{selectedCount !== 1 ? "s" : ""} selected
             </p>
             <button
               onClick={() => setShowBulkForm(true)}
-              className="bg-amber-500 hover:bg-amber-400 text-navy-950 text-sm font-bold px-5 py-2.5 rounded-lg transition-colors"
+              className="bg-amber-500 hover:bg-amber-400 text-navy-950 text-sm font-bold px-5 py-2.5 min-h-[44px] rounded-lg transition-colors w-full md:w-auto"
             >
-              Add Selected to Inventory →
+              Add Selected to Inventory &rarr;
             </button>
           </div>
         </div>
@@ -606,9 +632,9 @@ function SDSSearchPageInner() {
 
       {/* ── Bulk Add Modal ────────────────────────────────────────── */}
       {showBulkForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => !bulkAdding && setShowBulkForm(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+          <div className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full p-5 sm:p-6">
             {bulkAdding ? (
               <div className="text-center py-6">
                 <Loader2 className="h-8 w-8 text-amber-500 animate-spin mx-auto mb-3" />
@@ -620,7 +646,7 @@ function SDSSearchPageInner() {
               <>
                 <button
                   onClick={() => setShowBulkForm(false)}
-                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                  className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 min-h-[44px] min-w-[44px] flex items-center justify-center"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -678,7 +704,7 @@ function SDSSearchPageInner() {
                   <button
                     onClick={handleBulkAdd}
                     disabled={showNewBulkLoc && !newBulkLocName.trim()}
-                    className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-navy-950 font-bold py-3 rounded-xl transition-colors"
+                    className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-navy-950 font-bold py-3 min-h-[44px] rounded-xl transition-colors"
                   >
                     Add {selectedCount} Chemical{selectedCount !== 1 ? "s" : ""} →
                   </button>

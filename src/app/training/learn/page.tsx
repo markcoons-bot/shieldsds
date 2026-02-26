@@ -384,7 +384,16 @@ export default function ShieldSDSTraining() {
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [showCompletedSection, setShowCompletedSection] = useState(false);
   const [justCompletedAll, setJustCompletedAll] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // ── RESPONSIVE: Detect mobile viewport ──
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   // ── PERSISTENCE: Load saved state ──
   useEffect(() => {
@@ -579,11 +588,11 @@ export default function ShieldSDSTraining() {
   const renderWelcome = () => (
     <div style={{ ...S.fadeIn, opacity: transitioning ? 0 : 1, transition:"opacity 0.3s" }}>
       {/* Hero */}
-      <div style={{ textAlign:"center", padding:"48px 20px 32px", position:"relative", overflow:"hidden" }}>
+      <div style={{ textAlign:"center", padding: isMobile ? "28px 12px 24px" : "48px 20px 32px", position:"relative", overflow:"hidden" }}>
         <div style={{ position:"absolute", top:0, left:0, right:0, bottom:0, background:`radial-gradient(ellipse at 50% 0%, ${T.amber}15 0%, transparent 70%)`, pointerEvents:"none" }} />
         <div style={{ position:"relative" }}>
-          <div style={{ fontSize:56, marginBottom:12 }}>🛡️</div>
-          <h1 style={{ ...S.heading(36), marginBottom:12 }}>
+          <div style={{ fontSize: isMobile ? 40 : 56, marginBottom:12 }}>🛡️</div>
+          <h1 style={{ ...S.heading(isMobile ? 26 : 36), marginBottom:12 }}>
             <span style={{ color:T.amber }}>Shield</span>SDS Training
           </h1>
           <p style={{ ...S.sub(17), maxWidth:520, margin:"0 auto 8px", color:T.ghost }}>
@@ -596,7 +605,7 @@ export default function ShieldSDSTraining() {
       </div>
 
       {/* Stats bar */}
-      <div style={{ display:"flex", justifyContent:"center", gap:32, padding:"0 20px 32px", flexWrap:"wrap" }}>
+      <div style={{ display:"flex", justifyContent:"center", gap: isMobile ? 16 : 32, padding: isMobile ? "0 12px 24px" : "0 20px 32px", flexWrap:"wrap" }}>
         {[
           { n:"7", label:"Core Modules" },
           { n:"~45", label:"Minutes Total" },
@@ -611,10 +620,10 @@ export default function ShieldSDSTraining() {
       </div>
 
       {/* What you'll learn */}
-      <div style={{ padding:"0 20px 32px", maxWidth:680, margin:"0 auto" }}>
+      <div style={{ padding: isMobile ? "0 12px 24px" : "0 20px 32px", maxWidth:680, margin:"0 auto" }}>
         <div style={{ ...S.card(T.navyMid), padding:28 }}>
           <h3 style={{ ...S.heading(18), marginBottom:16 }}>What You&apos;ll Learn</h3>
-          <div style={{ ...S.grid("1fr 1fr", 12) }}>
+          <div style={{ ...S.grid(isMobile ? "1fr" : "1fr 1fr", 12) }}>
             {[
               { icon:"⚖️", text:"Your legal rights under OSHA" },
               { icon:"💎", text:"Reading GHS pictograms & labels" },
@@ -633,13 +642,13 @@ export default function ShieldSDSTraining() {
       </div>
 
       {/* Infographic: Why this matters */}
-      <div style={{ padding:"0 20px 32px", maxWidth:680, margin:"0 auto" }}>
+      <div style={{ padding: isMobile ? "0 12px 24px" : "0 20px 32px", maxWidth:680, margin:"0 auto" }}>
         <div style={{ ...S.card(), background:`linear-gradient(135deg, ${T.bad}18, ${T.navyCard})`, border:`1px solid ${T.bad}33`, padding:28 }}>
           <div style={{ display:"flex", alignItems:"flex-start", gap:16 }}>
             <div style={{ fontSize:36, lineHeight:1 }}>⚠️</div>
             <div>
               <h3 style={{ ...S.heading(17), color:T.amberBright, marginBottom:8 }}>Why Chemical Safety Training Matters</h3>
-              <div style={{ ...S.grid("1fr 1fr 1fr", 16), marginTop:12 }}>
+              <div style={{ ...S.grid(isMobile ? "1fr" : "1fr 1fr 1fr", 16), marginTop:12 }}>
                 {[
                   { stat:"~50,000", desc:"chemical-related injuries per year in U.S. workplaces" },
                   { stat:"#2", desc:"HazCom is OSHA's 2nd most-cited violation every year" },
@@ -657,7 +666,7 @@ export default function ShieldSDSTraining() {
       </div>
 
       {/* CTA */}
-      <div style={{ textAlign:"center", padding:"0 20px 48px" }}>
+      <div style={{ textAlign:"center", padding: isMobile ? "0 12px 32px" : "0 20px 48px" }}>
         <button onClick={() => transitionTo("profile")} style={{ ...S.btn(T.amber, T.navy), fontSize:17, padding:"16px 40px" }}>
           Start Your Training →
         </button>
@@ -670,7 +679,7 @@ export default function ShieldSDSTraining() {
   // RENDER: COMPANY PROFILE SETUP
   // ════════════════════════════════════════════════════
   const renderProfile = () => (
-    <div style={{ ...S.fadeIn, opacity: transitioning ? 0 : 1, transition:"opacity 0.3s", padding:"32px 20px", maxWidth:720, margin:"0 auto" }}>
+    <div style={{ ...S.fadeIn, opacity: transitioning ? 0 : 1, transition:"opacity 0.3s", padding: isMobile ? "20px 12px" : "32px 20px", maxWidth:720, margin:"0 auto" }}>
       <div style={{ textAlign:"center", marginBottom:32 }}>
         <span style={S.tag()}>STEP 1 OF 2</span>
         <h2 style={{ ...S.heading(28), marginTop:12 }}>Select Your Industry</h2>
@@ -678,7 +687,7 @@ export default function ShieldSDSTraining() {
       </div>
 
       {/* Industry grid */}
-      <div style={{ ...S.grid("repeat(auto-fit, minmax(200px, 1fr))", 12), marginBottom:32 }}>
+      <div style={{ ...S.grid(isMobile ? "1fr" : "repeat(auto-fit, minmax(200px, 1fr))", 12), marginBottom:32 }}>
         {INDUSTRIES.map(ind => {
           const active = industry === ind.id;
           return (
@@ -704,7 +713,7 @@ export default function ShieldSDSTraining() {
               {INDUSTRIES.find(i=>i.id===industry)?.icon} Training Preview: {INDUSTRIES.find(i=>i.id===industry)?.name}
             </h3>
           </div>
-          <div style={{ ...S.grid("1fr 1fr", 20) }}>
+          <div style={{ ...S.grid(isMobile ? "1fr" : "1fr 1fr", 20) }}>
             <div>
               <div style={{ ...S.tag(T.badBg, T.bad), marginBottom:8 }}>COMMON SCENARIOS</div>
               {INDUSTRIES.find(i=>i.id===industry)?.scenarios.map((s,i) => (
@@ -730,7 +739,7 @@ export default function ShieldSDSTraining() {
         <div style={{ ...S.card(), marginBottom:32, animation:"shieldFadeIn 0.3s ease" }}>
           <span style={S.tag()}>STEP 2 OF 2</span>
           <h3 style={{ ...S.heading(17), marginTop:12, marginBottom:16 }}>Employee & Company Info</h3>
-          <div style={{ ...S.grid("1fr 1fr", 16) }}>
+          <div style={{ ...S.grid(isMobile ? "1fr" : "1fr 1fr", 16) }}>
             <div>
               <label style={{ fontSize:12, color:T.muted, fontFamily:T.font, display:"block", marginBottom:6 }}>Your Name *</label>
               <input value={employeeName} onChange={e => setEmployeeName(e.target.value)} placeholder="First and Last Name"
@@ -821,10 +830,10 @@ export default function ShieldSDSTraining() {
     };
 
     return (
-      <div style={{ ...S.fadeIn, opacity: transitioning ? 0 : 1, transition:"opacity 0.3s", padding:"32px 20px", maxWidth:720, margin:"0 auto" }}>
+      <div style={{ ...S.fadeIn, opacity: transitioning ? 0 : 1, transition:"opacity 0.3s", padding: isMobile ? "20px 12px" : "32px 20px", maxWidth:720, margin:"0 auto" }}>
         {/* Header */}
         <div style={{ textAlign:"center", marginBottom:24 }}>
-          <h2 style={{ ...S.heading(allDone ? 28 : 24), marginBottom:8 }}>{headerText}</h2>
+          <h2 style={{ ...S.heading(isMobile ? (allDone ? 22 : 20) : (allDone ? 28 : 24)), marginBottom:8 }}>{headerText}</h2>
           <p style={{ ...S.sub(14), maxWidth:480, margin:"0 auto" }}>{subText}</p>
           {!allDone && (
             <p style={{ ...S.sub(12), marginTop:4 }}>
@@ -1034,7 +1043,7 @@ export default function ShieldSDSTraining() {
           <p style={{ ...S.sub(15), textAlign:"center", color:T.ghost, maxWidth:500, margin:"0 auto 24px" }}>
             That&apos;s why OSHA created the Hazard Communication Standard — your legal right to know every hazard in your workplace.
           </p>
-          <div style={{ ...S.grid("1fr 1fr 1fr", 12) }}>
+          <div style={{ ...S.grid(isMobile ? "1fr" : "1fr 1fr 1fr", 12) }}>
             {[
               { icon:"🔍", title:"KNOW the hazards", desc:"Every chemical you work with has documented dangers" },
               { icon:"🛡️", title:"KNOW the protection", desc:"The right PPE and safety measures for each chemical" },
@@ -1156,9 +1165,9 @@ export default function ShieldSDSTraining() {
           <p style={S.sub()}>Every GHS label has one of two signal words — and they&apos;re NOT interchangeable.</p>
         </div>
 
-        <div style={{ ...S.grid("1fr 1fr", 16), marginBottom:24 }}>
-          <div style={{ ...S.card(), background:`${T.bad}15`, border:`2px solid ${T.bad}`, textAlign:"center", padding:28 }}>
-            <div style={{ fontSize:36, fontWeight:900, color:T.bad, fontFamily:T.font, letterSpacing:"0.1em", marginBottom:12 }}>⚠️ DANGER</div>
+        <div style={{ ...S.grid(isMobile ? "1fr" : "1fr 1fr", 16), marginBottom:24 }}>
+          <div style={{ ...S.card(), background:`${T.bad}15`, border:`2px solid ${T.bad}`, textAlign:"center", padding: isMobile ? 20 : 28 }}>
+            <div style={{ fontSize: isMobile ? 28 : 36, fontWeight:900, color:T.bad, fontFamily:T.font, letterSpacing:"0.1em", marginBottom:12 }}>⚠️ DANGER</div>
             <div style={{ fontSize:14, color:T.ghost, fontFamily:T.font, lineHeight:1.5 }}>
               Reserved for the <strong style={{ color:T.bad }}>most severe</strong> hazards. This chemical could be fatal, cause serious injury, or is highly flammable/explosive.
             </div>
@@ -1166,8 +1175,8 @@ export default function ShieldSDSTraining() {
               <span style={{ fontSize:12, color:T.muted, fontFamily:T.font }}>Example: concentrated acids, isocyanates, methanol</span>
             </div>
           </div>
-          <div style={{ ...S.card(), background:`${T.amber}10`, border:`2px solid ${T.amber}`, textAlign:"center", padding:28 }}>
-            <div style={{ fontSize:36, fontWeight:900, color:T.amber, fontFamily:T.font, letterSpacing:"0.1em", marginBottom:12 }}>⚠️ WARNING</div>
+          <div style={{ ...S.card(), background:`${T.amber}10`, border:`2px solid ${T.amber}`, textAlign:"center", padding: isMobile ? 20 : 28 }}>
+            <div style={{ fontSize: isMobile ? 28 : 36, fontWeight:900, color:T.amber, fontFamily:T.font, letterSpacing:"0.1em", marginBottom:12 }}>⚠️ WARNING</div>
             <div style={{ fontSize:14, color:T.ghost, fontFamily:T.font, lineHeight:1.5 }}>
               For <strong style={{ color:T.amber }}>less severe</strong> but still significant hazards. Can cause irritation, minor burns, or health effects.
             </div>
@@ -1397,7 +1406,7 @@ export default function ShieldSDSTraining() {
           <p style={{ ...S.sub(15), textAlign:"center", color:T.ghost, maxWidth:520, margin:"0 auto 24px" }}>
             Before you open any container — read the label. It takes 30 seconds and could save your life.
           </p>
-          <div style={{ ...S.grid("1fr 1fr", 12) }}>
+          <div style={{ ...S.grid(isMobile ? "1fr" : "1fr 1fr", 12) }}>
             {[
               { icon:"⚡", stat:"#1 Cause", desc:"Missing or ignored labels are the #1 cause of chemical accidents in the workplace" },
               { icon:"⏱️", stat:"30 sec", desc:"That's all it takes to scan a label and identify the hazards before you start working" },
@@ -1427,17 +1436,17 @@ export default function ShieldSDSTraining() {
         </div>
 
         {/* Interactive label mockup */}
-        <div style={{ ...S.card(), background:"#fefefe", border:`2px solid ${T.navyLight}`, padding:0, overflow:"hidden", borderRadius:T.radius, marginBottom:16 }}>
+        <div style={{ ...S.card(), background:"#fefefe", border:`2px solid ${T.navyLight}`, padding:0, overflow:"hidden", borderRadius:T.radius, marginBottom:16, maxWidth:"100%" }}>
           {/* Label header */}
-          <div style={{ background:"#1a1a1a", padding:"12px 20px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <span style={{ fontSize:14, fontWeight:800, color:"white", fontFamily:T.font, letterSpacing:"0.04em" }}>
+          <div style={{ background:"#1a1a1a", padding: isMobile ? "10px 12px" : "12px 20px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span style={{ fontSize: isMobile ? 12 : 14, fontWeight:800, color:"white", fontFamily:T.font, letterSpacing:"0.04em" }}>
               SAMPLE GHS LABEL
             </span>
-            <span style={{ fontSize:11, color:"#888", fontFamily:T.font }}>Tap numbered elements ↓</span>
+            <span style={{ fontSize: isMobile ? 10 : 11, color:"#888", fontFamily:T.font }}>Tap numbered elements ↓</span>
           </div>
-          <div style={{ padding:20 }}>
+          <div style={{ padding: isMobile ? 12 : 20 }}>
             {/* Row 1: Product ID + Signal Word */}
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
+            <div style={{ display:"flex", flexDirection: isMobile ? "column" : "row", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16, gap: isMobile ? 12 : 0 }}>
               <LabelElement n={1} label="Product Identifier" color={T.blue}
                 detail="The chemical name or product name exactly matching what's on the SDS. This is how you look it up."
                 example={`e.g., "${sampleChemical}"`}
@@ -1646,7 +1655,7 @@ export default function ShieldSDSTraining() {
           <p style={{ ...S.sub(15), textAlign:"center", color:T.ghost, maxWidth:540, margin:"0 auto 20px" }}>
             If the label is the summary, the SDS is the full story. Every hazardous chemical has one — 16 sections, same order, every time.
           </p>
-          <div style={{ ...S.grid("1fr 1fr 1fr", 12) }}>
+          <div style={{ ...S.grid(isMobile ? "1fr" : "1fr 1fr 1fr", 12) }}>
             {[
               { stat:"16", label:"Standardized sections", sub:"Same order for every chemical" },
               { stat:"~15", label:"Pages average", sub:"Detailed safety information" },
@@ -1931,7 +1940,7 @@ export default function ShieldSDSTraining() {
         </div>
 
         {/* Category selector */}
-        <div style={{ ...S.grid("repeat(4, 1fr)", 8), marginBottom:16 }}>
+        <div style={{ ...S.grid(isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", 8), marginBottom:16 }}>
           {ppeCategories.map(cat => {
             const active = selectedPictogram === `ppe-${cat.id}`;
             return (
@@ -2077,7 +2086,7 @@ export default function ShieldSDSTraining() {
           <p style={{ ...S.sub(15), textAlign:"center", color:T.ghost, maxWidth:520, margin:"0 auto 20px" }}>
             In a chemical emergency, what you do in the first minute determines the outcome. Panic is the enemy — preparation is the cure.
           </p>
-          <div style={{ ...S.grid("1fr 1fr 1fr", 12) }}>
+          <div style={{ ...S.grid(isMobile ? "1fr" : "1fr 1fr 1fr", 12) }}>
             {[
               { n:"1", action:"STOP", desc:"Stop the source if safe. Don't rush in.", color:T.bad },
               { n:"2", action:"ALERT", desc:"Warn others. Clear the area if needed.", color:T.amber },
@@ -2155,7 +2164,7 @@ export default function ShieldSDSTraining() {
           <p style={S.sub()}>Not every spill requires evacuation. But every spill requires the RIGHT response.</p>
         </div>
 
-        <div style={{ ...S.grid("1fr 1fr", 16), marginBottom:20 }}>
+        <div style={{ ...S.grid(isMobile ? "1fr" : "1fr 1fr", 16), marginBottom:20 }}>
           {/* Small spill */}
           <div style={{ ...S.card(), background:`${T.amber}08`, border:`1px solid ${T.amber}33`, padding:20 }}>
             <div style={{ textAlign:"center", marginBottom:12 }}>
@@ -2207,7 +2216,7 @@ export default function ShieldSDSTraining() {
         {/* Decision factors */}
         <div style={{ ...S.card(T.navyMid), padding:16 }}>
           <h4 style={{ fontSize:13, fontWeight:700, color:T.amber, fontFamily:T.font, marginBottom:10 }}>How to Decide: Can I Handle This?</h4>
-          <div style={{ ...S.grid("1fr 1fr", 12) }}>
+          <div style={{ ...S.grid(isMobile ? "1fr" : "1fr 1fr", 12) }}>
             <div>
               <div style={{ fontSize:11, fontWeight:700, color:T.good, fontFamily:T.font, marginBottom:6 }}>Handle it yourself IF:</div>
               {["Small quantity (under 1 gallon)","You have proper PPE available","You have appropriate absorbent","Chemical is low-toxicity","Good ventilation present"].map((item,i) => (
@@ -2345,7 +2354,7 @@ export default function ShieldSDSTraining() {
           <p style={S.sub()}>These are the types of hazardous chemicals commonly found in your workplace. Each one has an SDS you must be able to access.</p>
         </div>
 
-        <div style={{ ...S.grid("repeat(auto-fit, minmax(200px, 1fr))", 10), marginBottom:20 }}>
+        <div style={{ ...S.grid(isMobile ? "1fr" : "repeat(auto-fit, minmax(200px, 1fr))", 10), marginBottom:20 }}>
           {ind.chemicals.map((chem, i) => {
             const hazard = ind.topHazards[i % ind.topHazards.length];
             const picto = GHS_PICTOGRAMS.find(p => p.id === hazard);
@@ -2364,7 +2373,7 @@ export default function ShieldSDSTraining() {
         {/* Work areas */}
         <div style={{ ...S.card(), background:`${T.blue}08`, border:`1px solid ${T.blue}22`, padding:20, marginBottom:16 }}>
           <h4 style={{ fontSize:14, fontWeight:700, color:T.blue, fontFamily:T.font, marginBottom:12 }}>📍 Where Chemicals Are Used in Your Facility</h4>
-          <div style={{ ...S.grid("repeat(auto-fit, minmax(140px, 1fr))", 8) }}>
+          <div style={{ ...S.grid(isMobile ? "1fr" : "repeat(auto-fit, minmax(140px, 1fr))", 8) }}>
             {ind.workAreas.map((area, i) => (
               <div key={i} style={{ display:"flex", gap:8, alignItems:"center", padding:"8px 12px", background:T.navyMid, borderRadius:T.radiusSm }}>
                 <span style={{ color:T.blue, fontSize:14 }}>▸</span>
@@ -2477,7 +2486,7 @@ export default function ShieldSDSTraining() {
         {/* Ongoing obligations */}
         <div style={{ ...S.card(T.navyMid), padding:16 }}>
           <h4 style={{ fontSize:13, fontWeight:700, color:T.amber, fontFamily:T.font, marginBottom:10 }}>📅 Ongoing Requirements</h4>
-          <div style={{ ...S.grid("1fr 1fr", 12) }}>
+          <div style={{ ...S.grid(isMobile ? "1fr" : "1fr 1fr", 12) }}>
             <div>
               <div style={{ fontSize:11, fontWeight:700, color:T.ghost, fontFamily:T.font, marginBottom:6 }}>YOUR EMPLOYER MUST:</div>
               {["Keep SDS current and accessible","Update the chemical inventory","Train on new chemicals before use","Maintain the written HazCom program","Provide required PPE at no cost to you"].map((item,i) => (
@@ -2519,47 +2528,70 @@ export default function ShieldSDSTraining() {
     return (
       <div style={{ ...S.fadeIn, opacity: transitioning ? 0 : 1, transition:"opacity 0.3s" }} ref={contentRef}>
         {/* Sticky header */}
-        <div style={{ position:"sticky", top:0, zIndex:10, background:T.navy, borderBottom:`1px solid rgba(255,255,255,0.06)`, padding:"12px 20px" }}>
+        <div style={{ position:"sticky", top:0, zIndex:10, background:T.navy, borderBottom:`1px solid rgba(255,255,255,0.06)`, padding: isMobile ? "8px 12px" : "12px 20px" }}>
           <div style={{ ...S.flexBetween, maxWidth:720, margin:"0 auto" }}>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
               <button onClick={() => transitionTo("modules")} style={{ background:"none", border:"none", color:T.muted, cursor:"pointer", fontSize:18, padding:0 }}>←</button>
-              <span style={{ fontSize:14, fontWeight:700, color:T.white, fontFamily:T.font }}>{mod?.icon} {mod?.title}</span>
+              <span style={{ fontSize: isMobile ? 13 : 14, fontWeight:700, color:T.white, fontFamily:T.font }}>{mod?.icon} {isMobile ? "" : mod?.title}</span>
             </div>
             <span style={S.tag()}>
               {currentSlide + 1} / {totalSlides}
             </span>
           </div>
           {/* Progress bar */}
-          <div style={{ maxWidth:720, margin:"8px auto 0", background:T.navyLight, borderRadius:4, height:4, overflow:"hidden" }}>
+          <div style={{ maxWidth:720, margin:"8px auto 0", background:T.navyLight, borderRadius:4, height:4, overflow:"hidden", width:"100%" }}>
             <div style={{ height:"100%", width:`${((currentSlide+1)/totalSlides)*100}%`, background:T.amber, borderRadius:4, transition:"width 0.4s ease" }} />
           </div>
         </div>
 
         {/* Content */}
-        <div style={{ padding:"24px 20px", maxWidth:720, margin:"0 auto" }}>
+        <div style={{ padding: isMobile ? "16px 12px" : "24px 20px", maxWidth:720, margin:"0 auto", paddingBottom: isMobile ? 96 : undefined }}>
           <div style={{ animation:"shieldFadeIn 0.3s ease" }} key={`${currentModule}-${currentSlide}`}>
             {slides[currentSlide]}
           </div>
         </div>
 
         {/* Navigation */}
-        <div style={{ padding:"16px 20px 32px", maxWidth:720, margin:"0 auto" }}>
-          <div style={{ ...S.flexBetween }}>
-            <button onClick={() => { if (currentSlide > 0) setCurrentSlide(currentSlide - 1); }}
-              disabled={currentSlide === 0}
-              style={S.btnOutline(currentSlide === 0 ? T.navyLight : T.muted)}>
-              ← Back
-            </button>
-            {isLastSlide ? (
-              <button onClick={goToQuiz} style={S.btn(T.amber, T.navy)}>
-                Take the Quiz →
+        <div style={isMobile ? {
+          position:'fixed' as const, bottom:0, left:0, right:0, padding:'12px 16px',
+          background:T.navy, borderTop:`1px solid rgba(255,255,255,0.1)`,
+          zIndex:50, display:'flex', gap:'12px',
+        } : { padding:"16px 20px 32px", maxWidth:720, margin:"0 auto" }}>
+          {isMobile ? (
+            <>
+              <button onClick={() => { if (currentSlide > 0) setCurrentSlide(currentSlide - 1); }}
+                disabled={currentSlide === 0}
+                style={{ ...S.btnOutline(currentSlide === 0 ? T.navyLight : T.muted), flex:1 }}>
+                ← Back
               </button>
-            ) : (
-              <button onClick={() => setCurrentSlide(currentSlide + 1)} style={S.btn(T.amber, T.navy)}>
-                Continue →
+              {isLastSlide ? (
+                <button onClick={goToQuiz} style={{ ...S.btn(T.amber, T.navy), flex:1, justifyContent:"center" }}>
+                  Take Quiz →
+                </button>
+              ) : (
+                <button onClick={() => setCurrentSlide(currentSlide + 1)} style={{ ...S.btn(T.amber, T.navy), flex:1, justifyContent:"center" }}>
+                  Continue →
+                </button>
+              )}
+            </>
+          ) : (
+            <div style={{ ...S.flexBetween }}>
+              <button onClick={() => { if (currentSlide > 0) setCurrentSlide(currentSlide - 1); }}
+                disabled={currentSlide === 0}
+                style={S.btnOutline(currentSlide === 0 ? T.navyLight : T.muted)}>
+                ← Back
               </button>
-            )}
-          </div>
+              {isLastSlide ? (
+                <button onClick={goToQuiz} style={S.btn(T.amber, T.navy)}>
+                  Take the Quiz →
+                </button>
+              ) : (
+                <button onClick={() => setCurrentSlide(currentSlide + 1)} style={S.btn(T.amber, T.navy)}>
+                  Continue →
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -2573,11 +2605,11 @@ export default function ShieldSDSTraining() {
     const mod = MODULES.find(m => m.id === currentModule);
 
     return (
-      <div style={{ ...S.fadeIn, opacity: transitioning ? 0 : 1, transition:"opacity 0.3s", padding:"32px 20px", maxWidth:720, margin:"0 auto" }}>
+      <div style={{ ...S.fadeIn, opacity: transitioning ? 0 : 1, transition:"opacity 0.3s", padding: isMobile ? "20px 12px" : "32px 20px", maxWidth:720, margin:"0 auto" }}>
         {/* Header */}
         <div style={{ textAlign:"center", marginBottom:28 }}>
           <span style={S.tag(T.purpleBg, T.purple)}>ASSESSMENT</span>
-          <h2 style={{ ...S.heading(22), marginTop:12 }}>{mod?.icon} {mod?.title} — Quiz</h2>
+          <h2 style={{ ...S.heading(isMobile ? 18 : 22), marginTop:12 }}>{mod?.icon} {mod?.title} — Quiz</h2>
           <p style={S.sub()}>Score 80% or higher to pass. You need {Math.ceil(quizData.length * 0.8)}/{quizData.length} correct.</p>
         </div>
 
@@ -2585,11 +2617,11 @@ export default function ShieldSDSTraining() {
         <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           {quizData.map((q: any, qi: number) => (
-            <div key={qi} style={{ ...S.card(T.navyMid), padding:20 }}>
-              <div style={{ fontSize:14, fontWeight:700, color:T.white, fontFamily:T.font, marginBottom:14, lineHeight:1.5 }}>
+            <div key={qi} style={{ ...S.card(T.navyMid), padding: isMobile ? 16 : 20 }}>
+              <div style={{ fontSize: isMobile ? 15 : 14, fontWeight:700, color:T.white, fontFamily:T.font, marginBottom:14, lineHeight:1.6 }}>
                 <span style={{ color:T.amber, marginRight:8 }}>Q{qi+1}.</span>{q.q}
               </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              <div style={{ display:"flex", flexDirection:"column", gap: isMobile ? 10 : 8 }}>
                 {q.opts.map((opt: string, oi: number) => {
                   const selected = quizAnswers[qi] === oi;
                   const isCorrect = quizSubmitted && oi === q.correct;
@@ -2604,16 +2636,20 @@ export default function ShieldSDSTraining() {
                   return (
                     <button key={oi} disabled={quizSubmitted} onClick={() => setQuizAnswers(prev => ({...prev, [qi]:oi}))}
                       style={{
-                        display:"flex", alignItems:"center", gap:12, padding:"12px 16px", textAlign:"left",
+                        display:"flex", alignItems:"center", gap:12,
+                        padding: isMobile ? "14px 16px" : "12px 16px",
+                        minHeight: isMobile ? 48 : undefined,
+                        textAlign:"left",
                         background:bg, border:`1.5px solid ${border}`, borderRadius:T.radiusSm,
                         cursor: quizSubmitted ? "default" : "pointer", transition:"all 0.2s",
-                        fontFamily:T.font, fontSize:14, color:textColor,
+                        fontFamily:T.font, fontSize: isMobile ? 15 : 14, color:textColor,
+                        lineHeight: 1.6,
                       }}>
                       <div style={{
-                        width:24, height:24, borderRadius:12, ...S.flexCenter, flexShrink:0,
+                        width: isMobile ? 28 : 24, height: isMobile ? 28 : 24, borderRadius: isMobile ? 14 : 12, ...S.flexCenter, flexShrink:0,
                         background: isCorrect ? T.good : isWrong ? T.bad : selected ? T.amber : "rgba(255,255,255,0.08)",
                         color: (isCorrect || isWrong || selected) ? T.white : T.muted,
-                        fontSize:12, fontWeight:700,
+                        fontSize: isMobile ? 13 : 12, fontWeight:700,
                       }}>
                         {isCorrect ? "✓" : isWrong ? "✗" : String.fromCharCode(65+oi)}
                       </div>
@@ -2625,7 +2661,7 @@ export default function ShieldSDSTraining() {
               {/* Explanation after submit */}
               {quizSubmitted && (
                 <div style={{ marginTop:12, padding:"10px 14px", background:`${T.blue}12`, borderRadius:T.radiusSm, border:`1px solid ${T.blue}22` }}>
-                  <span style={{ fontSize:12, color:T.ghost, fontFamily:T.font }}>💡 {q.explain}</span>
+                  <span style={{ fontSize: isMobile ? 14 : 12, color:T.ghost, fontFamily:T.font, lineHeight:1.6 }}>💡 {q.explain}</span>
                 </div>
               )}
             </div>
@@ -2743,17 +2779,17 @@ export default function ShieldSDSTraining() {
   };
 
   const renderCertificate = () => (
-    <div style={{ ...S.fadeIn, opacity: transitioning ? 0 : 1, transition:"opacity 0.3s", padding:"32px 20px" }}>
+    <div style={{ ...S.fadeIn, opacity: transitioning ? 0 : 1, transition:"opacity 0.3s", padding: isMobile ? "20px 12px" : "32px 20px" }}>
       <div style={{ textAlign:"center", marginBottom:24 }}>
-        <div style={{ fontSize:56, marginBottom:8 }}>🎉</div>
-        <h2 style={S.heading(28)}>Congratulations, {employeeName.split(" ")[0]}!</h2>
+        <div style={{ fontSize: isMobile ? 40 : 56, marginBottom:8 }}>🎉</div>
+        <h2 style={S.heading(isMobile ? 22 : 28)}>Congratulations, {employeeName.split(" ")[0]}!</h2>
         <p style={S.sub()}>You&apos;ve completed all 7 HazCom Safety Training modules.</p>
       </div>
 
       {/* Certificate */}
       <div id="shield-certificate" style={{
-        maxWidth:680, margin:"0 auto", background:"#FFFEF8", borderRadius:4,
-        border:"3px solid #B8860B", padding:48, position:"relative", color:"#1a1a1a",
+        maxWidth: isMobile ? "100%" : 680, margin:"0 auto", background:"#FFFEF8", borderRadius:4,
+        border:"3px solid #B8860B", padding: isMobile ? 20 : 48, position:"relative", color:"#1a1a1a",
       }}>
         {/* Corner decorations */}
         {["top:12px;left:12px","top:12px;right:12px","bottom:12px;left:12px","bottom:12px;right:12px"].map((pos,i) => (
@@ -2764,13 +2800,13 @@ export default function ShieldSDSTraining() {
 
         <div style={{ textAlign:"center" }}>
           <div style={{ fontSize:14, letterSpacing:"0.2em", color:"#B8860B", fontFamily:T.font, fontWeight:600, marginBottom:8 }}>SHIELDSDS</div>
-          <h2 style={{ fontSize:28, fontWeight:800, color:"#1a1a1a", fontFamily:T.font, margin:"0 0 4px", letterSpacing:"-0.01em" }}>
+          <h2 style={{ fontSize: isMobile ? 20 : 28, fontWeight:800, color:"#1a1a1a", fontFamily:T.font, margin:"0 0 4px", letterSpacing:"-0.01em" }}>
             Certificate of Completion
           </h2>
           <div style={{ width:60, height:2, background:"#B8860B", margin:"12px auto 20px" }} />
 
           <p style={{ fontSize:14, color:"#666", fontFamily:T.font, margin:"0 0 16px" }}>This certifies that</p>
-          <p style={{ fontSize:26, fontWeight:800, color:"#1a1a1a", fontFamily:T.font, margin:"0 0 4px", borderBottom:"2px solid #B8860B", display:"inline-block", padding:"0 24px 8px" }}>
+          <p style={{ fontSize: isMobile ? 20 : 26, fontWeight:800, color:"#1a1a1a", fontFamily:T.font, margin:"0 0 4px", borderBottom:"2px solid #B8860B", display:"inline-block", padding: isMobile ? "0 12px 6px" : "0 24px 8px", wordBreak:"break-word" }}>
             {employeeName}
           </p>
           <p style={{ fontSize:13, color:"#888", fontFamily:T.font, margin:"8px 0 20px" }}>{companyName}</p>
@@ -2794,18 +2830,18 @@ export default function ShieldSDSTraining() {
             ))}
           </div>
 
-          <div style={{ display:"flex", justifyContent:"center", gap:32, margin:"20px 0", flexWrap:"wrap" }}>
+          <div style={{ display:"flex", justifyContent:"center", gap: isMobile ? 16 : 32, margin:"20px 0", flexWrap:"wrap" }}>
             <div style={{ textAlign:"center" }}>
               <div style={{ fontSize:10, color:"#888", fontFamily:T.font, letterSpacing:"0.05em" }}>DATE</div>
-              <div style={{ fontSize:13, fontWeight:700, color:"#1a1a1a", fontFamily:T.font }}>{new Date().toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric" })}</div>
+              <div style={{ fontSize: isMobile ? 12 : 13, fontWeight:700, color:"#1a1a1a", fontFamily:T.font }}>{new Date().toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric" })}</div>
             </div>
             <div style={{ textAlign:"center" }}>
               <div style={{ fontSize:10, color:"#888", fontFamily:T.font, letterSpacing:"0.05em" }}>INDUSTRY</div>
-              <div style={{ fontSize:13, fontWeight:700, color:"#1a1a1a", fontFamily:T.font }}>{ind.name}</div>
+              <div style={{ fontSize: isMobile ? 12 : 13, fontWeight:700, color:"#1a1a1a", fontFamily:T.font }}>{ind.name}</div>
             </div>
             <div style={{ textAlign:"center" }}>
               <div style={{ fontSize:10, color:"#888", fontFamily:T.font, letterSpacing:"0.05em" }}>PROVIDER</div>
-              <div style={{ fontSize:13, fontWeight:700, color:"#1a1a1a", fontFamily:T.font }}>ShieldSDS</div>
+              <div style={{ fontSize: isMobile ? 12 : 13, fontWeight:700, color:"#1a1a1a", fontFamily:T.font }}>ShieldSDS</div>
             </div>
           </div>
 
@@ -2820,7 +2856,7 @@ export default function ShieldSDSTraining() {
       </div>
 
       {/* Actions */}
-      <div style={{ textAlign:"center", marginTop:24, display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
+      <div style={{ textAlign:"center", marginTop:24, display:"flex", flexDirection: isMobile ? "column" : "row", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
         <button onClick={printCertificate} style={S.btn(T.amber, T.navy)}>🖨️ Print Certificate</button>
         <button onClick={() => { transitionTo("modules"); }} style={S.btnOutline(T.muted)}>🔄 Refresher Training</button>
         {employeeId && (
@@ -2836,7 +2872,7 @@ export default function ShieldSDSTraining() {
   // MAIN RENDER
   // ════════════════════════════════════════════════════
   return (
-    <div style={{ minHeight:"100vh", background:T.navy, fontFamily:T.font, color:T.white }}>
+    <div style={{ minHeight:"100vh", background:T.navy, fontFamily:T.font, color:T.white, overflowX:"hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap');
         @keyframes shieldFadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
@@ -2859,18 +2895,18 @@ export default function ShieldSDSTraining() {
         position:"sticky", top:0, zIndex:50,
         background:`${T.navy}ee`, backdropFilter:"blur(12px)",
         borderBottom:`1px solid rgba(255,255,255,0.06)`,
-        padding:"10px 20px",
+        padding: isMobile ? "6px 12px" : "10px 20px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
       }}>
-        <a href="/training" style={{ display:"flex", alignItems:"center", gap:6, color:T.muted, fontSize:13, fontFamily:T.font, textDecoration:"none", cursor:"pointer" }}
+        <a href="/training" style={{ display:"flex", alignItems:"center", gap:6, color:T.muted, fontSize: isMobile ? 12 : 13, fontFamily:T.font, textDecoration:"none", cursor:"pointer" }}
           onMouseEnter={e => (e.currentTarget.style.color = T.white)}
           onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
-          ← Exit Training
+          ← {isMobile ? "Exit" : "Exit Training"}
         </a>
-        <span style={{ fontSize:13, fontWeight:700, color:T.amber, fontFamily:T.font, letterSpacing:0.5 }}>
-          ShieldSDS Training{employeeId && employeeName ? ` — ${employeeName}` : ""}
+        <span style={{ fontSize: isMobile ? 12 : 13, fontWeight:700, color:T.amber, fontFamily:T.font, letterSpacing:0.5 }}>
+          {isMobile ? "ShieldSDS" : `ShieldSDS Training${employeeId && employeeName ? ` — ${employeeName}` : ""}`}
         </span>
-        <span style={{ fontSize:12, color:T.muted, fontFamily:T.font, minWidth:120, textAlign:"right" }}>
+        <span style={{ fontSize: isMobile ? 11 : 12, color:T.muted, fontFamily:T.font, minWidth: isMobile ? 60 : 120, textAlign:"right" }}>
           {phase === "training" || phase === "quiz"
             ? (MODULES.find(m => m.id === currentModule)?.title || "Module")
             : phase === "certificate" ? "Certificate" : "Module Select"}

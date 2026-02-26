@@ -257,31 +257,31 @@ export default function LandingPage() {
       <Navbar />
 
       {/* ========== HERO ========== */}
-      <section className="pt-28 pb-20 px-4 sm:px-6 lg:px-8">
+      <section className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 sm:pt-28 sm:pb-20">
         <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <h1 className="font-display font-black text-4xl sm:text-5xl lg:text-6xl leading-tight">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+            <div className="text-center lg:text-left">
+              <h1 className="font-display font-black text-3xl sm:text-5xl lg:text-6xl leading-tight">
                 Stop scrambling when the{" "}
                 <span className="text-amber-400">inspector walks in.</span>
               </h1>
-              <p className="mt-6 text-lg text-gray-300 max-w-xl">
+              <p className="mt-6 text-base sm:text-lg text-gray-300 max-w-xl mx-auto lg:mx-0">
                 When OSHA knocks, you&apos;ll be ready. ShieldSDS handles your
                 safety data sheets, labels, training records, and written
                 program &mdash; so you never have to scramble, apologize, or
                 wonder if you&apos;re compliant.
               </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4">
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 sm:justify-start justify-center lg:justify-start">
                 <Link
                   href="/setup"
-                  className="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold px-6 py-3 rounded-lg transition-colors"
+                  className="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold px-6 py-3 rounded-lg transition-colors w-full sm:w-auto"
                 >
                   Set Up My Shop &mdash; Free
                   <ArrowRight className="h-4 w-4" />
                 </Link>
                 <button
                   onClick={handleViewDemo}
-                  className="inline-flex items-center justify-center gap-2 border border-navy-600 hover:border-gray-400 text-gray-200 hover:text-white font-semibold px-6 py-3 rounded-lg transition-colors"
+                  className="inline-flex items-center justify-center gap-2 border border-navy-600 hover:border-gray-400 text-gray-200 hover:text-white font-semibold px-6 py-3 rounded-lg transition-colors w-full sm:w-auto"
                 >
                   See It In Action
                   <ArrowRight className="h-4 w-4" />
@@ -357,10 +357,10 @@ export default function LandingPage() {
       </section>
 
       {/* ========== PROBLEM / "SOUND FAMILIAR?" ========== */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-navy-900/50">
+      <section className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 bg-navy-900/50">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="font-display font-black text-3xl sm:text-4xl">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="font-display font-black text-2xl sm:text-3xl md:text-4xl">
               Sound familiar?
             </h2>
             <p className="mt-3 text-gray-400 max-w-2xl mx-auto">
@@ -384,35 +384,35 @@ export default function LandingPage() {
       </section>
 
       {/* ========== THE COST OF GETTING CAUGHT ========== */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="font-display font-black text-3xl sm:text-4xl">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="font-display font-black text-2xl sm:text-3xl md:text-4xl">
               The Cost of Getting Caught
             </h2>
           </div>
-          <div className="grid sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
-            <div className="bg-navy-900 border border-navy-700/50 rounded-xl p-8 text-center">
-              <p className="font-display font-black text-5xl text-amber-400 mb-3">#2</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
+            <div className="bg-navy-900 border border-navy-700/50 rounded-xl p-6 sm:p-8 text-center">
+              <p className="font-display font-black text-3xl sm:text-5xl text-amber-400 mb-3">#2</p>
               <p className="text-sm text-gray-400 leading-relaxed">
                 HazCom is OSHA&apos;s second most cited workplace violation &mdash; every year.
               </p>
             </div>
-            <div className="bg-navy-900 border border-navy-700/50 rounded-xl p-8 text-center">
-              <p className="font-display font-black text-5xl text-amber-400 mb-3">$16,131</p>
+            <div className="bg-navy-900 border border-navy-700/50 rounded-xl p-6 sm:p-8 text-center">
+              <p className="font-display font-black text-3xl sm:text-5xl text-amber-400 mb-3">$16,131</p>
               <p className="text-sm text-gray-400 leading-relaxed">
                 Minimum penalty per serious violation. Willful violations can reach $161,323.
               </p>
             </div>
-            <div className="bg-navy-900 border border-navy-700/50 rounded-xl p-8 text-center">
-              <p className="font-display font-black text-4xl text-amber-400 mb-3">Unannounced</p>
+            <div className="bg-navy-900 border border-navy-700/50 rounded-xl p-6 sm:p-8 text-center">
+              <p className="font-display font-black text-2xl sm:text-4xl text-amber-400 mb-3">Unannounced</p>
               <p className="text-sm text-gray-400 leading-relaxed">
                 OSHA inspections happen without warning. There&apos;s no time to get ready once they&apos;re at the door.
               </p>
             </div>
           </div>
-          <div className="mt-12 max-w-3xl mx-auto text-center">
-            <p className="text-gray-300 text-lg leading-relaxed">
+          <div className="mt-8 sm:mt-12 max-w-3xl mx-auto text-center">
+            <p className="text-gray-300 text-base sm:text-lg leading-relaxed">
               You don&apos;t need to be perfect. You need to show you&apos;re trying &mdash; that you have a system, it&apos;s current, and your people are trained. That&apos;s exactly what ShieldSDS gives you.
             </p>
           </div>
@@ -420,10 +420,10 @@ export default function LandingPage() {
       </section>
 
       {/* ========== FEATURES ========== */}
-      <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 bg-navy-900/50">
+      <section id="features" className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 bg-navy-900/50">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="font-display font-black text-3xl sm:text-4xl">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="font-display font-black text-2xl sm:text-3xl md:text-4xl">
               All 6 OSHA obligations. One platform.
             </h2>
             <p className="mt-3 text-gray-400 max-w-2xl mx-auto">
@@ -452,17 +452,19 @@ export default function LandingPage() {
       </section>
 
       {/* ========== COMPARISON TABLE ========== */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="font-display font-black text-3xl sm:text-4xl">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="font-display font-black text-2xl sm:text-3xl md:text-4xl">
               Why ShieldSDS &mdash; Not Just Another SDS Binder
             </h2>
             <p className="mt-3 text-gray-400 max-w-2xl mx-auto">
               Most SDS tools just store documents. ShieldSDS manages your entire HazCom compliance program.
             </p>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-navy-700">
@@ -524,18 +526,67 @@ export default function LandingPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-4">
+            {comparisonRows.map((row, i) => (
+              <div
+                key={i}
+                className="bg-navy-900 border border-navy-700/50 rounded-xl p-4"
+              >
+                <h3 className="font-display font-bold text-sm text-white mb-3">
+                  {row.feature}
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Free SDS Websites</span>
+                    {row.free === "yes" ? (
+                      <Check className="h-4 w-4 text-status-green" />
+                    ) : (
+                      <X className="h-4 w-4 text-status-red" />
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Basic SDS Software</span>
+                    {row.basic === "yes" ? (
+                      <Check className="h-4 w-4 text-status-green" />
+                    ) : row.basic === "some" ? (
+                      <span className="text-xs text-status-amber font-medium">Some</span>
+                    ) : (
+                      <X className="h-4 w-4 text-status-red" />
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between bg-amber-500/5 rounded-lg px-2 py-1.5 border border-amber-500/20">
+                    <span className="text-xs text-amber-400 font-medium">ShieldSDS</span>
+                    {row.shield === "yes" ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Check className="h-4 w-4 text-status-green" />
+                        {row.shieldNote && (
+                          <span className="text-xs text-status-green font-medium">{row.shieldNote}</span>
+                        )}
+                      </span>
+                    ) : row.shield === "soon" ? (
+                      <span className="text-xs text-amber-400 font-medium">Coming soon</span>
+                    ) : (
+                      <Check className="h-4 w-4 text-status-green" />
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ========== SOCIAL PROOF ========== */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-navy-900/50">
+      <section className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 bg-navy-900/50">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="font-display font-black text-3xl sm:text-4xl">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="font-display font-black text-2xl sm:text-3xl md:text-4xl">
               Built for Shops Like Yours
             </h2>
           </div>
-          <div className="grid sm:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {testimonials.map((t, i) => (
               <div
                 key={i}
@@ -558,17 +609,19 @@ export default function LandingPage() {
       </section>
 
       {/* ========== OSHA TABLE ========== */}
-      <section id="osha" className="py-20 px-4 sm:px-6 lg:px-8">
+      <section id="osha" className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="font-display font-black text-3xl sm:text-4xl">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="font-display font-black text-2xl sm:text-3xl md:text-4xl">
               Every OSHA HazCom Requirement &mdash; Handled
             </h2>
             <p className="mt-3 text-gray-400 max-w-2xl mx-auto">
               You don&apos;t need to memorize the regulations. We built them into the system.
             </p>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-navy-700">
@@ -609,19 +662,46 @@ export default function LandingPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-4">
+            {oshaRows.map((row, i) => (
+              <div
+                key={i}
+                className="bg-navy-900 border border-navy-700/50 rounded-xl p-4"
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <h3 className="font-display font-bold text-sm text-white">
+                    {row.req}
+                  </h3>
+                  <span className="text-[10px] text-gray-500 font-mono whitespace-nowrap bg-navy-800 px-2 py-0.5 rounded">
+                    {row.ref}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 leading-relaxed mb-3">
+                  {row.means}
+                </p>
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2">
+                  <p className="text-xs text-amber-400/90 leading-relaxed">
+                    {row.shield}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ========== INSPECTION MODE CALLOUT ========== */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-navy-900/50">
+      <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 bg-navy-900/50">
         <div className="max-w-5xl mx-auto">
-          <div className="bg-gradient-to-r from-status-green/20 via-status-green/10 to-navy-900 border border-status-green/30 rounded-2xl p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-5">
+          <div className="bg-gradient-to-r from-status-green/20 via-status-green/10 to-navy-900 border border-status-green/30 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
+            <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
               <div className="h-16 w-16 rounded-full bg-status-green/20 border-2 border-status-green flex items-center justify-center flex-shrink-0">
                 <Eye className="h-8 w-8 text-status-green" />
               </div>
               <div>
-                <h3 className="font-display font-bold text-xl text-white">Inspection Mode</h3>
+                <h3 className="font-display font-bold text-lg sm:text-xl text-white">Inspection Mode</h3>
                 <p className="text-sm text-gray-300 mt-1 max-w-lg">
                   One-click compliance audit with weighted scoring across all 6 OSHA obligations.
                   See exactly where you stand, fix gaps with direct links, and export a complete audit packet.
@@ -630,7 +710,7 @@ export default function LandingPage() {
             </div>
             <Link
               href="/inspection"
-              className="flex items-center gap-2 bg-status-green/20 hover:bg-status-green/30 border border-status-green/40 text-status-green font-semibold text-sm px-5 py-2.5 rounded-lg transition-colors whitespace-nowrap"
+              className="flex items-center justify-center gap-2 bg-status-green/20 hover:bg-status-green/30 border border-status-green/40 text-status-green font-semibold text-sm px-5 py-2.5 rounded-lg transition-colors whitespace-nowrap w-full sm:w-auto"
             >
               Try It <ArrowRight className="h-4 w-4" />
             </Link>
@@ -639,10 +719,10 @@ export default function LandingPage() {
       </section>
 
       {/* ========== HOW IT WORKS ========== */}
-      <section id="how-it-works" className="py-20 px-4 sm:px-6 lg:px-8">
+      <section id="how-it-works" className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="font-display font-black text-3xl sm:text-4xl">
+          <div className="text-center mb-10 sm:mb-16">
+            <h2 className="font-display font-black text-2xl sm:text-3xl md:text-4xl">
               How It Works
             </h2>
             <p className="mt-3 text-gray-400">
@@ -669,17 +749,17 @@ export default function LandingPage() {
       </section>
 
       {/* ========== PRICING ========== */}
-      <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 bg-navy-900/50">
+      <section id="pricing" className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 bg-navy-900/50">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="font-display font-black text-3xl sm:text-4xl">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="font-display font-black text-2xl sm:text-3xl md:text-4xl">
               Simple, transparent pricing
             </h2>
             <p className="mt-3 text-gray-400">
               Try it free. Set up takes 5 minutes. Cancel anytime.
             </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             {pricing.map((plan) => (
               <div
                 key={plan.name}
@@ -733,18 +813,18 @@ export default function LandingPage() {
       </section>
 
       {/* ========== BOTTOM CTA ========== */}
-      <section id="cta" className="py-20 px-4 sm:px-6 lg:px-8">
+      <section id="cta" className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto text-center">
-          <Shield className="h-12 w-12 text-amber-400 mx-auto mb-6" />
-          <h2 className="font-display font-black text-3xl sm:text-4xl mb-4">
+          <Shield className="h-10 w-10 sm:h-12 sm:w-12 text-amber-400 mx-auto mb-6" />
+          <h2 className="font-display font-black text-2xl sm:text-3xl md:text-4xl mb-4">
             Ready to Stop Worrying?
           </h2>
-          <p className="text-gray-400 text-lg mb-8">
+          <p className="text-gray-400 text-base sm:text-lg mb-8">
             Set up your shop in 5 minutes. See your compliance score. Fix the gaps before someone else finds them.
           </p>
           <Link
             href="/setup"
-            className="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold px-8 py-3.5 rounded-lg transition-colors text-lg"
+            className="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold px-8 py-3.5 rounded-lg transition-colors text-base sm:text-lg w-full sm:w-auto"
           >
             Set Up My Shop &mdash; Free
             <ArrowRight className="h-5 w-5" />
@@ -761,9 +841,9 @@ export default function LandingPage() {
       </section>
 
       {/* ========== FOOTER ========== */}
-      <footer className="border-t border-navy-700/50 py-10 px-4 sm:px-6 lg:px-8">
+      <footer className="border-t border-navy-700/50 py-8 sm:py-10 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-amber-400" />
               <span className="font-display font-black text-sm text-white">

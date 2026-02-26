@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   Plus,
   Camera,
+  Database,
 } from "lucide-react";
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -196,26 +197,33 @@ export default function InventoryPage() {
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="font-display font-black text-2xl text-white">Chemical Inventory</h1>
           <p className="text-sm text-gray-400 mt-1">
             {chemicals.length} chemicals &middot; {stats.totalContainers} containers across {locationCards.length} storage areas
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
+          <Link
+            href="/sds-search"
+            className="w-full md:w-auto justify-center flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 hover:text-white font-medium text-sm px-4 py-2 rounded-lg transition-colors"
+          >
+            <Database className="h-4 w-4" />
+            Browse Database
+          </Link>
           <Link
             href="/scan"
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+            className="w-full md:w-auto justify-center flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
           >
-            <Plus className="h-4 w-4" />
-            Add Chemical
+            <Camera className="h-4 w-4" />
+            Scan Chemical
           </Link>
         </div>
       </div>
 
       {/* Summary Stats Bar */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
         {[
           { label: "Total Chemicals", value: stats.totalChemicals, icon: FlaskConical, color: "text-blue-400" },
           { label: "Total Containers", value: stats.totalContainers, icon: Package, color: "text-purple-400" },
@@ -236,7 +244,7 @@ export default function InventoryPage() {
       {/* Location Cards */}
       <div className="mb-6">
         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Storage Locations</h2>
-        <div className="grid grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           {/* All Locations card */}
           <button
             onClick={() => setSelectedLocation(null)}
@@ -309,8 +317,8 @@ export default function InventoryPage() {
         />
       </div>
 
-      {/* Inventory Table */}
-      <div className="bg-navy-900 border border-navy-700/50 rounded-xl overflow-hidden">
+      {/* Inventory Table (Desktop) */}
+      <div className="hidden md:block bg-navy-900 border border-navy-700/50 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
@@ -341,6 +349,9 @@ export default function InventoryPage() {
                     <span className="text-sm font-medium text-white">{c.product_name}</span>
                     {c.added_method === "manual" && c.sds_status === "missing" && (
                       <span className="block text-[10px] text-amber-400 mt-0.5">Manually entered — SDS not verified</span>
+                    )}
+                    {c.added_method === "import" && c.pictogram_codes.length === 0 && (
+                      <span className="block text-[10px] text-amber-400 mt-0.5">⚠️ Partial data — scan the label for complete hazard info</span>
                     )}
                   </td>
                   <td className="py-3 px-4 text-sm text-gray-300">{c.manufacturer}</td>
@@ -405,6 +416,65 @@ export default function InventoryPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-3">
+        {filtered.map((c) => (
+          <div
+            key={c.id}
+            className={`bg-navy-900 border rounded-xl p-4 ${
+              c.sds_status === "missing"
+                ? "border-l-4 border-l-status-red border-navy-700/50"
+                : !c.labeled
+                ? "border-l-4 border-l-status-amber border-navy-700/50"
+                : "border-navy-700/50"
+            }`}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white">{c.product_name}</p>
+                <p className="text-xs text-gray-400">{c.manufacturer}</p>
+              </div>
+              <Link
+                href="/sds-library"
+                className="flex items-center gap-1 text-xs bg-navy-800 hover:bg-navy-700 border border-navy-600 text-gray-300 hover:text-white px-2.5 py-1.5 rounded-md transition-colors ml-2 min-h-[36px]"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                View
+              </Link>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+              <span>{c.location}</span>
+              <span>&middot;</span>
+              <span>{c.container_type}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+              <span>{c.container_count} container{c.container_count !== 1 ? "s" : ""}</span>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="inline-flex items-center gap-1">
+                Labeled: {c.labeled ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-status-green" />
+                ) : (
+                  <AlertTriangle className="h-3.5 w-3.5 text-status-red" />
+                )}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                SDS: {c.sds_status === "current" ? (
+                  <span className="text-status-green">&#10003; Current</span>
+                ) : c.sds_status === "expired" ? (
+                  <span className="text-status-amber">Expired</span>
+                ) : (
+                  <span className="text-status-red">Missing</span>
+                )}
+              </span>
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && (
+          <p className="py-12 text-center text-gray-500 text-sm">No inventory items match your search.</p>
+        )}
       </div>
     </DashboardLayout>
   );

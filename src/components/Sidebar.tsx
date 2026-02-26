@@ -22,6 +22,8 @@ import {
   CheckCircle2,
   ClipboardList,
   ArrowRight,
+  Menu,
+  X,
 } from "lucide-react";
 
 const navItems = [
@@ -51,6 +53,9 @@ export default function Sidebar() {
   const [selectedLoc, setSelectedLoc] = useState(() => getDefaultLocations()[0]);
   const dropRef = useRef<HTMLDivElement>(null);
 
+  // Mobile menu state
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   // Demo mode state
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [realUser, setRealUser] = useState(false);
@@ -79,6 +84,21 @@ export default function Sidebar() {
     setChemicals(getChemicals());
     setEmployees(getEmployees());
   }, [pathname]);
+
+  // Close mobile menu on navigation
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileOpen]);
 
   // Training status helpers (matches training page logic)
   const trainingCounts = useMemo(() => {
@@ -144,8 +164,9 @@ export default function Sidebar() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  return (
-    <aside className="fixed top-0 left-0 bottom-0 w-64 bg-navy-900 border-r border-navy-700/50 flex flex-col z-40">
+  // Sidebar content — shared between desktop and mobile
+  const sidebarContent = (
+    <>
       {/* Demo mode banner */}
       {isDemoMode && (
         <div className="px-3 py-3 bg-amber-500/15 border-b border-amber-500/30">
@@ -159,7 +180,7 @@ export default function Sidebar() {
               exitDemoMode();
               window.location.href = "/dashboard";
             }}
-            className="flex items-center gap-1.5 text-xs font-medium text-white bg-navy-800 hover:bg-navy-700 px-3 py-1.5 rounded-lg transition-colors w-full justify-center"
+            className="flex items-center gap-1.5 text-xs font-medium text-white bg-navy-800 hover:bg-navy-700 px-3 py-1.5 rounded-lg transition-colors w-full justify-center min-h-[36px]"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to My Shop
@@ -167,8 +188,8 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* Logo */}
-      <div className="px-5 py-5 border-b border-navy-700/50">
+      {/* Logo — hidden on mobile top bar (shown in mobile header instead) */}
+      <div className="px-5 py-5 border-b border-navy-700/50 hidden md:block">
         <Link href="/" className="flex items-center gap-2 group">
           <Shield className="h-7 w-7 text-amber-400 transition-transform group-hover:scale-110" />
           <span className="font-display font-black text-lg text-white">
@@ -177,11 +198,27 @@ export default function Sidebar() {
         </Link>
       </div>
 
+      {/* Mobile sidebar header with close button */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-navy-700/50 md:hidden">
+        <Link href="/" className="flex items-center gap-2 group" onClick={() => setMobileOpen(false)}>
+          <Shield className="h-7 w-7 text-amber-400" />
+          <span className="font-display font-black text-lg text-white">
+            Shield<span className="text-amber-400">SDS</span>
+          </span>
+        </Link>
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="p-2 rounded-lg hover:bg-navy-800 text-gray-400 hover:text-white transition-colors"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
+
       {/* Location selector */}
       <div className="px-4 py-3 border-b border-navy-700/50 relative" ref={dropRef}>
         <button
           onClick={() => setLocOpen(!locOpen)}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-navy-800 hover:bg-navy-700 transition-colors text-left"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-navy-800 hover:bg-navy-700 transition-colors text-left min-h-[44px]"
         >
           <MapPin className="h-4 w-4 text-amber-400 flex-shrink-0" />
           <div className="flex-1 min-w-0">
@@ -198,7 +235,7 @@ export default function Sidebar() {
               <button
                 key={i}
                 onClick={() => { setSelectedLoc(loc); setLocOpen(false); }}
-                className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-navy-700 transition-colors ${
+                className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-navy-700 transition-colors min-h-[44px] ${
                   selectedLoc.sub === loc.sub ? "bg-navy-700/50" : ""
                 }`}
               >
@@ -220,7 +257,8 @@ export default function Sidebar() {
       <div className="px-3 pt-4 pb-2">
         <Link
           href="/scan"
-          className="flex items-center justify-center gap-2 w-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-sm px-4 py-3 rounded-lg transition-colors"
+          onClick={() => setMobileOpen(false)}
+          className="flex items-center justify-center gap-2 w-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-sm px-4 py-3 rounded-lg transition-colors min-h-[48px]"
         >
           <Camera className="h-5 w-5" />
           Scan Chemical
@@ -244,7 +282,8 @@ export default function Sidebar() {
             <Link
               key={item.label}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              onClick={() => setMobileOpen(false)}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
                 isActive
                   ? "bg-amber-500/15 text-amber-400"
                   : "text-gray-300 hover:text-white hover:bg-navy-800"
@@ -270,7 +309,7 @@ export default function Sidebar() {
               loadDemoMode();
               window.location.href = "/dashboard";
             }}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-navy-800 transition-colors w-full text-left"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-navy-800 transition-colors w-full text-left min-h-[44px]"
           >
             <ClipboardList className="h-5 w-5" />
             View Demo Shop
@@ -279,7 +318,8 @@ export default function Sidebar() {
         )}
         <Link
           href="/"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-navy-800 transition-colors"
+          onClick={() => setMobileOpen(false)}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-navy-800 transition-colors min-h-[44px]"
         >
           <ArrowLeft className="h-5 w-5" />
           Back to Site
@@ -294,6 +334,56 @@ export default function Sidebar() {
           </div>
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* ═══ MOBILE TOP BAR (below md) ═══ */}
+      <div className="fixed top-0 left-0 right-0 h-14 bg-navy-900 border-b border-navy-700/50 flex items-center justify-between px-3 z-50 md:hidden">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="p-2 rounded-lg hover:bg-navy-800 text-gray-300 hover:text-white transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu className="h-6 w-6" />
+          </button>
+          <Link href="/" className="flex items-center gap-1.5">
+            <Shield className="h-6 w-6 text-amber-400" />
+            <span className="font-display font-black text-base text-white">
+              Shield<span className="text-amber-400">SDS</span>
+            </span>
+          </Link>
+        </div>
+        <Link
+          href="/scan"
+          className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-xs px-3 py-2 rounded-lg transition-colors min-h-[36px]"
+        >
+          <Camera className="h-4 w-4" />
+          Scan
+        </Link>
+      </div>
+
+      {/* ═══ MOBILE SIDEBAR OVERLAY (below md) ═══ */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-[60] md:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setMobileOpen(false)}
+          />
+          {/* Slide-in sidebar */}
+          <aside className="absolute top-0 left-0 bottom-0 w-72 bg-navy-900 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200 overflow-y-auto">
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+
+      {/* ═══ DESKTOP SIDEBAR (md and above) ═══ */}
+      <aside className="fixed top-0 left-0 bottom-0 w-64 bg-navy-900 border-r border-navy-700/50 flex-col z-40 hidden md:flex">
+        {sidebarContent}
+      </aside>
+    </>
   );
 }

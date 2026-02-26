@@ -16,9 +16,48 @@ body {
   background: var(--background);
 }
 
+/* Mobile: prevent horizontal scroll */
+@media (max-width: 767px) {
+  html, body {
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Minimum touch targets for buttons and links */
+  button, a, [role="button"], select {
+    min-height: 44px;
+  }
+
+  /* Prevent iOS zoom on input focus */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* Ensure modals are full-screen scrollable on mobile */
+  .fixed.inset-0 {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  /* Responsive show/hide utilities */
+  .desktop-only {
+    @apply hidden md:block;
+  }
+  .mobile-only {
+    @apply block md:hidden;
+  }
+  /* Hide scrollbar for horizontal scroll containers */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }
 

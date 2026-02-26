@@ -32,7 +32,7 @@ interface SDSSearchCardProps {
   chemical: SDSRecord;
   isInInventory: boolean;
   locations: { id: string; name: string }[];
-  onAdd: (chemical: SDSRecord, location: string, containerType: string, quantity: number) => void;
+  onAdd: (chemical: SDSRecord, location: string, containerType: string, quantity: number, originalContainer: boolean) => void;
   onAddLocation: (name: string) => { id: string; name: string };
   selectable?: boolean;
   selected?: boolean;
@@ -56,6 +56,7 @@ export default function SDSSearchCard({
   const [newLocName, setNewLocName] = useState("");
   const [containerType, setContainerType] = useState("Spray Can");
   const [quantity, setQuantity] = useState(1);
+  const [originalContainer, setOriginalContainer] = useState(true);
 
   const signalColor =
     chemical.signal_word?.toLowerCase() === "danger"
@@ -70,7 +71,7 @@ export default function SDSSearchCard({
       const created = onAddLocation(newLocName.trim());
       loc = created.name;
     }
-    onAdd(chemical, loc, containerType, quantity);
+    onAdd(chemical, loc, containerType, quantity, originalContainer);
     setAdded(true);
     setShowForm(false);
   }
@@ -90,13 +91,13 @@ export default function SDSSearchCard({
         {selectable && (
           <button
             onClick={onToggleSelect}
-            className={`mt-1 flex-shrink-0 h-5 w-5 rounded border-2 flex items-center justify-center transition-colors ${
+            className={`mt-0 flex-shrink-0 h-11 w-11 min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center transition-colors ${
               selected
                 ? "bg-amber-500 border-amber-500 text-white"
-                : "border-gray-300 hover:border-amber-400"
+                : "border-2 border-gray-300 hover:border-amber-400"
             }`}
           >
-            {selected && <Check className="h-3.5 w-3.5" />}
+            {selected && <Check className="h-5 w-5" />}
           </button>
         )}
         <div className="flex-1 min-w-0">
@@ -171,13 +172,13 @@ export default function SDSSearchCard({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         {chemical.sds_url && (
           <a
             href={chemical.sds_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-300 hover:border-gray-400 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 min-h-[44px] border border-gray-300 hover:border-gray-400 text-gray-700 text-sm font-medium rounded-lg transition-colors w-full sm:w-auto"
           >
             <ExternalLink className="h-4 w-4" />
             View SDS
@@ -185,14 +186,14 @@ export default function SDSSearchCard({
         )}
 
         {isInInventory || added ? (
-          <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-green-100 text-green-700 text-sm font-medium rounded-lg">
+          <span className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 min-h-[44px] bg-green-100 text-green-700 text-sm font-medium rounded-lg w-full sm:w-auto">
             <Check className="h-4 w-4" />
             {added ? "Added" : "Already in Inventory"}
           </span>
         ) : (
           <button
             onClick={() => setShowForm(!showForm)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-400 text-navy-950 text-sm font-semibold rounded-lg transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 min-h-[44px] bg-amber-500 hover:bg-amber-400 text-navy-950 text-sm font-semibold rounded-lg transition-colors w-full sm:w-auto"
           >
             <Plus className="h-4 w-4" />
             Add to My Chemicals
@@ -218,7 +219,7 @@ export default function SDSSearchCard({
                         setLocation(e.target.value);
                       }
                     }}
-                    className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm text-gray-900 focus:border-amber-400 focus:outline-none"
+                    className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2.5 min-h-[44px] pr-8 text-sm text-gray-900 focus:border-amber-400 focus:outline-none"
                   >
                     {locations.map((l) => (
                       <option key={l.id} value={l.name} className="text-gray-900">{l.name}</option>
@@ -237,13 +238,13 @@ export default function SDSSearchCard({
                     value={newLocName}
                     onChange={(e) => setNewLocName(e.target.value)}
                     placeholder="New location name..."
-                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:border-amber-400 focus:outline-none"
+                    className="w-full pl-8 pr-3 py-2.5 min-h-[44px] border border-gray-300 rounded-lg text-sm text-gray-900 focus:border-amber-400 focus:outline-none"
                     autoFocus
                   />
                 </div>
                 <button
                   onClick={() => { setShowNewLoc(false); setNewLocName(""); }}
-                  className="px-2 py-2 text-xs text-gray-500 hover:text-gray-700"
+                  className="px-3 py-2 min-h-[44px] text-xs text-gray-500 hover:text-gray-700"
                 >
                   Cancel
                 </button>
@@ -252,14 +253,14 @@ export default function SDSSearchCard({
           </div>
 
           {/* Container Type + Quantity row */}
-          <div className="flex gap-3">
-            <div className="flex-1">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_5rem] gap-3">
+            <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Container Type</label>
               <div className="relative">
                 <select
                   value={containerType}
                   onChange={(e) => setContainerType(e.target.value)}
-                  className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm text-gray-900 focus:border-amber-400 focus:outline-none"
+                  className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2.5 min-h-[44px] pr-8 text-sm text-gray-900 focus:border-amber-400 focus:outline-none"
                 >
                   {CONTAINER_TYPES.map((ct) => (
                     <option key={ct} value={ct} className="text-gray-900">{ct}</option>
@@ -268,22 +269,51 @@ export default function SDSSearchCard({
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
               </div>
             </div>
-            <div className="w-20">
+            <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Qty</label>
               <input
                 type="number"
                 min={1}
                 value={quantity}
                 onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 text-center focus:border-amber-400 focus:outline-none"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 min-h-[44px] text-sm text-gray-900 text-center focus:border-amber-400 focus:outline-none"
               />
+            </div>
+          </div>
+
+          {/* Original Container Toggle */}
+          <div>
+            <label className="text-xs font-medium text-gray-600 mb-1 block">Original Container?</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setOriginalContainer(true)}
+                className={`py-2.5 px-3 min-h-[44px] rounded-lg text-xs font-medium border-2 transition-colors ${
+                  originalContainer
+                    ? "border-amber-500 bg-amber-50 text-amber-700"
+                    : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                }`}
+              >
+                Yes, original container
+              </button>
+              <button
+                type="button"
+                onClick={() => setOriginalContainer(false)}
+                className={`py-2.5 px-3 min-h-[44px] rounded-lg text-xs font-medium border-2 transition-colors ${
+                  !originalContainer
+                    ? "border-amber-500 bg-amber-50 text-amber-700"
+                    : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                }`}
+              >
+                No, transferred
+              </button>
             </div>
           </div>
 
           <button
             onClick={handleSubmit}
             disabled={showNewLoc && !newLocName.trim()}
-            className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-navy-950 text-sm font-bold py-2.5 rounded-lg transition-colors"
+            className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-navy-950 text-sm font-bold py-2.5 min-h-[44px] rounded-lg transition-colors"
           >
             Add Chemical →
           </button>

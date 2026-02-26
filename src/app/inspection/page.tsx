@@ -194,7 +194,7 @@ function ShareModal({ onClose, onToast, shopInfo }: { onClose: () => void; onToa
 
           <div>
             <label className="text-xs text-gray-400 uppercase tracking-wider font-semibold block mb-2">Link Expiration</label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {[
                 { label: "24 hours", value: "24h" },
                 { label: "7 days", value: "7d" },
@@ -306,7 +306,7 @@ function ChecklistCard({ item }: { item: ChecklistItem }) {
   return (
     <div className={`bg-navy-900 border rounded-xl transition-colors ${borderColor}`}>
       <button
-        className="w-full flex items-center justify-between p-5 text-left"
+        className="w-full flex items-center justify-between p-5 text-left min-h-[44px]"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -657,7 +657,7 @@ export default function InspectionPage() {
   return (
     <DashboardLayout>
       {/* ─── Screen-only top bar ─────────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-8 print:hidden">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 print:hidden">
         <div>
           <h1 className="font-display font-black text-2xl text-white">Written HazCom Program</h1>
           <p className="text-sm text-gray-400 mt-1">Living OSHA compliance document — always current</p>
@@ -665,21 +665,21 @@ export default function InspectionPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowShare(true)}
-            className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 text-sm px-4 py-2 rounded-lg transition-colors"
+            className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 text-sm w-full md:w-auto px-4 py-2 rounded-lg transition-colors"
           >
             <Link2 className="h-4 w-4" />
             Share Link
           </button>
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 text-sm px-4 py-2 rounded-lg transition-colors"
+            className="flex items-center gap-2 bg-navy-800 border border-navy-700 hover:border-navy-600 text-gray-300 text-sm w-full md:w-auto px-4 py-2 rounded-lg transition-colors"
           >
             <Printer className="h-4 w-4" />
             Print Program
           </button>
           <button
             onClick={() => showToast("Export feature available with PDF generator module")}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm w-full md:w-auto px-4 py-2 rounded-lg transition-colors"
           >
             <Download className="h-4 w-4" />
             Export PDF
@@ -755,7 +755,7 @@ export default function InspectionPage() {
               </p>
 
               {/* Breakdown bars */}
-              <div className="space-y-1.5 max-w-md">
+              <div className="space-y-1.5 max-w-md mx-auto md:mx-0">
                 {[
                   { label: "SDS Coverage", pct: compliance.breakdown.sds.pct, weight: compliance.breakdown.sds.weight },
                   { label: "Labeling", pct: compliance.breakdown.labels.pct, weight: compliance.breakdown.labels.weight },
@@ -825,7 +825,8 @@ export default function InspectionPage() {
             This inventory is maintained digitally and updated whenever chemicals are added, removed,
             or relocated. Each entry includes GHS classification, signal word, and current compliance status.
           </p>
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="hazcom-table w-full text-xs border-collapse border border-gray-300">
               <thead>
                 <tr className="bg-gray-100">
@@ -887,6 +888,51 @@ export default function InspectionPage() {
               </tfoot>
             </table>
           </div>
+
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3">
+            {sortedChemicals.map((c, i) => (
+              <div
+                key={c.id}
+                className={`border rounded-lg p-4 ${
+                  c.sds_status === "missing"
+                    ? "bg-red-50 border-l-4 border-l-red-400 border-gray-200"
+                    : c.sds_status === "expired"
+                    ? "bg-amber-50 border-l-4 border-l-amber-400 border-gray-200"
+                    : "bg-white border-gray-200"
+                }`}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{i + 1}. {c.product_name}</p>
+                    <p className="text-xs text-gray-500">{c.manufacturer}</p>
+                  </div>
+                  <SignalWordBadge word={c.signal_word} />
+                </div>
+                <p className="text-xs text-gray-500 mb-2">{c.location}</p>
+                <div className="flex items-center gap-1 mb-2">
+                  {c.pictogram_codes.map((code) => (
+                    <GHSPictogram key={code} code={code} size={20} />
+                  ))}
+                </div>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="inline-flex items-center gap-1">
+                    SDS: <SdsStatusBadge status={c.sds_status} />
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    Labeled: {c.labeled ? (
+                      <span className="text-green-700 font-medium">Yes</span>
+                    ) : (
+                      <span className="text-red-700 font-medium">No</span>
+                    )}
+                  </span>
+                </div>
+              </div>
+            ))}
+            <div className="bg-gray-100 rounded-lg p-3 text-xs font-semibold text-gray-700">
+              Total: {chemicals.length} chemicals &bull; {uniqueLocations.length} locations &bull; {currentSDS}/{totalSDS} SDS current &bull; {labeledChemCount}/{chemicals.length} labeled
+            </div>
+          </div>
         </ProgramSection>
 
         {/* ─── Part D: Section 3 — SDS Management ─────────────────────── */}
@@ -899,7 +945,8 @@ export default function InspectionPage() {
               where applicable. Physical binders are maintained as backup at Station 1.
             </p>
           </div>
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="hazcom-table w-full text-xs border-collapse border border-gray-300">
               <thead>
                 <tr className="bg-gray-100">
@@ -951,6 +998,50 @@ export default function InspectionPage() {
             </table>
           </div>
 
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3">
+            {sortedChemicals.map((c) => (
+              <div
+                key={c.id}
+                className={`border rounded-lg p-4 ${
+                  c.sds_status === "missing"
+                    ? "bg-red-50 border-l-4 border-l-red-400 border-gray-200"
+                    : c.sds_status === "expired"
+                    ? "bg-amber-50 border-l-4 border-l-amber-400 border-gray-200"
+                    : "bg-white border-gray-200"
+                }`}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{c.product_name}</p>
+                    <p className="text-xs text-gray-500">{c.manufacturer}</p>
+                  </div>
+                  <SdsStatusBadge status={c.sds_status} />
+                </div>
+                <div className="flex items-center gap-3 text-xs text-gray-500 mb-2">
+                  <span>{c.sds_uploaded ? "Uploaded" : "Not on file"}</span>
+                  <span>&middot;</span>
+                  <span>{c.sds_date ? new Date(c.sds_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Not verified"}</span>
+                </div>
+                <div className="print:hidden">
+                  {c.sds_url ? (
+                    <a href={c.sds_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
+                      View SDS <ExternalLink className="h-3 w-3" />
+                    </a>
+                  ) : c.sds_status !== "current" ? (
+                    <Link href="/sds-search" className="text-xs text-amber-600 hover:text-amber-800 font-medium">
+                      Find SDS &rarr;
+                    </Link>
+                  ) : (
+                    <Link href="/sds-library" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
+                      View SDS <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
           {(missingSdsChems.length > 0 || expiredSdsChems.length > 0) && (
             <DeficiencyNotice>
               <p className="font-semibold mb-1">SDS Deficiency — 29 CFR 1910.1200(g)</p>
@@ -979,7 +1070,8 @@ export default function InspectionPage() {
               bear labels that include at minimum the product identifier and hazard warnings.
             </p>
           </div>
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="hazcom-table w-full text-xs border-collapse border border-gray-300">
               <thead>
                 <tr className="bg-gray-100">
@@ -1022,6 +1114,44 @@ export default function InspectionPage() {
             </table>
           </div>
 
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3">
+            {sortedChemicals.map((c) => (
+              <div
+                key={c.id}
+                className={`border rounded-lg p-4 ${
+                  !c.labeled
+                    ? "bg-red-50 border-l-4 border-l-red-400 border-gray-200"
+                    : "bg-white border-gray-200"
+                }`}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{c.product_name}</p>
+                    <p className="text-xs text-gray-500">{c.location}</p>
+                  </div>
+                  {c.labeled ? (
+                    <span className="text-xs text-green-700 font-medium">Labeled</span>
+                  ) : (
+                    <span className="text-xs text-red-700 font-medium">Unlabeled</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-gray-500 mb-2">
+                  <span>{c.container_count} {c.container_type}</span>
+                  <span>&middot;</span>
+                  <span>{c.label_printed_date ? new Date(c.label_printed_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "No label date"}</span>
+                </div>
+                {!c.labeled && (
+                  <div className="print:hidden">
+                    <Link href="/labels" className="text-xs text-amber-600 hover:text-amber-800 font-medium">
+                      Print Label &rarr;
+                    </Link>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
           {unlabeledChems.length > 0 && (
             <DeficiencyNotice>
               <p className="font-semibold mb-1">Labeling Deficiency — 29 CFR 1910.1200(f)</p>
@@ -1047,7 +1177,8 @@ export default function InspectionPage() {
               label reading, PPE usage, emergency procedures, chemical storage, and program overview.
             </p>
           </div>
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="hazcom-table w-full text-xs border-collapse border border-gray-300">
               <thead>
                 <tr className="bg-gray-100">
@@ -1107,6 +1238,59 @@ export default function InspectionPage() {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3">
+            {employeeStatuses.map((es) => {
+              const nextDue = (() => {
+                if (es.info.completedCount < 7) return "Complete training first";
+                if (!es.emp.last_training) return "—";
+                const d = new Date(es.emp.last_training);
+                d.setFullYear(d.getFullYear() + 1);
+                return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+              })();
+
+              return (
+                <div
+                  key={es.emp.id}
+                  className={`border rounded-lg p-4 ${
+                    es.info.status === "overdue" || es.info.status === "not-started"
+                      ? "bg-red-50 border-l-4 border-l-red-400 border-gray-200"
+                      : es.info.status === "in-progress"
+                      ? "bg-amber-50 border-l-4 border-l-amber-400 border-gray-200"
+                      : "bg-white border-gray-200"
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{es.emp.name}</p>
+                      <p className="text-xs text-gray-500">{es.emp.role}</p>
+                    </div>
+                    <TrainingStatusBadge status={es.info.status} />
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-500 mb-2">
+                    <span>{es.info.completedCount}/7 modules</span>
+                    <span>&middot;</span>
+                    <span>Next due: {nextDue}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-500 mb-2">
+                    <span>Last: {es.emp.last_training ? new Date(es.emp.last_training).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</span>
+                  </div>
+                  <div className="print:hidden">
+                    {(es.info.status === "current" || es.info.status === "due-soon") ? (
+                      <Link href={`/training/learn?employee=${es.emp.id}`} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                        View Certificate
+                      </Link>
+                    ) : (
+                      <Link href={`/training/learn?employee=${es.emp.id}`} className="text-xs text-amber-600 hover:text-amber-800 font-medium">
+                        Start Training &rarr;
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {(overdueEmployees.length > 0 || notStartedEmployees.length > 0 || inProgressEmployees.length > 0) && (
@@ -1177,7 +1361,7 @@ export default function InspectionPage() {
           </div>
           <button
             onClick={() => showToast("Contractor packet generation coming soon")}
-            className="mt-4 inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-4 py-2 rounded-lg transition-colors print:hidden"
+            className="mt-4 inline-flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm w-full md:w-auto px-4 py-2 rounded-lg transition-colors print:hidden"
           >
             <FileText className="h-4 w-4" />
             Generate Contractor Packet
@@ -1203,7 +1387,8 @@ export default function InspectionPage() {
           </div>
 
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Recent Activity Log</h3>
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="hazcom-table w-full text-xs border-collapse border border-gray-300">
               <thead>
                 <tr className="bg-gray-100">
@@ -1228,6 +1413,24 @@ export default function InspectionPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile list view */}
+          <div className="md:hidden space-y-2">
+            {auditLog.slice(0, 20).map((entry, i) => (
+              <div key={i} className="border border-gray-200 rounded-lg p-3 bg-white">
+                <p className="text-[10px] text-gray-400 font-medium mb-1">
+                  {(() => {
+                    try {
+                      return new Date(entry.time).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                    } catch {
+                      return entry.time;
+                    }
+                  })()}
+                </p>
+                <p className="text-xs text-gray-700">{entry.entry}</p>
+              </div>
+            ))}
           </div>
         </ProgramSection>
 

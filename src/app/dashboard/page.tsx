@@ -455,7 +455,7 @@ export default function DashboardPage() {
     <DashboardLayout>
       {/* Demo mode banner */}
       {isDemoMode && (
-        <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-center justify-between">
+        <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0" />
             <p className="text-sm text-white font-medium">
@@ -467,7 +467,7 @@ export default function DashboardPage() {
               exitDemoMode();
               window.location.href = "/dashboard";
             }}
-            className="text-sm font-medium text-amber-400 hover:text-amber-300 transition-colors ml-3 flex-shrink-0 whitespace-nowrap"
+            className="text-sm font-medium text-amber-400 hover:text-amber-300 transition-colors md:ml-3 flex-shrink-0 whitespace-nowrap min-h-[44px] flex items-center"
           >
             Back to {realCompanyName} →
           </button>
@@ -475,7 +475,7 @@ export default function DashboardPage() {
       )}
 
       {/* Top bar */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="font-display font-black text-2xl text-white">Dashboard</h1>
           <p className="text-sm text-gray-400 mt-1">
@@ -485,7 +485,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <form
             onSubmit={(e) => { e.preventDefault(); if (searchQuery.trim()) window.location.href = `/sds-library?search=${encodeURIComponent(searchQuery.trim())}`; }}
-            className="relative"
+            className="relative flex-1 md:flex-none"
           >
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
@@ -493,12 +493,12 @@ export default function DashboardPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search chemicals, SDSs..."
-              className="bg-navy-800 border border-navy-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50 w-64"
+              className="bg-navy-800 border border-navy-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50 w-full md:w-64"
             />
           </form>
           <Link
             href="/scan"
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors min-h-[44px] flex-shrink-0"
           >
             <Plus className="h-4 w-4" />
             Add Chemical
@@ -533,9 +533,9 @@ export default function DashboardPage() {
 
       {/* Inspection Readiness Banner */}
       <div className={`mb-8 rounded-xl bg-gradient-to-r ${compliance.overall >= 90 ? "from-status-green/20 via-status-green/10" : compliance.overall >= 70 ? "from-status-amber/20 via-status-amber/10" : "from-status-red/20 via-status-red/10"} to-navy-800 border ${compliance.overall >= 90 ? "border-status-green/30" : compliance.overall >= 70 ? "border-status-amber/30" : "border-status-red/30"} p-6`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className={`h-14 w-14 rounded-full ${compliance.overall >= 90 ? "bg-status-green/20 border-status-green" : compliance.overall >= 70 ? "bg-status-amber/20 border-status-amber" : "bg-status-red/20 border-status-red"} border-2 flex items-center justify-center`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+            <div className={`h-14 w-14 rounded-full ${compliance.overall >= 90 ? "bg-status-green/20 border-status-green" : compliance.overall >= 70 ? "bg-status-amber/20 border-status-amber" : "bg-status-red/20 border-status-red"} border-2 flex items-center justify-center flex-shrink-0`}>
               <ShieldCheck className={`h-7 w-7 ${compliance.overall >= 90 ? "text-status-green" : compliance.overall >= 70 ? "text-status-amber" : "text-status-red"}`} />
             </div>
             <div>
@@ -543,7 +543,7 @@ export default function DashboardPage() {
                 <h2 className="font-display font-bold text-xl text-white">
                   {compliance.status}
                 </h2>
-                <span className={`text-3xl font-display font-black ${compliance.overall >= 90 ? "text-status-green" : compliance.overall >= 70 ? "text-status-amber" : "text-status-red"}`}>
+                <span className={`text-2xl md:text-3xl font-display font-black ${compliance.overall >= 90 ? "text-status-green" : compliance.overall >= 70 ? "text-status-amber" : "text-status-red"}`}>
                   {compliance.overall}%
                 </span>
               </div>
@@ -571,7 +571,7 @@ export default function DashboardPage() {
           </div>
           <Link
             href="/inspection"
-            className={`flex items-center gap-2 ${compliance.overall >= 90 ? "text-status-green" : compliance.overall >= 70 ? "text-status-amber" : "text-status-red"} hover:text-white text-sm font-medium transition-colors`}
+            className={`flex items-center gap-2 ${compliance.overall >= 90 ? "text-status-green" : compliance.overall >= 70 ? "text-status-amber" : "text-status-red"} hover:text-white text-sm font-medium transition-colors min-h-[44px]`}
           >
             View Details
             <ArrowRight className="h-4 w-4" />
@@ -580,7 +580,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Status Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {statusCards.map((card) => (
           <Link
             key={card.label}
@@ -604,16 +604,16 @@ export default function DashboardPage() {
                 <card.icon className={`h-5 w-5 ${card.color}`} />
               </div>
             </div>
-            <p className="font-display font-black text-3xl text-white">{card.value}</p>
+            <p className="font-display font-black text-2xl md:text-3xl text-white">{card.value}</p>
             <p className="text-xs text-gray-500 mt-1">{card.sub}</p>
           </Link>
         ))}
       </div>
 
       {/* Recent Activity + Action Items */}
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Recent Activity */}
-        <div className="col-span-2 bg-navy-900 border border-navy-700/50 rounded-xl p-6">
+        <div className="col-span-1 md:col-span-2 bg-navy-900 border border-navy-700/50 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display font-bold text-lg text-white">Recent Activity</h3>
             {recentActivity.length > 6 && (
@@ -663,7 +663,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Action Items */}
-        <div className="bg-navy-900 border border-navy-700/50 rounded-xl p-6">
+        <div className="order-first md:order-last bg-navy-900 border border-navy-700/50 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display font-bold text-lg text-white">
               Action Items ({actionItems.length})
@@ -671,7 +671,7 @@ export default function DashboardPage() {
             {actionItems.length > 0 && (
               <button
                 onClick={() => setFixAllOpen(true)}
-                className="flex items-center gap-1.5 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+                className="flex items-center gap-1.5 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors min-h-[44px]"
               >
                 <Wrench className="h-3.5 w-3.5" />
                 Fix All
@@ -725,14 +725,14 @@ export default function DashboardPage() {
                             href={sdsLookupResult[item.id].portalUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors min-h-[44px]"
                           >
                             Search manufacturer portal <ArrowRight className="h-3 w-3" />
                           </a>
                         ) : (
                           <Link
                             href={item.fixHref}
-                            className="inline-flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors min-h-[44px]"
                           >
                             Upload manually <ArrowRight className="h-3 w-3" />
                           </Link>
@@ -742,7 +742,7 @@ export default function DashboardPage() {
                       <button
                         onClick={() => handleFindSDS(item)}
                         disabled={sdsLookupLoading === item.id}
-                        className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors disabled:opacity-50"
+                        className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors disabled:opacity-50 min-h-[44px]"
                       >
                         {sdsLookupLoading === item.id ? (
                           <><Loader2 className="h-3 w-3 animate-spin" /> Searching...</>
@@ -753,7 +753,7 @@ export default function DashboardPage() {
                     ) : item.actionType === "send-link" && item.employeeId ? (
                       <button
                         onClick={() => setTrainingLinkPopup(item.employeeId!)}
-                        className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+                        className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors min-h-[44px]"
                       >
                         <Link2 className="h-3 w-3" />
                         {item.fixLabel} <ArrowRight className="h-3 w-3" />
@@ -761,7 +761,7 @@ export default function DashboardPage() {
                     ) : (
                       <Link
                         href={item.fixHref}
-                        className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+                        className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors min-h-[44px]"
                       >
                         {item.fixLabel} <ArrowRight className="h-3 w-3" />
                       </Link>

@@ -287,11 +287,11 @@ export default function TrainingPage() {
           <GraduationCap className="h-16 w-16 text-gray-600 mb-4" />
           <h2 className="text-xl font-display font-bold text-white mb-2">No employees added yet</h2>
           <p className="text-gray-400 mb-6">Add employees and assign HazCom training.</p>
-          <div className="flex gap-3">
-            <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold px-6 py-3 rounded-lg transition-colors">
+          <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto px-4 md:px-0">
+            <button onClick={() => setShowAddModal(true)} className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold px-6 py-3 min-h-[44px] rounded-lg transition-colors w-full md:w-auto">
               <UserPlus className="h-5 w-5" /> Add Employee
             </button>
-            <Link href="/scan" className="flex items-center gap-2 bg-navy-800 hover:bg-navy-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors border border-navy-700">
+            <Link href="/scan" className="flex items-center justify-center gap-2 bg-navy-800 hover:bg-navy-700 text-white font-semibold px-6 py-3 min-h-[44px] rounded-lg transition-colors border border-navy-700 w-full md:w-auto">
               <Camera className="h-5 w-5" /> Scan Chemical
             </Link>
           </div>
@@ -303,18 +303,18 @@ export default function TrainingPage() {
   return (
     <DashboardLayout>
       {/* Top bar */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="font-display font-black text-2xl text-white">Training</h1>
           <p className="text-sm text-gray-400 mt-1">Who needs training and when?</p>
         </div>
-        <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">
+        <button onClick={() => setShowAddModal(true)} className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 min-h-[44px] rounded-lg transition-colors w-full md:w-auto">
           <UserPlus className="h-4 w-4" /> Add Employee
         </button>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
         <div className="bg-navy-900 border border-navy-700/50 rounded-xl p-4">
           <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Total</div>
           <div className="font-display font-black text-2xl text-white">{counts.total}</div>
@@ -339,7 +339,7 @@ export default function TrainingPage() {
 
       {/* Overdue alert */}
       {(overdueList.length > 0 || dueSoonList.length > 0) && (
-        <div className={`${overdueList.length > 0 ? "bg-status-red/10 border-status-red/30" : "bg-status-amber/10 border-status-amber/30"} border rounded-xl p-4 mb-6 flex items-center justify-between`}>
+        <div className={`${overdueList.length > 0 ? "bg-status-red/10 border-status-red/30" : "bg-status-amber/10 border-status-amber/30"} border rounded-xl p-4 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3`}>
           <div className="flex items-center gap-3">
             <AlertTriangle className={`w-5 h-5 flex-shrink-0 ${overdueList.length > 0 ? "text-status-red" : "text-status-amber"}`} />
             <span className="text-sm font-semibold text-white">
@@ -373,7 +373,7 @@ export default function TrainingPage() {
                     <div className="relative">
                       <button
                         onClick={(e) => { e.stopPropagation(); setMenuOpenId(isMenuOpen ? null : emp.id); }}
-                        className="p-1.5 rounded-lg hover:bg-navy-700 transition-colors text-gray-400 hover:text-white"
+                        className="p-1.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-navy-700 transition-colors text-gray-400 hover:text-white"
                       >
                         <MoreVertical className="h-4 w-4" />
                       </button>
@@ -381,19 +381,19 @@ export default function TrainingPage() {
                         <div className="absolute right-0 top-full mt-1 bg-navy-800 border border-navy-700 rounded-lg shadow-xl z-30 w-48 overflow-hidden">
                           <button
                             onClick={(e) => { e.stopPropagation(); setExpandedEmpId(emp.id); setMenuOpenId(null); }}
-                            className="w-full text-left px-3 py-2.5 text-xs text-gray-300 hover:bg-navy-700 hover:text-white transition-colors"
+                            className="w-full text-left px-3 py-2.5 min-h-[44px] text-xs text-gray-300 hover:bg-navy-700 hover:text-white transition-colors"
                           >
                             View Training Details
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); setShowLinkPopup(emp.id); setMenuOpenId(null); }}
-                            className="w-full text-left px-3 py-2.5 text-xs text-gray-300 hover:bg-navy-700 hover:text-white transition-colors"
+                            className="w-full text-left px-3 py-2.5 min-h-[44px] text-xs text-gray-300 hover:bg-navy-700 hover:text-white transition-colors"
                           >
                             Send Training Link
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(emp.id); setMenuOpenId(null); }}
-                            className="w-full text-left px-3 py-2.5 text-xs text-status-red hover:bg-navy-700 transition-colors"
+                            className="w-full text-left px-3 py-2.5 min-h-[44px] text-xs text-status-red hover:bg-navy-700 transition-colors"
                           >
                             Delete Employee
                           </button>
@@ -404,9 +404,9 @@ export default function TrainingPage() {
                 </div>
 
                 {/* Name + Role */}
-                <div className="mb-2">
+                <div className="mb-2 flex flex-col md:flex-row md:items-baseline gap-0.5 md:gap-0">
                   <span className="text-base font-bold text-white">{emp.name}</span>
-                  <span className="text-sm text-gray-400 ml-2">— {emp.role}</span>
+                  <span className="text-sm text-gray-400 md:ml-2">— {emp.role}</span>
                 </div>
 
                 {/* Due date info */}
@@ -430,7 +430,7 @@ export default function TrainingPage() {
 
                 {/* Module indicators */}
                 <div>
-                  <div className="flex items-center gap-1.5 mb-1">
+                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                     {ALL_LEARN_MODULES.map((modId) => {
                       const done = emp.completed_modules?.includes(modId);
                       return (
@@ -448,15 +448,15 @@ export default function TrainingPage() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="mt-4 flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                <div className="mt-4 flex flex-col md:flex-row md:items-center gap-3" onClick={(e) => e.stopPropagation()}>
                   {emp.trainingStatus === "current" ? (
                     <>
-                      <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-status-green bg-status-green/10 rounded-lg cursor-default">
+                      <span className="inline-flex items-center justify-center gap-1.5 px-4 py-2 min-h-[44px] text-sm font-medium text-status-green bg-status-green/10 rounded-lg cursor-default w-full md:w-auto">
                         <CheckCircle2 className="h-4 w-4" /> Up to Date
                       </span>
                       <Link
                         href={`/training/learn?employee=${emp.id}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-400 hover:text-white bg-navy-800 hover:bg-navy-700 rounded-lg transition-colors"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-xs font-medium text-gray-400 hover:text-white bg-navy-800 hover:bg-navy-700 rounded-lg transition-colors w-full md:w-auto"
                       >
                         🔄 Refresher Training
                       </Link>
@@ -464,7 +464,7 @@ export default function TrainingPage() {
                   ) : (
                     <Link
                       href={`/training/learn?employee=${emp.id}`}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-navy-950 rounded-lg transition-colors"
+                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] text-sm font-bold bg-amber-500 hover:bg-amber-400 text-navy-950 rounded-lg transition-colors w-full md:w-auto"
                     >
                       ▶ {emp.trainingStatus === "in-progress" ? "Continue Training" : emp.trainingStatus === "overdue" || emp.trainingStatus === "due-soon" ? "Refresh Training" : "Start Training"}
                     </Link>
@@ -479,7 +479,7 @@ export default function TrainingPage() {
                     {/* Training Timeline */}
                     <div>
                       <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Training Timeline</h4>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                         <div><span className="text-gray-500">Initial Training:</span> <span className="text-white ml-1">{formatDate(emp.initial_training)}</span></div>
                         <div><span className="text-gray-500">Last Training:</span> <span className="text-white ml-1">{formatDate(emp.last_training)}</span></div>
                         <div><span className="text-gray-500">Next Due:</span> <span className="text-white ml-1">{emp.dueDate ? formatDate(emp.dueDate.toISOString()) : "—"}</span></div>
@@ -526,18 +526,18 @@ export default function TrainingPage() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-3 pt-2">
+                    <div className="flex flex-col md:flex-row md:items-center gap-3 pt-2">
                       {emp.modulesCompleted >= 7 && (
                         <>
                           <button
                             onClick={() => setShowCertForId(showCertForId === emp.id ? null : emp.id)}
-                            className="flex items-center gap-1.5 text-xs font-medium text-amber-400 hover:text-amber-300 px-3 py-2 rounded-lg bg-amber-500/10 transition-colors"
+                            className="flex items-center justify-center gap-1.5 text-xs font-medium text-amber-400 hover:text-amber-300 px-3 py-2 min-h-[44px] rounded-lg bg-amber-500/10 transition-colors w-full md:w-auto"
                           >
                             <Award className="h-3.5 w-3.5" /> {showCertForId === emp.id ? "Hide Certificate" : "View Certificate"}
                           </button>
                           <button
                             onClick={() => handlePrintCertificate(emp)}
-                            className="flex items-center gap-1.5 text-xs font-medium text-gray-300 hover:text-white px-3 py-2 rounded-lg bg-navy-800 transition-colors"
+                            className="flex items-center justify-center gap-1.5 text-xs font-medium text-gray-300 hover:text-white px-3 py-2 min-h-[44px] rounded-lg bg-navy-800 transition-colors w-full md:w-auto"
                           >
                             🖨️ Print Certificate
                           </button>
@@ -545,7 +545,7 @@ export default function TrainingPage() {
                       )}
                       <button
                         onClick={() => setShowLinkPopup(emp.id)}
-                        className="flex items-center gap-1.5 text-xs font-medium text-gray-300 hover:text-white px-3 py-2 rounded-lg bg-navy-800 transition-colors"
+                        className="flex items-center justify-center gap-1.5 text-xs font-medium text-gray-300 hover:text-white px-3 py-2 min-h-[44px] rounded-lg bg-navy-800 transition-colors w-full md:w-auto"
                       >
                         <Link2 className="h-3.5 w-3.5" /> Send Training Link
                       </button>
@@ -554,7 +554,7 @@ export default function TrainingPage() {
                     {/* Inline Certificate */}
                     {showCertForId === emp.id && emp.modulesCompleted >= 7 && (
                       <div className="mt-4 pt-4 border-t border-navy-700/50">
-                        <div className="bg-[#FFFEF8] rounded-lg border-2 border-[#B8860B] p-8 relative overflow-hidden">
+                        <div className="bg-[#FFFEF8] rounded-lg border-2 border-[#B8860B] p-4 md:p-8 relative overflow-hidden">
                           {/* Corner decorations */}
                           <div className="absolute top-2 left-2 w-6 h-6 border-t-2 border-l-2 border-[#B8860B]" />
                           <div className="absolute top-2 right-2 w-6 h-6 border-t-2 border-r-2 border-[#B8860B]" />
@@ -615,7 +615,7 @@ export default function TrainingPage() {
                         <div className="flex justify-center mt-3">
                           <button
                             onClick={() => handlePrintCertificate(emp)}
-                            className="flex items-center gap-1.5 text-xs font-semibold text-amber-400 hover:text-amber-300 px-4 py-2 rounded-lg bg-amber-500/10 transition-colors"
+                            className="flex items-center gap-1.5 text-xs font-semibold text-amber-400 hover:text-amber-300 px-4 py-2 min-h-[44px] rounded-lg bg-amber-500/10 transition-colors w-full md:w-auto justify-center"
                           >
                             🖨️ Print Certificate
                           </button>
@@ -636,7 +636,7 @@ export default function TrainingPage() {
           <div className="bg-navy-900 border border-navy-700 rounded-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-display font-bold text-white">Add Employee</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-gray-300 transition-colors">
+              <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-gray-300 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -666,10 +666,10 @@ export default function TrainingPage() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-400 bg-navy-800 hover:bg-navy-700 rounded-lg transition-colors">
+              <button onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2.5 min-h-[44px] text-sm font-medium text-gray-400 bg-navy-800 hover:bg-navy-700 rounded-lg transition-colors">
                 Cancel
               </button>
-              <button onClick={handleAddEmployee} disabled={!addName.trim()} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-navy-950 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onClick={handleAddEmployee} disabled={!addName.trim()} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-navy-950 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 <UserPlus className="h-4 w-4" /> Add Employee
               </button>
             </div>
@@ -687,7 +687,7 @@ export default function TrainingPage() {
             <div className="bg-navy-900 border border-navy-700 rounded-2xl w-full max-w-md p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-display font-bold text-white">Send Training Link</h3>
-                <button onClick={() => { setShowLinkPopup(null); setLinkCopied(false); }} className="text-gray-500 hover:text-gray-300 transition-colors">
+                <button onClick={() => { setShowLinkPopup(null); setLinkCopied(false); }} className="text-gray-500 hover:text-gray-300 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -700,7 +700,7 @@ export default function TrainingPage() {
                 </div>
                 <button
                   onClick={() => handleCopyLink(emp.id)}
-                  className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                  className={`flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-semibold transition-colors ${
                     linkCopied ? "bg-status-green/20 text-status-green" : "bg-amber-500 hover:bg-amber-400 text-navy-950"
                   }`}
                 >
@@ -729,10 +729,10 @@ export default function TrainingPage() {
                 </div>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setDeleteConfirmId(null)} className="flex-1 px-4 py-2 text-sm font-medium text-gray-400 bg-navy-800 hover:bg-navy-700 rounded-lg transition-colors">
+                <button onClick={() => setDeleteConfirmId(null)} className="flex-1 px-4 py-2 min-h-[44px] text-sm font-medium text-gray-400 bg-navy-800 hover:bg-navy-700 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => handleDeleteEmployee(deleteConfirmId)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold bg-status-red hover:bg-red-500 text-white rounded-lg transition-colors">
+                <button onClick={() => handleDeleteEmployee(deleteConfirmId)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] text-sm font-semibold bg-status-red hover:bg-red-500 text-white rounded-lg transition-colors">
                   <Trash2 className="h-4 w-4" /> Delete
                 </button>
               </div>

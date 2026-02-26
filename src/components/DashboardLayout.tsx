@@ -30,14 +30,18 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen bg-navy-950">
       <Sidebar />
-      {/* Top notification bar */}
-      <div className="fixed top-0 left-64 right-0 h-0 z-40">
+      {/* Top notification bar — desktop only */}
+      <div className="fixed top-0 left-64 right-0 h-0 z-40 hidden md:block">
         <div className="absolute top-3 right-6">
           <NotificationDropdown onAction={handleNotifAction} />
         </div>
       </div>
-      <main className="ml-64 min-h-screen">
-        <div className="p-6 lg:p-8">{children}</div>
+      {/* Mobile notification icon */}
+      <div className="fixed top-0 right-16 h-14 flex items-center z-50 md:hidden">
+        <NotificationDropdown onAction={handleNotifAction} />
+      </div>
+      <main className="md:ml-64 min-h-screen pt-14 md:pt-0">
+        <div className="p-4 md:p-6 lg:p-8">{children}</div>
       </main>
       {notifToast && <NotifToast message={notifToast} onClose={() => setNotifToast(null)} />}
     </div>

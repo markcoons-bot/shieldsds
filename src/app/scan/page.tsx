@@ -567,12 +567,12 @@ function ScanPageInner() {
           <h1 className="text-xl font-display font-bold text-center mb-2">
             Add a Chemical
           </h1>
-          <p className="text-sm text-gray-400 text-center mb-10 max-w-xs">
+          <p className="text-sm text-gray-400 text-center mb-10 w-full max-w-xs">
             Scan a label, search our database, or type in the details manually.
           </p>
 
           {/* Action buttons */}
-          <div className="w-full max-w-sm space-y-4">
+          <div className="w-full max-w-full md:max-w-sm space-y-4">
             {/* Scan or Upload */}
             <button
               onClick={() => cameraInputRef.current?.click()}
@@ -656,7 +656,7 @@ function ScanPageInner() {
         <div className="min-h-screen flex flex-col px-6 py-8 scan-fade-in">
           {/* Image */}
           <div className="flex-1 flex items-center justify-center mb-6">
-            <div className="w-full max-w-md rounded-2xl overflow-hidden border border-white/10 bg-black">
+            <div className="w-full max-w-full md:max-w-md rounded-2xl overflow-hidden border border-white/10 bg-black">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={imageUrl}
@@ -666,21 +666,21 @@ function ScanPageInner() {
             </div>
           </div>
 
-          <div className="max-w-md mx-auto w-full">
+          <div className="w-full max-w-full md:max-w-md mx-auto">
             <p className="text-center text-sm text-gray-300 mb-6">
               Is the label clearly visible?
             </p>
-            <div className="flex gap-3">
+            <div className="flex flex-col md:flex-row gap-3">
               <button
                 onClick={resetToCapture}
-                className="flex-1 flex items-center justify-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold py-3 rounded-xl transition-colors"
+                className="w-full md:w-auto md:flex-1 flex items-center justify-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold min-h-[48px] py-3 rounded-xl transition-colors"
               >
                 <Camera className="h-4 w-4" />
                 Retake
               </button>
               <button
                 onClick={startProcessing}
-                className="flex-1 flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold py-3 rounded-xl transition-colors"
+                className="w-full md:w-auto md:flex-1 flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold min-h-[48px] py-3 rounded-xl transition-colors"
               >
                 Analyze Label
                 <ArrowLeft className="h-4 w-4 rotate-180" />
@@ -709,7 +709,7 @@ function ScanPageInner() {
             {/* Spinner */}
             <div className="w-16 h-16 mx-auto mb-8 border-4 border-white/10 border-t-amber-400 rounded-full scan-spin" />
 
-            <div className="space-y-4 max-w-xs mx-auto">
+            <div className="space-y-4 w-full max-w-xs mx-auto">
               {[
                 { icon: "\ud83d\udd0d", text: "Reading label..." },
                 { icon: "\u26a0\ufe0f", text: "Extracting hazards..." },
@@ -753,7 +753,7 @@ function ScanPageInner() {
           </div>
 
           {error && (
-            <div className="relative z-10 mt-8 bg-red-500/10 border border-red-500/30 rounded-xl p-4 max-w-xs text-center">
+            <div className="relative z-10 mt-8 bg-red-500/10 border border-red-500/30 rounded-xl p-4 w-full max-w-xs text-center">
               <p className="text-sm text-red-400 mb-3">{error}</p>
               {apiKeyError && (
                 <p className="text-xs text-amber-400 mb-3">
@@ -776,21 +776,21 @@ function ScanPageInner() {
         <div className="min-h-screen pb-32 scan-fade-in">
           {/* Header */}
           <div className="sticky top-0 z-20 bg-navy-950/90 backdrop-blur-xl border-b border-white/5 px-4 py-3">
-            <div className="max-w-2xl mx-auto flex items-center justify-between">
+            <div className="w-full max-w-2xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4">
               <div className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-amber-400" />
                 <span className="font-display font-bold text-sm">Review Scan Results</span>
               </div>
               <button
                 onClick={resetToCapture}
-                className="text-xs text-gray-400 hover:text-white transition-colors"
+                className="text-xs text-gray-400 hover:text-white transition-colors min-h-[44px] md:min-h-0"
               >
                 Cancel
               </button>
             </div>
           </div>
 
-          <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+          <div className="w-full max-w-2xl mx-auto px-4 py-6 space-y-5">
             {/* API key warning */}
             {apiKeyError && (
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-3">
@@ -830,7 +830,7 @@ function ScanPageInner() {
 
             {/* Signal word badge */}
             {scanResult.signal_word && (
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <span
                   className={`inline-block px-4 py-2 rounded-lg text-sm font-black uppercase tracking-wider ${
                     scanResult.signal_word === "DANGER"
@@ -911,9 +911,9 @@ function ScanPageInner() {
 
             {/* NFPA Diamond */}
             {scanResult.nfpa_diamond && (
-              <div className="flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3">
+              <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3">
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">NFPA</span>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2 md:gap-3">
                   <span className="text-xs font-bold text-blue-400 bg-blue-500/20 px-2 py-1 rounded">
                     Health: {scanResult.nfpa_diamond.health}
                   </span>
@@ -1007,7 +1007,7 @@ function ScanPageInner() {
             </Section>
 
             <Section title="PPE Requirements" icon="\ud83d\udee1\ufe0f" defaultOpen>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {(
                   [
                     ["eyes", "\ud83d\udc41\ufe0f", "Eyes"],
@@ -1092,7 +1092,7 @@ function ScanPageInner() {
             </Section>
 
             <Section title="Physical Properties" icon="\ud83d\udd2c">
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
                 {(
                   [
                     ["appearance", "Appearance"],
@@ -1198,7 +1198,7 @@ function ScanPageInner() {
             </div>
 
             {/* Container info */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">
                   Container Type
@@ -1231,11 +1231,11 @@ function ScanPageInner() {
               <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
                 Original Container?
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setOriginalContainer(true)}
-                  className={`py-2.5 px-3 rounded-xl text-sm font-medium border-2 transition-colors ${
+                  className={`min-h-[48px] py-2.5 px-3 rounded-xl text-sm font-medium border-2 transition-colors ${
                     originalContainer
                       ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
                       : "border-white/10 bg-white/[0.02] text-gray-400 hover:bg-white/[0.04]"
@@ -1246,7 +1246,7 @@ function ScanPageInner() {
                 <button
                   type="button"
                   onClick={() => setOriginalContainer(false)}
-                  className={`py-2.5 px-3 rounded-xl text-sm font-medium border-2 transition-colors ${
+                  className={`min-h-[48px] py-2.5 px-3 rounded-xl text-sm font-medium border-2 transition-colors ${
                     !originalContainer
                       ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
                       : "border-white/10 bg-white/[0.02] text-gray-400 hover:bg-white/[0.04]"
@@ -1260,17 +1260,17 @@ function ScanPageInner() {
 
           {/* Fixed bottom bar */}
           <div className="fixed bottom-0 left-0 right-0 z-20 bg-navy-950/90 backdrop-blur-xl border-t border-white/5 px-4 py-4">
-            <div className="max-w-2xl mx-auto flex gap-3">
+            <div className="w-full max-w-2xl mx-auto flex flex-col md:flex-row gap-3">
               <Link
                 href="/dashboard"
-                className="flex-1 flex items-center justify-center gap-2 bg-white/[0.06] border border-white/10 text-white font-semibold py-3 rounded-xl transition-colors hover:bg-white/[0.1]"
+                className="w-full md:flex-1 flex items-center justify-center gap-2 bg-white/[0.06] border border-white/10 text-white font-semibold min-h-[48px] py-3 rounded-xl transition-colors hover:bg-white/[0.1]"
               >
                 Cancel
               </Link>
               <button
                 onClick={handleSave}
                 disabled={!editName.trim()}
-                className="flex-[2] flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-navy-950 font-bold py-3 rounded-xl transition-colors"
+                className="w-full md:flex-[2] flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-navy-950 font-bold min-h-[48px] py-3 rounded-xl transition-colors"
               >
                 Save Chemical
                 <ArrowLeft className="h-4 w-4 rotate-180" />
@@ -1294,7 +1294,7 @@ function ScanPageInner() {
           <h2 className="text-xl font-display font-bold mb-8">Chemical Added!</h2>
 
           {/* Cascade checklist */}
-          <div className="w-full max-w-sm space-y-3 mb-10">
+          <div className="w-full max-w-full md:max-w-sm space-y-3 mb-10">
             {[
               { text: "Chemical added to inventory", type: "success" },
               { text: "Hazard classification complete", type: "success" },
@@ -1353,48 +1353,48 @@ function ScanPageInner() {
 
           {/* Action buttons */}
           {returnTo === "setup" ? (
-            <div className="w-full max-w-sm space-y-3">
+            <div className="w-full max-w-full md:max-w-sm space-y-3">
               <Link
                 href="/setup?step=3"
-                className="flex items-center justify-center gap-2 w-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold py-3.5 rounded-xl transition-colors"
+                className="flex items-center justify-center gap-2 w-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold min-h-[48px] py-3.5 rounded-xl transition-colors"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Setup
               </Link>
               <button
                 onClick={resetToCapture}
-                className="flex items-center justify-center gap-2 w-full bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold py-3 rounded-xl transition-colors"
+                className="flex items-center justify-center gap-2 w-full bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold min-h-[48px] py-3 rounded-xl transition-colors"
               >
                 <Camera className="h-5 w-5 text-amber-400" />
                 Scan Another
               </button>
             </div>
           ) : (
-            <div className="w-full max-w-sm grid grid-cols-2 gap-3">
+            <div className="w-full max-w-full md:max-w-sm grid grid-cols-2 gap-3">
               <button
                 onClick={resetToCapture}
-                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 min-h-[56px] py-5 rounded-xl transition-colors"
               >
                 <Camera className="h-6 w-6 text-amber-400" />
                 <span className="text-sm font-semibold">Scan Another</span>
               </button>
               <Link
                 href="/labels"
-                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 min-h-[56px] py-5 rounded-xl transition-colors"
               >
                 <Printer className="h-6 w-6 text-amber-400" />
                 <span className="text-sm font-semibold">Print Label</span>
               </Link>
               <Link
                 href="/inventory"
-                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 min-h-[56px] py-5 rounded-xl transition-colors"
               >
                 <Package className="h-6 w-6 text-amber-400" />
                 <span className="text-sm font-semibold">View Inventory</span>
               </Link>
               <Link
                 href="/dashboard"
-                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 min-h-[56px] py-5 rounded-xl transition-colors"
               >
                 <LayoutDashboard className="h-6 w-6 text-amber-400" />
                 <span className="text-sm font-semibold">Dashboard</span>
@@ -1409,21 +1409,21 @@ function ScanPageInner() {
         <div className="min-h-screen pb-32 scan-fade-in">
           {/* Header */}
           <div className="sticky top-0 z-20 bg-navy-950/90 backdrop-blur-xl border-b border-white/5 px-4 py-3">
-            <div className="max-w-2xl mx-auto flex items-center justify-between">
+            <div className="w-full max-w-2xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4">
               <div className="flex items-center gap-2">
                 <Pencil className="h-5 w-5 text-amber-400" />
                 <span className="font-display font-bold text-sm">Enter Chemical Manually</span>
               </div>
               <button
                 onClick={resetToCapture}
-                className="text-xs text-gray-400 hover:text-white transition-colors"
+                className="text-xs text-gray-400 hover:text-white transition-colors min-h-[44px] md:min-h-0"
               >
                 Cancel
               </button>
             </div>
           </div>
 
-          <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+          <div className="w-full max-w-2xl mx-auto px-4 py-6 space-y-6">
             {/* Product Name */}
             <div>
               <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">
@@ -1458,7 +1458,7 @@ function ScanPageInner() {
               <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
                 Signal Word
               </label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {([
                   { value: "DANGER" as const, color: "bg-red-500/20 border-red-500/40 text-red-400", activeColor: "bg-red-500 border-red-500 text-white" },
                   { value: "WARNING" as const, color: "bg-amber-500/20 border-amber-500/40 text-amber-400", activeColor: "bg-amber-500 border-amber-500 text-navy-950" },
@@ -1469,7 +1469,7 @@ function ScanPageInner() {
                     <button
                       key={opt.value ?? "unknown"}
                       onClick={() => setManualSignalWord(opt.value)}
-                      className={`py-3 rounded-xl border-2 text-sm font-bold uppercase tracking-wider transition-all ${
+                      className={`min-h-[48px] py-3 rounded-xl border-2 text-sm font-bold uppercase tracking-wider transition-all ${
                         isActive ? ("activeColor" in opt ? opt.activeColor : "") : ("color" in opt ? opt.color : "")
                       }`}
                     >
@@ -1584,7 +1584,7 @@ function ScanPageInner() {
             </div>
 
             {/* Container Type + Quantity */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">
                   Container Type
@@ -1618,11 +1618,11 @@ function ScanPageInner() {
               <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
                 Original Container?
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setManualOriginalContainer(true)}
-                  className={`py-2.5 px-3 rounded-xl text-sm font-medium border-2 transition-colors ${
+                  className={`min-h-[48px] py-2.5 px-3 rounded-xl text-sm font-medium border-2 transition-colors ${
                     manualOriginalContainer
                       ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
                       : "border-white/10 bg-white/[0.02] text-gray-400 hover:bg-white/[0.04]"
@@ -1633,7 +1633,7 @@ function ScanPageInner() {
                 <button
                   type="button"
                   onClick={() => setManualOriginalContainer(false)}
-                  className={`py-2.5 px-3 rounded-xl text-sm font-medium border-2 transition-colors ${
+                  className={`min-h-[48px] py-2.5 px-3 rounded-xl text-sm font-medium border-2 transition-colors ${
                     !manualOriginalContainer
                       ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
                       : "border-white/10 bg-white/[0.02] text-gray-400 hover:bg-white/[0.04]"
@@ -1661,17 +1661,17 @@ function ScanPageInner() {
 
           {/* Fixed bottom bar */}
           <div className="fixed bottom-0 left-0 right-0 z-20 bg-navy-950/90 backdrop-blur-xl border-t border-white/5 px-4 py-4">
-            <div className="max-w-2xl mx-auto flex gap-3">
+            <div className="w-full max-w-2xl mx-auto flex flex-col md:flex-row gap-3">
               <button
                 onClick={resetToCapture}
-                className="flex-1 flex items-center justify-center gap-2 bg-white/[0.06] border border-white/10 text-white font-semibold py-3 rounded-xl transition-colors hover:bg-white/[0.1]"
+                className="w-full md:flex-1 flex items-center justify-center gap-2 bg-white/[0.06] border border-white/10 text-white font-semibold min-h-[48px] py-3 rounded-xl transition-colors hover:bg-white/[0.1]"
               >
                 Cancel
               </button>
               <button
                 onClick={handleManualSearch}
                 disabled={!manualProductName.trim()}
-                className="flex-[2] flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-navy-950 font-bold py-3 rounded-xl transition-colors"
+                className="w-full md:flex-[2] flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-navy-950 font-bold min-h-[48px] py-3 rounded-xl transition-colors"
               >
                 Save Chemical
                 <ArrowLeft className="h-4 w-4 rotate-180" />
@@ -1687,7 +1687,7 @@ function ScanPageInner() {
           <div className="text-center">
             <Loader2 className="h-12 w-12 text-amber-400 mx-auto mb-6 animate-spin" />
             <h2 className="text-lg font-display font-bold mb-2">Searching for SDS...</h2>
-            <p className="text-sm text-gray-400 max-w-xs mx-auto">
+            <p className="text-sm text-gray-400 w-full max-w-xs mx-auto">
               Checking our database for verified safety data for &ldquo;{manualProductName}&rdquo;
             </p>
           </div>
@@ -1697,7 +1697,7 @@ function ScanPageInner() {
       {/* ── STEP: MANUAL MERGE PROMPT ─────────────────────── */}
       {step === "manual-merge" && verifiedMatch && (
         <div className="min-h-screen flex flex-col items-center justify-center px-6 scan-fade-in">
-          <div className="w-full max-w-md">
+          <div className="w-full max-w-full md:max-w-md">
             <div className="flex items-center gap-2 mb-6 justify-center">
               <Merge className="h-6 w-6 text-green-400" />
               <h2 className="text-lg font-display font-bold">We Found Verified Data!</h2>
@@ -1725,14 +1725,14 @@ function ScanPageInner() {
             <div className="space-y-3">
               <button
                 onClick={() => saveManualEntry(true, verifiedMatch)}
-                className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-navy-950 font-bold py-3.5 rounded-xl transition-colors"
+                className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-navy-950 font-bold min-h-[48px] py-3.5 rounded-xl transition-colors"
               >
                 <Check className="h-5 w-5" />
                 Use Verified Data
               </button>
               <button
                 onClick={() => saveManualEntry(false, null)}
-                className="w-full flex items-center justify-center gap-2 bg-white/[0.06] border border-white/10 text-white font-semibold py-3 rounded-xl transition-colors hover:bg-white/[0.1]"
+                className="w-full flex items-center justify-center gap-2 bg-white/[0.06] border border-white/10 text-white font-semibold min-h-[48px] py-3 rounded-xl transition-colors hover:bg-white/[0.1]"
               >
                 <StickyNote className="h-4 w-4" />
                 Keep My Entry As-Is
@@ -1756,7 +1756,7 @@ function ScanPageInner() {
           <h2 className="text-xl font-display font-bold mb-8">Chemical Added!</h2>
 
           {/* Cascade checklist */}
-          <div className="w-full max-w-sm space-y-3 mb-10">
+          <div className="w-full max-w-full md:max-w-sm space-y-3 mb-10">
             {[
               { text: "Chemical added to inventory", type: "success" },
               manualSavedData?.verified
@@ -1795,10 +1795,10 @@ function ScanPageInner() {
 
           {/* Action buttons */}
           {returnTo === "setup" ? (
-            <div className="w-full max-w-sm space-y-3">
+            <div className="w-full max-w-full md:max-w-sm space-y-3">
               <Link
                 href="/setup?step=3"
-                className="flex items-center justify-center gap-2 w-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold py-3.5 rounded-xl transition-colors"
+                className="flex items-center justify-center gap-2 w-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold min-h-[48px] py-3.5 rounded-xl transition-colors"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Setup
@@ -1822,14 +1822,14 @@ function ScanPageInner() {
                   setManualLocation(locs[0]?.name ?? "");
                   setStep("manual");
                 }}
-                className="flex items-center justify-center gap-2 w-full bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold py-3 rounded-xl transition-colors"
+                className="flex items-center justify-center gap-2 w-full bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold min-h-[48px] py-3 rounded-xl transition-colors"
               >
                 <Pencil className="h-5 w-5 text-amber-400" />
                 Add Another
               </button>
             </div>
           ) : (
-            <div className="w-full max-w-sm grid grid-cols-2 gap-3">
+            <div className="w-full max-w-full md:max-w-sm grid grid-cols-2 gap-3">
               <button
                 onClick={() => {
                   setManualProductName("");
@@ -1849,28 +1849,28 @@ function ScanPageInner() {
                   setManualLocation(locs[0]?.name ?? "");
                   setStep("manual");
                 }}
-                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 min-h-[56px] py-5 rounded-xl transition-colors"
               >
                 <Pencil className="h-6 w-6 text-amber-400" />
                 <span className="text-sm font-semibold">Add Another</span>
               </button>
               <Link
                 href="/labels"
-                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 min-h-[56px] py-5 rounded-xl transition-colors"
               >
                 <Printer className="h-6 w-6 text-amber-400" />
                 <span className="text-sm font-semibold">Print Label</span>
               </Link>
               <Link
                 href="/inventory"
-                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 min-h-[56px] py-5 rounded-xl transition-colors"
               >
                 <Package className="h-6 w-6 text-amber-400" />
                 <span className="text-sm font-semibold">View Inventory</span>
               </Link>
               <Link
                 href="/dashboard"
-                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 py-5 rounded-xl transition-colors"
+                className="flex flex-col items-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 min-h-[56px] py-5 rounded-xl transition-colors"
               >
                 <LayoutDashboard className="h-6 w-6 text-amber-400" />
                 <span className="text-sm font-semibold">Dashboard</span>

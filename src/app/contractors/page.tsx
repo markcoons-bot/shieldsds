@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import HelpCard from "@/components/HelpCard";
 import { generateContractorPacketPDF } from "@/lib/pdf-generator";
@@ -11,7 +11,7 @@ import {
   ghsPictogramLabels,
 } from "@/lib/data";
 import type { GHSPictogram } from "@/lib/data";
-import { getCompanyProfile, isRealUser } from "@/lib/chemicals";
+import { getCompanyProfile, getLocations, isRealUser } from "@/lib/chemicals";
 import GHSPictogramIcon from "@/components/GHSPictogram";
 import {
   Plus,
@@ -87,7 +87,7 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
     <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-status-green/15 border border-status-green/30 text-status-green px-5 py-3 rounded-xl shadow-lg">
       <CheckCircle2 className="h-5 w-5 flex-shrink-0" />
       <span className="text-sm font-medium">{message}</span>
-      <button onClick={onClose} className="ml-2 hover:text-white transition-colors">
+      <button onClick={onClose} className="ml-2 hover:text-white transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
         <X className="h-4 w-4" />
       </button>
     </div>
@@ -159,23 +159,23 @@ function PacketPreview({
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm overflow-y-auto py-8" onClick={onClose}>
       <div className="bg-white text-gray-900 rounded-2xl shadow-2xl w-full max-w-3xl mx-4 my-4" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="bg-navy-950 text-white rounded-t-2xl px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Shield className="h-8 w-8 text-amber-400" />
-              <div>
-                <h2 className="font-display font-black text-xl">
+        <div className="bg-navy-950 text-white rounded-t-2xl px-4 sm:px-8 py-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <Shield className="h-8 w-8 text-amber-400 flex-shrink-0" />
+              <div className="min-w-0">
+                <h2 className="font-display font-black text-lg sm:text-xl">
                   Contractor Safety Information
                 </h2>
-                <p className="text-sm text-gray-300">
+                <p className="text-xs sm:text-sm text-gray-300 truncate">
                   {shopInfo.name} — {shopInfo.address}, {shopInfo.city}, {shopInfo.state} {shopInfo.zip}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={handleCopyShareLink}
-                className="flex items-center gap-1.5 bg-navy-800 border border-navy-600 hover:border-navy-500 text-gray-300 text-xs px-3 py-1.5 rounded-lg transition-colors"
+                className="flex items-center gap-1.5 bg-navy-800 border border-navy-600 hover:border-navy-500 text-gray-300 text-xs px-3 py-1.5 rounded-lg transition-colors min-h-[44px] sm:min-h-0"
               >
                 <Link2 className="h-3.5 w-3.5" />
                 Share Link
@@ -189,17 +189,17 @@ function PacketPreview({
                     alert("PDF error: " + (err instanceof Error ? err.message : "Unknown error"));
                   }
                 }}
-                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-xs px-3 py-1.5 rounded-lg transition-colors"
+                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-xs px-3 py-1.5 rounded-lg transition-colors min-h-[44px] sm:min-h-0"
               >
                 <Download className="h-3.5 w-3.5" />
                 Download PDF
               </button>
-              <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+              <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center sm:min-h-0 sm:min-w-0">
                 <X className="h-5 w-5" />
               </button>
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
             <div>
               <p className="text-gray-400 text-xs">Contractor</p>
               <p className="font-medium">{packet.company}</p>
@@ -215,7 +215,7 @@ function PacketPreview({
           </div>
         </div>
 
-        <div className="px-8 py-6 space-y-6">
+        <div className="px-4 sm:px-8 py-6 space-y-6">
           {/* Section 1: Labeling System */}
           <div>
             <h3 className="text-lg font-bold text-gray-900 border-b border-gray-200 pb-2 mb-3">
@@ -343,7 +343,7 @@ function PacketPreview({
             <h3 className="text-lg font-bold text-gray-900 border-b border-gray-200 pb-2 mb-3">
               5. Emergency Contacts
             </h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
                 { label: "Responsible Person", value: `${shopInfo.owner} — ${shopInfo.phone}` },
                 { label: "Fire / Police / EMS", value: "911" },
@@ -371,7 +371,7 @@ function PacketPreview({
               for work at {shopInfo.name}. I understand the hazards present in the work area,
               how to access Safety Data Sheets, and the emergency procedures.
             </p>
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Full Name</label>
                 <input
@@ -379,7 +379,7 @@ function PacketPreview({
                   value={sigName}
                   onChange={(e) => setSigName(e.target.value)}
                   placeholder={packet.contact}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 min-h-[44px]"
                 />
               </div>
               <div>
@@ -389,18 +389,18 @@ function PacketPreview({
                   value={sigText}
                   onChange={(e) => setSigText(e.target.value)}
                   placeholder="Type name as signature"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm italic focus:outline-none focus:border-amber-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm italic focus:outline-none focus:border-amber-500 min-h-[44px]"
                 />
               </div>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <p className="text-xs text-gray-500">Date: {new Date().toLocaleDateString()}</p>
               <button
                 onClick={() => {
                   showToast(`Acknowledgment recorded for ${packet.company}`);
                   onClose();
                 }}
-                className="bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+                className="bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors w-full sm:w-auto min-h-[44px]"
               >
                 Submit Acknowledgment
               </button>
@@ -414,8 +414,26 @@ function PacketPreview({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+const STORAGE_KEY = "shieldsds-contractors";
+
+function loadContractors(): ContractorPacket[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as ContractorPacket[];
+  } catch { /* ignore */ }
+  return [];
+}
+
+function saveContractors(packets: ContractorPacket[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(packets));
+}
+
 export default function ContractorsPage() {
   const [packets, setPackets] = useState<ContractorPacket[]>(() => {
+    const saved = loadContractors();
+    if (saved.length > 0) return saved;
     if (typeof window !== "undefined" && isRealUser()) return [];
     return seedPackets;
   });
@@ -426,10 +444,29 @@ export default function ContractorsPage() {
   const [company, setCompany] = useState("");
   const [contact, setContact] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [startDate, setStartDate] = useState("2026-03-01");
   const [endDate, setEndDate] = useState("2026-03-03");
   const [showForm, setShowForm] = useState(false);
+
+  // Persist packets to localStorage whenever they change
+  useEffect(() => {
+    saveContractors(packets);
+  }, [packets]);
+
+  // Merge real locations with demo locations
+  const allLocations = useMemo(() => {
+    const realLocs = getLocations();
+    const demoNames = inventoryLocations.map((l) => l.name);
+    const merged = [...inventoryLocations];
+    for (const rl of realLocs) {
+      if (!demoNames.includes(rl.name)) {
+        merged.push({ name: rl.name, chemicals: 0, containers: 0, labeled: 0, totalContainers: 0 });
+      }
+    }
+    return merged;
+  }, []);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -467,6 +504,7 @@ export default function ContractorsPage() {
     setCompany("");
     setContact("");
     setEmail("");
+    setPhone("");
     setSelectedLocations([]);
     setShowForm(false);
     showToast(`Contractor packet generated for ${newPacket.company}`);
@@ -483,7 +521,7 @@ export default function ContractorsPage() {
         />
       )}
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="font-display font-black text-2xl text-white">Contractors</h1>
           <p className="text-sm text-gray-400 mt-1">
@@ -492,7 +530,7 @@ export default function ContractorsPage() {
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+          className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-navy-950 font-semibold text-sm px-4 py-2 rounded-lg transition-colors w-full md:w-auto justify-center min-h-[44px]"
         >
           <Plus className="h-4 w-4" />
           Generate Packet
@@ -516,7 +554,7 @@ export default function ContractorsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <div className="bg-navy-900 border border-navy-700/50 rounded-xl p-5">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm text-gray-400">Packets Generated</span>
@@ -555,7 +593,7 @@ export default function ContractorsPage() {
           <h2 className="text-sm font-semibold text-amber-400 uppercase tracking-wider mb-4">
             Generate Contractor Safety Packet
           </h2>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">
                 Contractor Company <span className="text-status-red">*</span>
@@ -565,7 +603,7 @@ export default function ContractorsPage() {
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
                 placeholder="e.g. Pacific Coast Plumbing"
-                className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
+                className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50 min-h-[44px]"
               />
             </div>
             <div>
@@ -577,7 +615,7 @@ export default function ContractorsPage() {
                 value={contact}
                 onChange={(e) => setContact(e.target.value)}
                 placeholder="e.g. Tom Nguyen"
-                className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
+                className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50 min-h-[44px]"
               />
             </div>
             <div>
@@ -589,7 +627,19 @@ export default function ContractorsPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="e.g. tom@pcplumbing.com"
-                className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50"
+                className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50 min-h-[44px]"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">
+                Phone
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="e.g. (555) 123-4567"
+                className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50 min-h-[44px]"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -601,7 +651,7 @@ export default function ContractorsPage() {
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
+                  className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50 min-h-[44px]"
                 />
               </div>
               <div>
@@ -612,7 +662,7 @@ export default function ContractorsPage() {
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
+                  className="w-full bg-navy-800 border border-navy-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50 min-h-[44px]"
                 />
               </div>
             </div>
@@ -622,12 +672,12 @@ export default function ContractorsPage() {
             <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
               Work Locations <span className="text-status-red">*</span>
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              {inventoryLocations.map((loc) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {allLocations.map((loc) => (
                 <button
                   key={loc.name}
                   onClick={() => toggleLocation(loc.name)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-colors ${
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-colors min-h-[44px] ${
                     selectedLocations.includes(loc.name)
                       ? "bg-amber-500/15 border-amber-500/50 text-amber-400"
                       : "bg-navy-800 border-navy-700 text-gray-300 hover:border-navy-600"
@@ -640,18 +690,18 @@ export default function ContractorsPage() {
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <button
               onClick={handleGenerate}
               disabled={!company.trim() || !contact.trim() || selectedLocations.length === 0}
-              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-navy-950 font-semibold text-sm px-5 py-2.5 rounded-lg transition-colors"
+              className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-navy-950 font-semibold text-sm px-5 py-2.5 rounded-lg transition-colors w-full md:w-auto min-h-[44px]"
             >
               <FileText className="h-4 w-4" />
               Generate Packet
             </button>
             <button
               onClick={() => setShowForm(false)}
-              className="text-sm text-gray-400 hover:text-white transition-colors"
+              className="text-sm text-gray-400 hover:text-white transition-colors min-h-[44px]"
             >
               Cancel
             </button>
@@ -664,7 +714,9 @@ export default function ContractorsPage() {
         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
           Contractor Log
         </h2>
-        <div className="bg-navy-900 border border-navy-700/50 rounded-xl overflow-hidden">
+
+        {/* Desktop table view */}
+        <div className="hidden md:block bg-navy-900 border border-navy-700/50 rounded-xl overflow-hidden">
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-navy-700">
@@ -711,17 +763,17 @@ export default function ContractorsPage() {
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => setPreviewPacket(packet)}
-                        className="flex items-center gap-1 text-xs bg-navy-800 hover:bg-navy-700 border border-navy-600 text-gray-300 hover:text-white px-2 py-1.5 rounded-md transition-colors"
+                        className="flex items-center gap-1 text-xs bg-navy-800 hover:bg-navy-700 border border-navy-600 text-gray-300 hover:text-white px-2.5 py-2 rounded-md transition-colors min-h-[44px] min-w-[44px] justify-center"
                         title="View Packet"
                       >
-                        <Eye className="h-3 w-3" />
+                        <Eye className="h-3.5 w-3.5" />
                       </button>
                       <button
                         onClick={() => showToast(`Packet resent to ${packet.email || packet.contact}`)}
-                        className="flex items-center gap-1 text-xs bg-navy-800 hover:bg-navy-700 border border-navy-600 text-gray-300 hover:text-white px-2 py-1.5 rounded-md transition-colors"
+                        className="flex items-center gap-1 text-xs bg-navy-800 hover:bg-navy-700 border border-navy-600 text-gray-300 hover:text-white px-2.5 py-2 rounded-md transition-colors min-h-[44px] min-w-[44px] justify-center"
                         title="Resend"
                       >
-                        <Send className="h-3 w-3" />
+                        <Send className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </td>
@@ -736,6 +788,58 @@ export default function ContractorsPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile card view */}
+        <div className="md:hidden space-y-3">
+          {packets.map((packet) => (
+            <div key={packet.id} className="bg-navy-900 border border-navy-700/50 rounded-xl p-4 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                  <span className="text-sm font-bold text-white truncate">{packet.company}</span>
+                </div>
+                {packet.acknowledged ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-status-green bg-status-green/15 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
+                    <CheckCircle2 className="h-3 w-3" /> Acknowledged
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs text-status-amber bg-status-amber/15 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
+                    <Clock className="h-3 w-3" /> Pending
+                  </span>
+                )}
+              </div>
+              <div className="space-y-1 text-sm">
+                <p className="text-gray-300"><span className="text-gray-500">Contact:</span> {packet.contact}</p>
+                <p className="text-gray-300"><span className="text-gray-500">Locations:</span> {packet.locations.join(", ")}</p>
+                <p className="text-gray-300"><span className="text-gray-500">Work Dates:</span> {packet.startDate} — {packet.endDate}</p>
+                <p className="text-gray-500"><span>Generated:</span> {packet.generatedDate}</p>
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={() => setPreviewPacket(packet)}
+                  className="flex items-center justify-center gap-1.5 text-xs bg-navy-800 hover:bg-navy-700 border border-navy-600 text-gray-300 hover:text-white px-3 py-2 rounded-md transition-colors min-h-[44px] flex-1"
+                  title="View Packet"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  View Packet
+                </button>
+                <button
+                  onClick={() => showToast(`Packet resent to ${packet.email || packet.contact}`)}
+                  className="flex items-center justify-center gap-1.5 text-xs bg-navy-800 hover:bg-navy-700 border border-navy-600 text-gray-300 hover:text-white px-3 py-2 rounded-md transition-colors min-h-[44px] flex-1"
+                  title="Resend"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  Resend
+                </button>
+              </div>
+            </div>
+          ))}
+          {packets.length === 0 && (
+            <div className="bg-navy-900 border border-navy-700/50 rounded-xl py-12 text-center text-gray-500 text-sm">
+              No contractor packets generated yet.
+            </div>
+          )}
         </div>
       </div>
     </DashboardLayout>
