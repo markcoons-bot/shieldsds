@@ -22,6 +22,7 @@ import {
   Merge,
   StickyNote,
   Search,
+  ImageIcon,
 } from "lucide-react";
 import { addChemical, addLocation, getLocations, initializeStore, getCompanyProfile } from "@/lib/chemicals";
 import GHSPictogram from "@/components/GHSPictogram";
@@ -235,6 +236,7 @@ function ScanPageInner() {
   const [successItems, setSuccessItems] = useState<number[]>([]);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const photoLibraryInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize store + load locations
   useEffect(() => {
@@ -573,15 +575,15 @@ function ScanPageInner() {
 
           {/* Action buttons */}
           <div className="w-full max-w-full md:max-w-sm space-y-4">
-            {/* Scan or Upload */}
+            {/* Take a Photo — opens native camera on mobile */}
             <button
               onClick={() => cameraInputRef.current?.click()}
-              className="w-full flex items-center gap-4 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-lg py-5 px-6 rounded-2xl transition-all active:scale-[0.98]"
+              className="w-full flex items-center gap-4 bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-lg min-h-[56px] py-5 px-6 rounded-2xl transition-all active:scale-[0.98]"
             >
               <Camera className="h-7 w-7 flex-shrink-0" />
               <div className="text-left">
-                <span className="block">Scan or Upload a Label</span>
-                <span className="block text-xs font-medium text-navy-950/70 mt-0.5">Take a photo or choose an image of any chemical label</span>
+                <span className="block">Take a Photo</span>
+                <span className="block text-xs font-medium text-navy-950/70 mt-0.5">Opens your camera to photograph a chemical label</span>
               </div>
             </button>
             <input
@@ -593,15 +595,34 @@ function ScanPageInner() {
               className="hidden"
             />
 
+            {/* Choose from Photo Library — opens gallery/file picker */}
+            <button
+              onClick={() => photoLibraryInputRef.current?.click()}
+              className="w-full flex items-center gap-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold text-base min-h-[48px] py-4 px-6 rounded-2xl transition-all active:scale-[0.98]"
+            >
+              <ImageIcon className="h-6 w-6 flex-shrink-0 text-gray-300" />
+              <div className="text-left">
+                <span className="block">Choose from Photo Library</span>
+                <span className="block text-xs font-normal text-gray-400 mt-0.5">Select a photo you&apos;ve already taken</span>
+              </div>
+            </button>
+            <input
+              ref={photoLibraryInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleInputChange}
+              className="hidden"
+            />
+
             {/* Browse Database */}
             <Link
               href="/sds-search"
-              className="w-full flex items-center gap-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold text-base py-4 px-6 rounded-2xl transition-all active:scale-[0.98]"
+              className="w-full flex items-center gap-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold text-base min-h-[48px] py-4 px-6 rounded-2xl transition-all active:scale-[0.98]"
             >
               <Search className="h-6 w-6 flex-shrink-0 text-gray-300" />
               <div className="text-left">
                 <span className="block">Browse Chemical Database</span>
-                <span className="block text-xs font-normal text-gray-400 mt-0.5">Search our database of 4M+ chemicals and add with one click</span>
+                <span className="block text-xs font-normal text-gray-400 mt-0.5">Search hundreds of common chemicals</span>
               </div>
             </Link>
 
@@ -628,7 +649,7 @@ function ScanPageInner() {
                 setManualNewLocName("");
                 setStep("manual");
               }}
-              className="w-full flex items-center gap-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold text-base py-4 px-6 rounded-2xl transition-all active:scale-[0.98]"
+              className="w-full flex items-center gap-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white font-semibold text-base min-h-[48px] py-4 px-6 rounded-2xl transition-all active:scale-[0.98]"
             >
               <Pencil className="h-6 w-6 flex-shrink-0 text-gray-300" />
               <div className="text-left">
